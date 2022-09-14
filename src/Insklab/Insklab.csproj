@@ -1,9 +1,0 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
-	<PropertyGroup>
-		<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net471;netstandard2.1;</TargetFrameworks>
-		<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
-		<DocumentationFile Condition="'$(Configuration)' != 'Debug'">bin/$(Configuration)/$(TargetFramework)/publish/$(AssemblyName).xml</DocumentationFile>
-	</PropertyGroup>
-
-</Project>
