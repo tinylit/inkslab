@@ -1,13 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Inkslab
 {
-    using static System.Linq.Expressions.Expression;
-
     /// <summary>
     /// 服务池。
     /// </summary>
@@ -22,11 +19,6 @@ namespace Inkslab
         /// 服务。
         /// </summary>
         private static readonly Dictionary<Type, Type> DefaultCache = new Dictionary<Type, Type>();
-
-        /// <summary>
-        /// 获取服务实现的函数。
-        /// </summary>
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Expression> ExpressionCache = new System.Collections.Concurrent.ConcurrentDictionary<Type, Expression>();
 
         /// <summary>
         /// 添加服务。
