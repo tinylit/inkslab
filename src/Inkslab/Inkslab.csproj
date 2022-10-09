@@ -6,4 +6,7 @@
 		<DocumentationFile Condition="'$(Configuration)' != 'Debug'">bin/$(Configuration)/$(TargetFramework)/publish/$(AssemblyName).xml</DocumentationFile>
 	</PropertyGroup>
 
+	<PropertyGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
+		<DefineConstants>$(DefineConstants);NET_Traditional</DefineConstants>
+	</PropertyGroup>
 </Project>

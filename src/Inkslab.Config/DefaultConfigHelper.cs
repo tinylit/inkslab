@@ -6,6 +6,7 @@ using System.Web.Configuration;
 using System.Collections.Generic;
 using Inkslab.Map;
 #else
+using Inkslab.Config.Settings;
 using System.IO;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Configuration;
@@ -244,59 +245,11 @@ namespace Inkslab.Config
             return builder;
         }
 
-        private static IConfigurationBuilder MakeConfigurationBuilder(string[] configPaths)
+        private static IConfigurationBuilder MakeConfigurationBuilder(IJsonConfigSettings settings)
         {
             var builder = ConfigurationBuilder();
 
-            if (configPaths is null || configPaths.Length == 0)
-            {
-                return builder;
-            }
-
-            string dir = Directory.GetCurrentDirectory();
-
-            foreach (var path in configPaths)
-            {
-                if (File.Exists(path))
-                {
-                    builder.AddJsonFile(path, false, true);
-
-                    continue;
-                }
-
-                string absolutePath = Path.Combine(dir, path);
-
-                if (File.Exists(absolutePath))
-                {
-                    builder.AddJsonFile(absolutePath, false, true);
-
-                    continue;
-                }
-
-                throw new FileNotFoundException($"文件“{path}”未找到!");
-            }
-
-            return builder;
-        }
-
-        private static IConfigurationBuilder MakeConfigurationBuilder(IConfigurationSource[] configurationSources)
-        {
-            var builder = ConfigurationBuilder();
-
-            if (configurationSources is null || configurationSources.Length == 0)
-            {
-                return builder;
-            }
-
-            foreach (var configurationSource in configurationSources)
-            {
-                if (configurationSource is null)
-                {
-                    continue;
-                }
-
-                builder.Add(configurationSource);
-            }
+            settings?.Config(builder);
 
             return builder;
         }
@@ -312,18 +265,10 @@ namespace Inkslab.Config
         }
 
         /// <summary>
-        /// 构造函数（除默认文件，添加额外的配置文件）。
+        /// 构造函数（设置配置构造器）。
         /// </summary>
-        /// <param name="configPaths">配置地址。</param>
-        public DefaultConfigHelper(params string[] configPaths) : this(MakeConfigurationBuilder(configPaths))
-        {
-        }
-
-        /// <summary>
-        /// 构造函数（除默认文件，添加额外的配置文件）。
-        /// </summary>
-        /// <param name="configurationSources">配置资源。</param>
-        public DefaultConfigHelper(params IConfigurationSource[] configurationSources) : this(MakeConfigurationBuilder(configurationSources))
+        /// <param name="settings">设置。</param>
+        public DefaultConfigHelper(IJsonConfigSettings settings) : this(MakeConfigurationBuilder(settings))
         {
         }
 
@@ -333,7 +278,6 @@ namespace Inkslab.Config
         /// <param name="builder">配置。</param>
         public DefaultConfigHelper(IConfigurationBuilder builder) : this(builder.Build())
         {
-
         }
 
         /// <summary>

@@ -1,4 +1,4 @@
-﻿namespace Inkslab.Config
+﻿namespace Inkslab.Config.Options
 {
     /// <summary>
     /// 用于检索已配置的 <typeparamref name="TOptions"/> 实例。

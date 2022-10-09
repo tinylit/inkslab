@@ -167,7 +167,146 @@ namespace Inkslab
         where TService : class
         where TImplementation : class, TService
         {
-            private static readonly Lazy<TImplementation> _lazy;
+
+            private static class Lazy
+            {
+                private const BindingFlags DefaultLookup = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public;
+
+                static Lazy()
+                {
+                    //~ 包含值类型且为非可选参数时，出现异常。
+
+                    var serviceType = typeof(TService);
+                    var conversionType = typeof(TImplementation);
+
+                    var constructorInfos = conversionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                        .OrderBy(x => x.IsPublic ? 0 : 1)
+                        .ThenByDescending(x =>
+                        {
+                            //? 参数。
+                            var parameterInfos = x.GetParameters();
+
+                            //! 客户最优注册的类型。
+                            var specifiedCount = parameterInfos.Count(y => ServiceCache.ContainsKey(y.ParameterType));
+
+                            return parameterInfos.Length + specifiedCount;
+                        })
+                        .ToList();
+
+                    var constructorInfo = Resolved(constructorInfos);
+
+                    if (constructorInfo is null)
+                    {
+                        foreach (var item in constructorInfos.Skip(constructorInfos.Count - 1))
+                        {
+                            var parameterInfos = item.GetParameters();
+
+                            foreach (var parameterInfo in parameterInfos)
+                            {
+                                if (parameterInfo.IsOptional || IsSurport(parameterInfo.ParameterType))
+                                {
+                                    continue;
+                                }
+
+                                throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【RuntimeServPools.TryAddSingleton<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
+                            }
+                        }
+                    }
+
+                    Instance = CreateInstance(constructorInfo);
+                }
+
+                private static ConstructorInfo Resolved(List<ConstructorInfo> constructorInfos)
+                {
+                    foreach (var constructorInfo in constructorInfos)
+                    {
+                        bool flag = true;
+
+                        var parameterInfos = constructorInfo.GetParameters();
+
+                        foreach (var parameterInfo in parameterInfos)
+                        {
+                            if (parameterInfo.IsOptional || IsSurport(parameterInfo.ParameterType))
+                            {
+                                continue;
+                            }
+
+                            flag = false;
+
+                            break;
+                        }
+
+                        if (flag)
+                        {
+                            return constructorInfo;
+                        }
+                    }
+
+                    return null;
+                }
+
+                private static bool IsSurport(Type parameterType)
+                {
+                    if (ServiceCache.ContainsKey(parameterType))
+                    {
+                        return true;
+                    }
+
+                    foreach (var kv in ServiceCache)
+                    {
+                        if (parameterType.IsAssignableFrom(kv.Key))
+                        {
+                            ServiceCache[parameterType] = kv.Value;
+
+                            return true;
+                        }
+                    }
+
+                    return false;
+                }
+
+                private static TImplementation CreateInstance(ConstructorInfo constructorInfo)
+                {
+                    var parameterInfos = constructorInfo.GetParameters();
+
+                    object[] arguments = new object[parameterInfos.Length];
+
+                    for (int i = 0; i < parameterInfos.Length; i++)
+                    {
+                        var parameterInfo = parameterInfos[i];
+
+                        if (ServiceCache.TryGetValue(parameterInfo.ParameterType, out Type implementType))
+                        {
+                            PropertyInfo instancePropertyInfo = implementType.GetProperty("Instance", DefaultLookup);
+
+                            var instance = instancePropertyInfo.GetValue(null, null);
+
+                            if (instance is null)
+                            {
+                                if (DefaultCache.TryGetValue(parameterInfo.ParameterType, out Type defaultType))
+                                {
+                                    //? 同时存在时以“Nested<TService, TImplementation>”类型存储。
+                                    instancePropertyInfo = defaultType.GetProperty("Instance", DefaultLookup);
+
+                                    instance = instancePropertyInfo.GetValue(null, null);
+                                }
+                            }
+
+                            arguments[i] = instance;
+
+                            continue;
+                        }
+                        else
+                        {
+                            arguments[i] = parameterInfo.DefaultValue;
+                        }
+                    }
+
+                    return (TImplementation)constructorInfo.Invoke(arguments);
+                }
+
+                public static TImplementation Instance { get; }
+            }
 
             static Nested()
             {
@@ -186,124 +325,10 @@ namespace Inkslab
                     throw new NotSupportedException($"单例服务({conversionType.FullName}=>{serviceType.FullName})的实现（{conversionType.FullName}）是抽象类，不能被实例化!");
                 }
 
-                var constructorInfos = conversionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                    .OrderBy(x => x.IsPublic ? 0 : 1)
-                    .ThenByDescending(x => x.GetParameters().Length)
-                    .ToList();
-
-                var constructorInfo = Resolved(constructorInfos, false) ?? Resolved(constructorInfos, true);
-
-                if (constructorInfo is null)
-                {
-                    foreach (var item in constructorInfos.Skip(constructorInfos.Count - 1))
-                    {
-                        var parameterInfos = item.GetParameters();
-
-                        foreach (var parameterInfo in parameterInfos)
-                        {
-                            if (parameterInfo.IsOptional)
-                            {
-                                continue;
-                            }
-
-                            throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【RuntimeServPools.TryAddSingleton<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
-                        }
-                    }
-                }
-
-                var invoke = MakeImplement(constructorInfo);
-
-                _lazy = new Lazy<TImplementation>(invoke);
-
                 DefaultCache[typeof(TService)] = typeof(Nested<TService, TImplementation>);
             }
 
-            private static ConstructorInfo Resolved(List<ConstructorInfo> constructorInfos, bool isAssignableFrom)
-            {
-                foreach (var constructorInfo in constructorInfos)
-                {
-                    bool flag = true;
-
-                    var parameterInfos = constructorInfo.GetParameters();
-
-                    foreach (var parameterInfo in parameterInfos)
-                    {
-                        if (parameterInfo.IsOptional || IsSurport(parameterInfo.ParameterType, isAssignableFrom))
-                        {
-                            continue;
-                        }
-
-                        flag = false;
-
-                        break;
-                    }
-
-                    if (flag)
-                    {
-                        return constructorInfo;
-                    }
-                }
-
-                return null;
-            }
-
-            private static bool IsSurport(Type parameterType, bool isAssignableFrom)
-            {
-                if (ServiceCache.ContainsKey(parameterType))
-                {
-                    return true;
-                }
-
-                if (isAssignableFrom)
-                {
-                    foreach (var kv in ServiceCache)
-                    {
-                        if (parameterType.IsAssignableFrom(kv.Value))
-                        {
-                            ServiceCache[parameterType] = kv.Value;
-
-                            return true;
-                        }
-                    }
-                }
-
-                return false;
-            }
-
-            private static Func<TImplementation> MakeImplement(ConstructorInfo constructorInfo)
-            {
-                var parameterInfos = constructorInfo.GetParameters();
-
-                List<Expression> expressions = new List<Expression>(parameterInfos.Length);
-
-                foreach (var parameterInfo in parameterInfos)
-                {
-                    if (ServiceCache.TryGetValue(parameterInfo.ParameterType, out Type implementType))
-                    {
-                        if (DefaultCache.TryGetValue(parameterInfo.ParameterType, out Type defaultType))
-                        {
-                            //? 同时存在时以“Nested<TService, TImplementation>”类型存储。
-                            expressions.Add(ExpressionCache.GetOrAdd(defaultType, type => Coalesce(Property(null, implementType, "Instance"), Property(null, type, "Instance"))));
-
-                            continue;
-                        }
-
-                        expressions.Add(ExpressionCache.GetOrAdd(implementType, type => Property(null, type, "Instance")));
-
-                        continue;
-                    }
-
-                    expressions.Add(Convert(Constant(parameterInfo.DefaultValue), parameterInfo.ParameterType));
-                }
-
-                var bodyEx = New(constructorInfo, expressions);
-
-                var lamdaEx = Lambda<Func<TImplementation>>(bodyEx);
-
-                return lamdaEx.Compile();
-            }
-
-            public static TImplementation Instance => _lazy.Value;
+            public static TImplementation Instance => Lazy.Instance;
         }
     }
 }

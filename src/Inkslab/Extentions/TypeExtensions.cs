@@ -7,6 +7,7 @@ namespace System
     /// </summary>
     public static class TypeExtensions
     {
+        static readonly Type StringType = typeof(string);
         static readonly Type Nullable_T_Type = typeof(Nullable<>);
         static readonly Type KeyValuePair_TKey_TValue_Type = typeof(KeyValuePair<,>);
 
@@ -30,7 +31,7 @@ namespace System
         {
             //+ _miniTypes
             typeof(char),
-            typeof(string),
+            //!? typeof(string),
             typeof(Guid),
             typeof(TimeSpan),
             typeof(DateTime),
@@ -50,7 +51,7 @@ namespace System
         /// </summary>
         /// <param name="type">类型。</param>
         /// <returns>是返回True，不是返回False。</returns>
-        public static bool IsSimple(this Type type) => type.IsEnum || type.IsValueType && (_miniTypes.Contains(type) || _simpleTypes.Contains(type));
+        public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || _miniTypes.Contains(type) || _simpleTypes.Contains(type)) : type == StringType;
 
         /// <summary>
         /// 判断类型是否为Nullable类型。

@@ -1,4 +1,6 @@
-﻿namespace Inkslab.Config
+﻿using Inkslab.Config.Options;
+
+namespace Inkslab.Config
 {
     /// <summary>
     /// 配置助手。

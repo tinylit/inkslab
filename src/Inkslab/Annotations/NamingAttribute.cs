@@ -5,7 +5,7 @@ namespace Inkslab.Annotations
     /// <summary>
     /// 命名特性。
     /// </summary>
-    [AttributeUsage(AttributeTargets.All, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface | AttributeTargets.Struct | AttributeTargets.Enum | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method | AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
     public sealed class NamingAttribute : Attribute
     {
         /// <summary>
@@ -35,6 +35,7 @@ namespace Inkslab.Annotations
         {
             NamingType = namingType;
         }
+
         /// <summary>
         /// 构造函数。
         /// </summary>

@@ -2,6 +2,8 @@
 using Newtonsoft.Json;
 using System;
 using Inkslab.Serialize.Json;
+using System.Collections.Generic;
+using Inkslab.Annotations;
 
 namespace Inkslab.Json
 {
@@ -39,6 +41,60 @@ namespace Inkslab.Json
                         return base.ResolvePropertyName(propertyName);
                 }
             }
+
+            /// <summary>
+            /// 属性。
+            /// </summary>
+            /// <param name="type">类型。</param>
+            /// <param name="memberSerialization">序列化成员。</param>
+            /// <returns></returns>
+            protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
+            {
+                var ignoreAttr = typeof(IgnoreAttribute);
+
+                var jsonProperties = base.CreateProperties(type, memberSerialization);
+
+                for (int i = jsonProperties.Count - 1; i >= 0; i--)
+                {
+                    JsonProperty property = jsonProperties[i];
+
+                    if (property is null)
+                    {
+                        continue;
+                    }
+
+                    var attrProvider = property.AttributeProvider;
+
+                    if (attrProvider is null)
+                    {
+                        continue;
+                    }
+
+                    var attrs = attrProvider.GetAttributes(ignoreAttr, true);
+
+                    if (attrs.Count > 0)
+                    {
+                        jsonProperties.RemoveAt(i);
+                    }
+                }
+
+                return jsonProperties;
+            }
+        }
+
+
+        private static readonly Dictionary<NamingType, IContractResolver> resolvers;
+
+        static DefaultJsonHelper()
+        {
+            var namingTypes = Enum.GetValues(typeof(NamingType));
+
+            resolvers = new Dictionary<NamingType, IContractResolver>(namingTypes.Length);
+
+            foreach (NamingType namingType in namingTypes)
+            {
+                resolvers.Add(namingType, new JsonContractResolver(namingType));
+            }
         }
 
         private const string DateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
@@ -65,10 +121,12 @@ namespace Inkslab.Json
         /// <returns></returns>
         private static JsonSerializerSettings LoadSetting(NamingType namingType, bool indented = false)
         {
-            var settings = new JsonSerializerSettings
+            var settings = new JsonSerializerSettings();
+
+            if (resolvers.TryGetValue(namingType, out var resolver))
             {
-                ContractResolver = new JsonContractResolver(namingType)
-            };
+                settings.ContractResolver = resolver;
+            }
 
             if (indented)
             {
@@ -78,6 +136,7 @@ namespace Inkslab.Json
             settings.DateFormatHandling = DateFormatHandling.MicrosoftDateFormat;
             settings.DateFormatString = DateFormatString;
             settings.NullValueHandling = NullValueHandling.Ignore;
+
             return settings;
         }
 
@@ -97,7 +156,10 @@ namespace Inkslab.Json
 
             if (settings.ContractResolver is null)
             {
-                settings.ContractResolver = new JsonContractResolver(namingType);
+                if (resolvers.TryGetValue(namingType, out var resolver))
+                {
+                    settings.ContractResolver = resolver;
+                }
             }
 
             if (indented)

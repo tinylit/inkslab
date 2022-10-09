@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Inkslab.Extentions;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text;
@@ -24,6 +25,8 @@ namespace System
 
             if (type.IsDefined(typeof(FlagsAttribute), false))
             {
+                bool flag = false;
+
                 var sb = new StringBuilder();
 
                 foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
@@ -35,14 +38,16 @@ namespace System
                         continue;
                     }
 
-                    if (sb.Length > 0)
+                    if (flag)
                     {
                         sb.Append('|');
                     }
+                    else
+                    {
+                        flag = true;
+                    }
 
-                    var attribute = info.GetCustomAttribute<DescriptionAttribute>();
-
-                    sb.Append(attribute is null ? info.Name : attribute.Description);
+                    sb.Append(info.GetDescription());
                 }
 
                 return sb.ToString();
@@ -59,9 +64,7 @@ namespace System
                         continue;
                     }
 
-                    var attribute = info.GetCustomAttribute<DescriptionAttribute>();
-
-                    return attribute is null ? info.Name : attribute.Description;
+                    return info.GetDescription();
                 }
             }
 

@@ -1,12 +1,13 @@
 ﻿using System;
+using System.Xml.Serialization;
 
 namespace Inkslab.Annotations
 {
     /// <summary>
     /// 忽略的键。
     /// </summary>
-    [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
-    public sealed class IgnoreAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
+    public class IgnoreAttribute : XmlIgnoreAttribute
     {
     }
 }
