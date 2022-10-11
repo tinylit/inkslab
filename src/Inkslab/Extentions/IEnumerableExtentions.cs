@@ -52,17 +52,17 @@ namespace System.Collections
         /// <summary>
         /// 对数据中的每个元素执行指定操作。
         /// </summary>
-        /// <typeparam name="T">元素类型。</typeparam>
+        /// <typeparam name="TSource">元素类型。</typeparam>
         /// <param name="source">数据源。</param>
         /// <param name="eachIterator">要对数据源的每个元素执行的委托。</param>
-        public static void ForEach<T>(this IEnumerable source, Action<T> eachIterator)
+        public static void ForEach<TSource>(this IEnumerable source, Action<TSource> eachIterator)
         {
             if (eachIterator is null)
             {
                 throw new ArgumentNullException(nameof(eachIterator));
             }
 
-            foreach (T item in source)
+            foreach (TSource item in source)
             {
                 eachIterator.Invoke(item);
             }
@@ -71,10 +71,10 @@ namespace System.Collections
         /// <summary>
         /// 对数据中的每个元素执行指定操作。
         /// </summary>
-        /// <typeparam name="T">元素类型。</typeparam>
+        /// <typeparam name="TSource">元素类型。</typeparam>
         /// <param name="source">数据源。</param>
         /// <param name="eachIterator">要对数据源的每个元素执行的委托。</param>
-        public static void ForEach<T>(this IEnumerable source, Action<T, int> eachIterator)
+        public static void ForEach<TSource>(this IEnumerable source, Action<TSource, int> eachIterator)
         {
             if (eachIterator is null)
             {
@@ -83,7 +83,7 @@ namespace System.Collections
 
             int index = -1;
 
-            foreach (T item in source)
+            foreach (TSource item in source)
             {
                 eachIterator.Invoke(item, ++index);
             }
@@ -113,17 +113,17 @@ namespace System.Collections.Generic
         /// <summary>
         /// 对数据中的每个元素执行指定操作。
         /// </summary>
-        /// <typeparam name="T">元素类型。</typeparam>
+        /// <typeparam name="TSource">元素类型。</typeparam>
         /// <param name="source">数据源。</param>
         /// <param name="eachIterator">要对数据源的每个元素执行的委托。</param>
-        public static void ForEach<T>(this IEnumerable<T> source, Action<T> eachIterator)
+        public static void ForEach<TSource>(this IEnumerable<TSource> source, Action<TSource> eachIterator)
         {
             if (eachIterator is null)
             {
                 throw new ArgumentNullException(nameof(eachIterator));
             }
 
-            foreach (T item in source)
+            foreach (TSource item in source)
             {
                 eachIterator.Invoke(item);
             }
@@ -132,10 +132,10 @@ namespace System.Collections.Generic
         /// <summary>
         /// 对数据中的每个元素执行指定操作。
         /// </summary>
-        /// <typeparam name="T">元素类型。</typeparam>
+        /// <typeparam name="TSource">元素类型。</typeparam>
         /// <param name="source">数据源。</param>
         /// <param name="eachIterator">要对数据源的每个元素执行的委托。</param>
-        public static void ForEach<T>(this IEnumerable<T> source, Action<T, int> eachIterator)
+        public static void ForEach<TSource>(this IEnumerable<TSource> source, Action<TSource, int> eachIterator)
         {
             if (eachIterator is null)
             {
@@ -144,7 +144,7 @@ namespace System.Collections.Generic
 
             int index = -1;
 
-            foreach (T item in source)
+            foreach (TSource item in source)
             {
                 eachIterator.Invoke(item, ++index);
             }
@@ -170,6 +170,47 @@ namespace System.Collections.Generic
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// 将<paramref name="source"/>序列，根据匹配的键，按照<paramref name="keySelector"/>生成的<typeparamref name="TKey"/>键去重。
+        /// </summary>
+        /// <typeparam name="TSource">序列元素的类型。</typeparam>
+        /// <typeparam name="TKey">键选择器函数返回的键的类型。</typeparam>
+        /// <param name="source">要去重的序列。</param>
+        /// <param name="keySelector">从序列的每个元素中提取连接键的函数。</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public static IEnumerable<TSource> Distinct<TSource, TKey>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector) 
+            => source.Distinct(keySelector, null);
+
+        /// <summary>
+        /// 将<paramref name="source"/>序列，根据匹配的键，按照<paramref name="keySelector"/>生成的<typeparamref name="TKey"/>键去重。使用<see cref="IEqualityComparer{T}"/>相等比较器用于比较键。
+        /// </summary>
+        /// <typeparam name="TSource">序列元素的类型。</typeparam>
+        /// <typeparam name="TKey">键选择器函数返回的键的类型。</typeparam>
+        /// <param name="source">要去重的序列。</param>
+        /// <param name="keySelector">从序列的每个元素中提取连接键的函数。</param>
+        /// <param name="comparer">一个<see cref="IEqualityComparer{T}"/>来哈希和比较键。</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public static IEnumerable<TSource> Distinct<TSource, TKey>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector, IEqualityComparer<TKey> comparer)
+        {
+            if (source is null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            if (keySelector is null)
+            {
+                throw new ArgumentNullException(nameof(keySelector));
+            }
+
+            HashSet<TKey> set = new HashSet<TKey>(comparer);
+
+            foreach (TSource element in source)
+                if (set.Add(keySelector.Invoke(element)))
+                    yield return element;
+
+            set.Clear();
         }
 
         /// <summary>

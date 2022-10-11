@@ -12,6 +12,7 @@ namespace Inkslab.Config.Tests
         [Fact]
         public void TestDef()
         {
+            //+ 引包即用：添加Nuget包或工程引用即可使用。
             using (var xstartup = new XStartup())
             {
                 xstartup.DoStartup();
@@ -29,6 +30,7 @@ namespace Inkslab.Config.Tests
         [Fact]
         public void TestCus()
         {
+            //+ 引包即用：添加Nuget包或工程引用即可使用。
             using (var xstartup = new XStartup())
             {
                 xstartup.DoStartup();

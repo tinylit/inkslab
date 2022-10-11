@@ -74,7 +74,7 @@ namespace Inkslab.Json
 
                     if (attrs.Count > 0)
                     {
-                        jsonProperties.RemoveAt(i);
+                        property.Ignored = true;
                     }
                 }
 
@@ -103,7 +103,12 @@ namespace Inkslab.Json
         /// <summary>
         /// 构造函数。
         /// </summary>
-        public DefaultJsonHelper()
+        public DefaultJsonHelper() : this(new JsonSerializerSettings
+        {
+            DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
+            DateFormatString = DateFormatString,
+            NullValueHandling = NullValueHandling.Ignore
+        })
         {
         }
 
@@ -111,34 +116,7 @@ namespace Inkslab.Json
         /// 构造函数。
         /// </summary>
         /// <param name="settings">配置。</param>
-        public DefaultJsonHelper(JsonSerializerSettings settings) => this.settings = settings;
-
-        /// <summary>
-        /// JSON序列化设置。
-        /// </summary>
-        /// <param name="namingType">命名方式。</param>
-        /// <param name="indented">是否缩进。</param>
-        /// <returns></returns>
-        private static JsonSerializerSettings LoadSetting(NamingType namingType, bool indented = false)
-        {
-            var settings = new JsonSerializerSettings();
-
-            if (resolvers.TryGetValue(namingType, out var resolver))
-            {
-                settings.ContractResolver = resolver;
-            }
-
-            if (indented)
-            {
-                settings.Formatting = Formatting.Indented;
-            }
-
-            settings.DateFormatHandling = DateFormatHandling.MicrosoftDateFormat;
-            settings.DateFormatString = DateFormatString;
-            settings.NullValueHandling = NullValueHandling.Ignore;
-
-            return settings;
-        }
+        public DefaultJsonHelper(JsonSerializerSettings settings) => this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
         /// <summary>
         /// JSON序列化设置。
@@ -149,17 +127,9 @@ namespace Inkslab.Json
         /// <returns></returns>
         private static JsonSerializerSettings LoadSetting(JsonSerializerSettings settings, NamingType namingType, bool indented = false)
         {
-            if (settings is null)
+            if (resolvers.TryGetValue(namingType, out var resolver))
             {
-                return LoadSetting(namingType, indented);
-            }
-
-            if (settings.ContractResolver is null)
-            {
-                if (resolvers.TryGetValue(namingType, out var resolver))
-                {
-                    settings.ContractResolver = resolver;
-                }
+                settings.ContractResolver = resolver;
             }
 
             if (indented)

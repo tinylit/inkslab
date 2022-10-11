@@ -6,7 +6,7 @@ namespace Inkslab.Annotations
     /// <summary>
     /// 忽略的键。
     /// </summary>
-    [AttributeUsage(AttributeTargets.Constructor | AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter | AttributeTargets.ReturnValue)]
     public class IgnoreAttribute : XmlIgnoreAttribute
     {
     }
