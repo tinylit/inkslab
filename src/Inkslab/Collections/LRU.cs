@@ -189,7 +189,7 @@ label_locked:
                         if (cachings.Count == capacity)
                         {
                             var keys = cachings
-                                .OrderByDescending(x => x.Value.Ticks / x.Value.Version)
+                                .OrderByDescending(x => (ticks - x.Value.Ticks) / x.Value.Version)
                                 .Select(x => x.Key)
                                 .Take(Math.Max(capacity / 10, 1))
                                 .ToList();
