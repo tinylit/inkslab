@@ -43,7 +43,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
             var assembliyTypes = assemblies
                 .SelectMany(x => x.GetTypes())
-                .Where(x => !x.IsAbstract)
+                .Where(x => !x.IsValueType && !x.IsAbstract)
                 .ToList();
 
             if (options.DiConfigureServices)
@@ -51,6 +51,34 @@ namespace Microsoft.Extensions.DependencyInjection
                 DiConfigureServices(new Inkslab.DI.Collections.ServiceCollection(services), assembliyTypes);
             }
 
+            if (options.DiController)
+            {
+                DiController(services, options, assembliyTypes);
+            }
+        }
+
+        private static void DiConfigureServices(XServiceCollection services, List<Type> assembliyTypes)
+        {
+            var configureServices = new List<IConfigureServices>();
+
+            var configureServicesType = typeof(IConfigureServices);
+
+            foreach (var type in assembliyTypes)
+            {
+                if (configureServicesType.IsAssignableFrom(type))
+                {
+                    configureServices.Add((IConfigureServices)Activator.CreateInstance(type, true));
+                }
+            }
+
+            foreach (var configure in configureServices)
+            {
+                configure.ConfigureServices(services);
+            }
+        }
+
+        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, List<Type> assembliyTypes)
+        {
             List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
             var effectiveTypes = assembliyTypes.FindAll(x => !options.Ignore(x));
@@ -62,7 +90,7 @@ namespace Microsoft.Extensions.DependencyInjection
                     throw DiError("Controller", controllerType, options.MaxDepth, dependencies);
                 }
 
-                if (options.DiControllerActionArguments)
+                if (options.DiControllerActionIsFromServicesParameters)
                 {
                     foreach (var methodInfo in controllerType.GetMethods())
                     {
@@ -147,31 +175,6 @@ namespace Microsoft.Extensions.DependencyInjection
             }
 
             return new TypeLoadException(sb.Append('.').ToString());
-        }
-
-        private static void DiConfigureServices(XServiceCollection services, List<Type> assembliyTypes)
-        {
-            var configureServices = new List<IConfigureServices>();
-
-            var configureServicesType = typeof(IConfigureServices);
-
-            foreach (var type in assembliyTypes)
-            {
-                if (type.IsAbstract)
-                {
-                    continue;
-                }
-
-                if (configureServicesType.IsAssignableFrom(type))
-                {
-                    configureServices.Add((IConfigureServices)Activator.CreateInstance(type, true));
-                }
-            }
-
-            foreach (var configure in configureServices)
-            {
-                configure.ConfigureServices(services);
-            }
         }
 
         private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> assemblyTypes, int depth, List<Type> dependencies)

@@ -51,16 +51,21 @@ namespace Inkslab.DI.Options
         /// </summary>
         public bool DiConfigureServices { get; set; } = true;
 
+        /// <summary>
+        /// 自动注入控制器服务。默认：true。
+        /// </summary>
+        public bool DiController { get; set; } = true;
+
 #if NET_Traditional
         /// <summary>
-        /// 自动注入接口行为参数。默认：false。
+        /// 自动注入接口行为参数，与 <see cref="DiController"/> 同时为 true 时，生效。默认：false。
         /// </summary>
-        public bool DiControllerActionArguments { get; set; }
+        public bool DiControllerActionIsFromServicesParameters { get; set; }
 #else
         /// <summary>
-        /// 自动注入接口行为参数。默认：true。
+        /// 自动注入接口行为参数，与 <see cref="DiController"/> 同时为 true 时，生效。默认：true。
         /// </summary>
-        public bool DiControllerActionArguments { get; set; } = true;
+        public bool DiControllerActionIsFromServicesParameters { get; set; } = true;
 #endif
 
         /// <summary>

@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -9,10 +10,10 @@ namespace Inkslab.DI.Collections
     /// </summary>
     class ServiceCollection : IServiceCollection
     {
-        private readonly IList<ServiceDescriptor> _services;
+        private readonly Microsoft.Extensions.DependencyInjection.IServiceCollection _services;
 
         /// <inheritdoc />
-        public ServiceCollection(IList<ServiceDescriptor> services)
+        public ServiceCollection(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
         {
             _services = services;
         }
