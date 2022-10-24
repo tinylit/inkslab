@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using Inkslab.Collections;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -16,7 +16,17 @@ namespace Inkslab
 
         private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
 
-        private static readonly ConcurrentDictionary<string, Assembly> AassemblyLoads = new ConcurrentDictionary<string, Assembly>();
+        private static readonly LRU<string, Assembly> assemblyLoads = new LRU<string, Assembly>(500, x =>
+        {
+            try
+            {
+                return Assembly.LoadFrom(x);
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"尝试加载程序文件({x})异常!", e);
+            }
+        });
 
         /// <summary>
         /// 静态构造函数。
@@ -73,9 +83,14 @@ namespace Inkslab
                 break;
             }
 
-            Assembly[] assemblies = null;
-
             var files = Directory.GetFiles(assemblyPath, pattern);
+
+            if (files.Length == 0)
+            {
+                yield break;
+            }
+
+            Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
             foreach (var file in files)
             {
@@ -84,35 +99,20 @@ namespace Inkslab
                     continue;
                 }
 
-                yield return AassemblyLoads.GetOrAdd(file, x =>
+                foreach (var assembly in assemblies)
                 {
-                    if (assemblies is null)
+                    if (assembly.IsDynamic)
                     {
-                        assemblies = AppDomain.CurrentDomain.GetAssemblies();
+                        continue;
                     }
 
-                    foreach (var assembly in assemblies)
+                    if (string.Equals(file, assembly.Location, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (assembly.IsDynamic)
-                        {
-                            continue;
-                        }
+                        yield return assembly;
+                    }
+                }
 
-                        if (string.Equals(file, assembly.Location, StringComparison.OrdinalIgnoreCase))
-                        {
-                            return assembly;
-                        }
-                    }
-
-                    try
-                    {
-                        return Assembly.LoadFrom(file);
-                    }
-                    catch (Exception e)
-                    {
-                        throw new Exception($"尝试加载程序文件({file})异常!", e);
-                    }
-                });
+                yield return assemblyLoads.Get(file);
             }
         }
     }

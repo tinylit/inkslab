@@ -1,8 +1,11 @@
-﻿namespace Inkslab.Config
+﻿using Inkslab.Annotations;
+
+namespace Inkslab.Config
 {
     /// <summary>
     /// 服务配置帮助类。
     /// </summary>
+    [Ignore]
     public interface IConfigHelper
     {
         /// <summary>

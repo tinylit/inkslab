@@ -1,6 +1,6 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Timers;
 using Timer = System.Timers.Timer;
@@ -8,74 +8,39 @@ using Timer = System.Timers.Timer;
 namespace Inkslab.Collections
 {
     /// <summary>
-    /// 根据 LRU 算法，移除不必要的数据。
+    /// 【线程安全】根据 LRU 算法，移除不必要的数据。
     /// </summary>
-    /// <typeparam name="TKey"></typeparam>
-    /// <typeparam name="TValue"></typeparam>
+    /// <typeparam name="TKey">键。</typeparam>
+    /// <typeparam name="TValue">值。</typeparam>
     public class LRU<TKey, TValue>
     {
         private readonly int capacity;
         private readonly Func<TKey, TValue> factory;
 
         private readonly Timer timer;
+        private bool timerIsRunning = false;
 
-        private readonly List<Slot> slots;
-        private readonly Dictionary<TKey, TValue> cachings;
+        private readonly Dictionary<TKey, Slot> cachings;
+
+        private volatile bool processing = false;
 
         private readonly object lockObj = new object();
+        private readonly object lockSolt = new object();
 
         private class Slot
         {
-            public Slot(TKey key)
+            public Slot(TValue value, long ticks)
             {
-                Key = key;
+                Version = 1;
+                Value = value;
+                Ticks = ticks;
             }
 
-            public TKey Key { get; }
+            public TValue Value { get; }
 
-            public DateTime ActiveTime { get; } = DateTime.Now;
-        }
+            public int Version { get; set; }
 
-        private class SlotComparer : IComparer<Slot>
-        {
-            private SlotComparer() { }
-
-            public int Compare(Slot x, Slot y)
-            {
-                if (x is null)
-                {
-                    if (y is null)
-                    {
-                        return 0;
-                    }
-
-                    return -1;
-                }
-
-                if (y is null)
-                {
-                    return 1;
-                }
-
-                return x.ActiveTime.CompareTo(y.ActiveTime);
-            }
-
-            public static IComparer<Slot> Instance = new SlotComparer();
-        }
-
-        private class SlotEqualityComparer : IEqualityComparer<Slot>
-        {
-            private SlotEqualityComparer() { }
-
-            public bool Equals(Slot x, Slot y)
-            {
-                throw new NotImplementedException();
-            }
-
-            public int GetHashCode(Slot obj) => obj is null ? 0 : obj.Key.GetHashCode();
-
-
-            public static IEqualityComparer<Slot> Instance = new SlotEqualityComparer();
+            public long Ticks { get; set; }
         }
 
         /// <summary>
@@ -108,8 +73,7 @@ namespace Inkslab.Collections
             var interval = "lru:interval".Config(5D * 60D * 1000D);
 #endif
 
-            slots = new List<Slot>(capacity + capacity);
-            cachings = new Dictionary<TKey, TValue>(capacity);
+            cachings = new Dictionary<TKey, Slot>(capacity);
 
             timer = new Timer(interval);
 
@@ -120,52 +84,44 @@ namespace Inkslab.Collections
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            bool flag = true;
-
-            var hashSet = new HashSet<TKey>();
-
-            var now = DateTime.Now.AddMinutes(-10D);
-
-            for (int i = slots.Count - 1; i >= 0; i--)
+            if (Monitor.TryEnter(lockSolt)) //? 正在处理，定时任务放弃本次执行。
             {
-                var slot = slots[i];
-
-                if (slot.ActiveTime <= now)
+                try
                 {
-                    if (!hashSet.Contains(slot.Key))
+                    var now = DateTime.Now;
+
+                    var expire = now.AddMinutes(-10D);
+
+                    var expireTicks = expire.Ticks;
+
+                    var keys = cachings
+                            .Where(x => x.Value.Ticks < expireTicks)
+                            .Select(x => x.Key)
+                            .ToList();
+
+                    processing = true;
+
+                    lock (lockObj)
                     {
-                        if (flag = Monitor.TryEnter(lockObj)) //? 优先满足业务需求。
+                        for (int i = 0, len = keys.Count; i < len; i++)
                         {
-                            try
-                            {
-                                cachings.Remove(slot.Key);
-                            }
-                            finally
-                            {
-                                Monitor.Exit(lockObj);
-                            }
+                            cachings.Remove(keys[i]);
                         }
                     }
 
-                    if (flag)
-                    {
-                        slots.RemoveAt(i);
-                    }
-                    else //? 没能移除缓存时，不释放槽数据。
-                    {
-                        flag = true;
-                    }
+                    processing = false;
 
+                    if (timerIsRunning && cachings.Count == 0)
+                    {
+                        timerIsRunning = false;
+
+                        timer.Stop();
+                    }
                 }
-                else if (!hashSet.Add(slot.Key))
+                finally
                 {
-                    slots.RemoveAt(i);
+                    Monitor.Exit(lockSolt);
                 }
-            }
-
-            if (cachings.Count == 0)
-            {
-                timer.Stop();
             }
         }
 
@@ -186,72 +142,82 @@ namespace Inkslab.Collections
                 throw new ArgumentNullException(nameof(key));
             }
 
-            try
+            var ticks = DateTime.Now.Ticks;
+
+            if (processing)
             {
-                if (cachings.TryGetValue(key, out TValue value))
+                lock (lockSolt)
                 {
-                    return value;
-                }
-
-                lock (lockObj)
-                {
-                    if (cachings.TryGetValue(key, out value))
-                    {
-                        return value;
-                    }
-
-                    if (cachings.Count == capacity)
-                    {
-                        Eliminate(true);
-                    }
-
-                    cachings.Add(key, value = factory.Invoke(key));
-
-                    return value;
+                    return GetValue(key, ticks);
                 }
             }
-            finally
+
+            return GetValue(key, ticks);
+        }
+
+        private TValue GetValue(TKey key, long ticks)
+        {
+            if (cachings.TryGetValue(key, out Slot slot))
             {
-                if (!timer.Enabled)
+                if (processing) //? 数据正在被处理。
                 {
+                    goto label_locked;
+                }
+
+                slot.Version++;
+                slot.Ticks = ticks;
+
+                return slot.Value;
+            }
+
+label_locked:
+
+            lock (lockObj)
+            {
+                if (cachings.TryGetValue(key, out slot))
+                {
+                    slot.Version++;
+                    slot.Ticks = ticks;
+
+                    return slot.Value;
+                }
+
+                if (cachings.Count == capacity)
+                {
+                    lock (lockSolt)
+                    {
+                        if (cachings.Count == capacity)
+                        {
+                            var keys = cachings
+                                .OrderByDescending(x => x.Value.Ticks / x.Value.Version)
+                                .Select(x => x.Key)
+                                .Take(Math.Max(capacity / 10, 1))
+                                .ToList();
+
+                            processing = true;
+
+                            for (int i = 0, len = keys.Count; i < len; i++)
+                            {
+                                cachings.Remove(keys[i]);
+                            }
+
+                            processing = false;
+                        }
+                    }
+                }
+
+                if (!timerIsRunning)
+                {
+                    timerIsRunning = true;
+
                     timer.Start();
                 }
 
-                if (slots.Count == slots.Capacity)
-                {
-                    Eliminate(false);
-                }
+                var value = factory.Invoke(key);
 
-                slots.Add(new Slot(key));
-            }
-        }
+                cachings[key] = new Slot(value, ticks);
 
-        private void Eliminate(bool deleteCaching)
-        {
-            var hashSet = new HashSet<TKey>();
-
-            for (int i = slots.Count - 1; i >= 0; i--)
-            {
-                var slot = slots[i];
-
-                if (hashSet.Add(slot.Key))
-                {
-                    if (hashSet.Count == capacity)
-                    {
-                        slots.RemoveRange(0, i);
-
-                        if (deleteCaching)
-                        {
-                            cachings.Remove(slot.Key);
-                        }
-
-                        break;
-                    }
-                }
-                else
-                {
-                    slots.RemoveAt(i);
-                }
+                return value;
             }
         }
     }

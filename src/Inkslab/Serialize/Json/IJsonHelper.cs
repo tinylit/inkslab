@@ -1,8 +1,11 @@
-﻿namespace Inkslab.Serialize.Json
+﻿using Inkslab.Annotations;
+
+namespace Inkslab.Serialize.Json
 {
     /// <summary>
     /// JSON序列化。
     /// </summary>
+    [Ignore]
     public interface IJsonHelper
     {
         /// <summary> Json序列化。 </summary>
