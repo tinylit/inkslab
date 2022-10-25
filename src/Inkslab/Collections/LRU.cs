@@ -14,7 +14,7 @@ namespace Inkslab.Collections
     /// <typeparam name="TValue">值。</typeparam>
     public class LRU<TKey, TValue>
     {
-        private readonly int capacity;
+        private readonly int capacity = DefaultCapacity;
         private readonly Func<TKey, TValue> factory;
 
         private readonly Timer timer;
@@ -46,25 +46,10 @@ namespace Inkslab.Collections
         /// <summary>
         /// 默认容量。
         /// </summary>
-        public const int DefaultCapacity = 10000;
+        public const int DefaultCapacity = 1000;
 
-        /// <summary>
-        /// 默认容量。
-        /// </summary>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        /// <exception cref="ArgumentNullException"></exception>
-        public LRU(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
+        private LRU(Func<TKey, TValue> factory, int initCapacity)
         {
-        }
-
-        /// <summary>
-        /// 指定最大容量。
-        /// </summary>
-        /// <param name="capacity">初始大小。</param>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LRU(int capacity, Func<TKey, TValue> factory)
-        {
-            this.capacity = capacity;
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
 #if NET_Traditional
@@ -73,13 +58,32 @@ namespace Inkslab.Collections
             var interval = "lru:interval".Config(5D * 60D * 1000D);
 #endif
 
-            cachings = new Dictionary<TKey, Slot>(capacity);
-
             timer = new Timer(interval);
 
             timer.Elapsed += Timer_Elapsed;
 
             timer.Stop();
+
+            cachings = new Dictionary<TKey, Slot>(initCapacity);
+        }
+
+        /// <summary>
+        /// 默认容量。
+        /// </summary>
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public LRU(Func<TKey, TValue> factory) : this(factory, DefaultCapacity / 8)
+        {
+        }
+
+        /// <summary>
+        /// 指定最大容量。
+        /// </summary>
+        /// <param name="capacity">初始大小。</param>
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        public LRU(int capacity, Func<TKey, TValue> factory) : this(factory, capacity)
+        {
+            this.capacity = capacity;
         }
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
