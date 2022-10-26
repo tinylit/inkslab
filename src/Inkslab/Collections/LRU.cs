@@ -103,13 +103,25 @@ namespace Inkslab.Collections
                             .Select(x => x.Key)
                             .ToList();
 
+                    if (keys.Count == 0)
+                    {
+                        return;
+                    }
+
                     processing = true;
 
-                    lock (lockObj)
+                    if (Monitor.TryEnter(lockObj, 1)) //? 在保证尽量清理的条件下，避免与槽锁发生线程死锁。
                     {
-                        for (int i = 0, len = keys.Count; i < len; i++)
+                        try
                         {
-                            cachings.Remove(keys[i]);
+                            for (int i = 0, len = keys.Count; i < len; i++)
+                            {
+                                cachings.Remove(keys[i]);
+                            }
+                        }
+                        finally
+                        {
+                            Monitor.Enter(lockObj);
                         }
                     }
 
