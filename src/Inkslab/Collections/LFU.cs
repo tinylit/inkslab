@@ -8,14 +8,14 @@ using Timer = System.Timers.Timer;
 namespace Inkslab.Collections
 {
     /// <summary>
-    /// 【线程安全】根据 LRU 算法，移除最近最少使用的数据。
+    /// 【线程安全】根据 LRU 算法，移除时间段内使用最少的数据。
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
-    public class LRU<TKey, TValue>
+    public class LFU<TKey, TValue>
     {
-        private readonly int capacity = DefaultCapacity;
-        private readonly Func<TKey, TValue> factory;
+        private readonly int capacity;
+        private readonly long intervalTicks;
 
         private readonly Timer timer;
         private bool timerIsRunning = false;
@@ -32,14 +32,16 @@ namespace Inkslab.Collections
             {
                 Version = 1;
                 Value = value;
-                Ticks = ticks;
+                UpdateTicks = InitTicks = ticks;
             }
 
             public TValue Value { get; }
 
             public int Version { get; set; }
 
-            public long Ticks { get; set; }
+            public long InitTicks { get; set; }
+
+            public long UpdateTicks { get; set; }
         }
 
         /// <summary>
@@ -47,14 +49,15 @@ namespace Inkslab.Collections
         /// </summary>
         public const int DefaultCapacity = 1000;
 
-        private LRU(Func<TKey, TValue> factory, int initCapacity)
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        public LFU()
         {
-            this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
-
 #if NET_Traditional
-            var interval = "interval-lru".Config(5D * 60D * 1000D);
+            var interval = "interval-lfu".Config(5D * 60D * 1000D);
 #else
-            var interval = "interval:lru".Config(5D * 60D * 1000D);
+            var interval = "interval:lfu".Config(5D * 60D * 1000D);
 #endif
 
             timer = new Timer(interval);
@@ -63,26 +66,34 @@ namespace Inkslab.Collections
 
             timer.Stop();
 
-            cachings = new Dictionary<TKey, Slot>(initCapacity);
+            capacity = DefaultCapacity;
+
+            intervalTicks = (long)(interval * TimeSpan.TicksPerMillisecond);
+
+            cachings = new Dictionary<TKey, Slot>(capacity / 8);
         }
 
         /// <summary>
-        /// 默认容量。
+        /// 构造函数。
         /// </summary>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        /// <exception cref="ArgumentNullException"></exception>
-        public LRU(Func<TKey, TValue> factory) : this(factory, DefaultCapacity / 8)
+        /// <param name="capacity">最大容量。</param>
+        public LFU(int capacity)
         {
-        }
+#if NET_Traditional
+            var interval = "interval-lfu".Config(5D * 60D * 1000D);
+#else
+            var interval = "interval:lfu".Config(5D * 60D * 1000D);
+#endif
 
-        /// <summary>
-        /// 指定最大容量。
-        /// </summary>
-        /// <param name="capacity">初始大小。</param>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LRU(int capacity, Func<TKey, TValue> factory) : this(factory, capacity)
-        {
-            this.capacity = capacity;
+            timer = new Timer(interval);
+
+            timer.Elapsed += Timer_Elapsed;
+
+            timer.Stop();
+
+            intervalTicks = (long)(interval * TimeSpan.TicksPerMillisecond);
+
+            cachings = new Dictionary<TKey, Slot>(this.capacity = capacity);
         }
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
@@ -94,7 +105,7 @@ namespace Inkslab.Collections
             var expireTicks = expire.Ticks;
 
             var keys = cachings
-                    .Where(x => x.Value.Ticks < expireTicks)
+                    .Where(x => x.Value.UpdateTicks < expireTicks)
                     .Select(x => x.Key)
                     .ToList();
 
@@ -140,17 +151,22 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="key">键。</param>
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
-        public TValue Get(TKey key)
+        public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
         {
             if (key == null)
             {
                 throw new ArgumentNullException(nameof(key));
             }
 
-            return Get(key, DateTime.Now.Ticks);
+            if (factory is null)
+            {
+                throw new ArgumentNullException(nameof(factory));
+            }
+
+            return GetOrCreate(key, factory, DateTime.Now.Ticks);
         }
 
-        private TValue Get(TKey key, long ticks)
+        private TValue GetOrCreate(TKey key, Func<TKey, TValue> factory, long ticks)
         {
             if (processing) //? 数据正在被处理。
             {
@@ -164,8 +180,14 @@ namespace Inkslab.Collections
                     goto label_locked;
                 }
 
+                if (ticks > slot.InitTicks + intervalTicks)
+                {
+                    slot.Version /= 2;
+                    slot.InitTicks += intervalTicks / 2;
+                }
+
                 slot.Version++;
-                slot.Ticks = ticks;
+                slot.UpdateTicks = ticks;
 
                 return slot.Value;
             }
@@ -176,8 +198,13 @@ label_locked:
             {
                 if (cachings.TryGetValue(key, out slot))
                 {
+                    if (ticks > slot.InitTicks + intervalTicks)
+                    {
+                        slot.Version /= 2;
+                        slot.InitTicks += intervalTicks / 2;
+                    }
+
                     slot.Version++;
-                    slot.Ticks = ticks;
 
                     return slot.Value;
                 }
@@ -185,7 +212,7 @@ label_locked:
                 if (cachings.Count == capacity)
                 {
                     var keys = cachings
-                        .OrderBy(x => x.Value.Ticks)
+                        .OrderByDescending(x => (ticks - x.Value.InitTicks) / x.Value.Version)
                         .Select(x => x.Key)
                         .Take(Math.Max(capacity / 10, 1))
                         .ToList();

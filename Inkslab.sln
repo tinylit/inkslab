@@ -21,7 +21,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.Map", "src\Inkslab.
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.Config.Tests", "tests\Inkslab.Config.Tests\Inkslab.Config.Tests.csproj", "{B4A1D0CB-B95E-4B14-8A63-BE5FFEF02DC0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inkslab.Json.Tests", "tests\Inkslab.Json.Tests\Inkslab.Json.Tests.csproj", "{9A146ED4-D2FC-4AE8-835A-2D001B6EDBF3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.Json.Tests", "tests\Inkslab.Json.Tests\Inkslab.Json.Tests.csproj", "{9A146ED4-D2FC-4AE8-835A-2D001B6EDBF3}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{2A387FA8-C3E2-4A76-B1C7-5143D5542B4B}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

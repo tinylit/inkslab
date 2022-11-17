@@ -17,7 +17,7 @@ namespace System
 
         private static readonly HashSet<Type> _simpleTypes = new HashSet<Type>()
         {            
-        /*+ 基元类型。
+        /*? 基元类型。
          * bool
          * sbyte
          * byte
