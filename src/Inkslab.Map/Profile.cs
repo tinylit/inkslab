@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using static System.Linq.Expressions.Expression;
@@ -8,8 +9,50 @@ namespace Inkslab.Map
     /// <summary>
     /// 配置。
     /// </summary>
-    public abstract class Profile : IProfile, IDisposable
+    public abstract class Profile : AbstractMap, IProfile, IDisposable
     {
+        private static readonly Type NewInstance_T4_Type = typeof(INewInstance<,,,>);
+
+        private class TypeCode : IEqualityComparer<TypeCode>
+        {
+            private readonly Type x;
+            private readonly Type y;
+
+            public TypeCode(Type x, Type y)
+            {
+                this.x = x;
+                this.y = y;
+            }
+
+            public bool Equals(TypeCode x, TypeCode y)
+            {
+                if (x is null)
+                {
+                    return y is null;
+                }
+
+                if (y is null)
+                {
+                    return false;
+                }
+
+                return x.x == y.x && x.y == y.y;
+            }
+
+            public int GetHashCode(TypeCode obj)
+            {
+                if (obj is null)
+                {
+                    return 0;
+                }
+
+                var h1 = obj.x.GetHashCode();
+                var h2 = obj.y.GetHashCode();
+
+                return ((h1 << 5) + h1) ^ h2;
+            }
+        }
+
         private class Slot
         {
             public Slot()
@@ -48,6 +91,72 @@ namespace Inkslab.Map
             public bool TryGetSlot(string memberName, out Slot slot) => memberExpressions.TryGetValue(memberName, out slot);
 
             public bool IsMatch(Type sourceType, Type destinationType) => this.sourceType == sourceType && destinationTypes.Contains(destinationType);
+        }
+
+        private class CreateInstanceSlot
+        {
+            private readonly Type newInstanceType;
+            private readonly Type sourceContractType;
+            private readonly Type sourceItemContractType;
+            private readonly Type destinationItemContractType;
+            private readonly Type destinationContractType;
+
+            public CreateInstanceSlot(Type newInstanceType, Type sourceContractType, Type sourceItemContractType, Type destinationContractType, Type destinationItemContractType)
+            {
+                this.newInstanceType = newInstanceType;
+                this.sourceContractType = sourceContractType;
+                this.sourceItemContractType = sourceItemContractType;
+                this.destinationContractType = destinationContractType;
+                this.destinationItemContractType = destinationItemContractType;
+            }
+
+            public bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType)
+            {
+                if (newInstanceType.IsGenericTypeDefinition)
+                {
+                    return destinationItemContractType.IsAssignableLikeFrom(destinationItemType)
+                        && destinationContractType.IsAssignableLikeFrom(destinationType)
+                        && sourceItemContractType.IsAssignableLikeFrom(sourceItemType)
+                        && sourceContractType.IsAssignableLikeFrom(sourceType);
+                }
+
+                return destinationItemContractType == destinationItemType
+                    && destinationContractType == destinationType
+                    && sourceItemContractType == sourceItemType
+                    && sourceContractType == sourceType;
+            }
+
+            public Expression New(Expression sourceExpression, Type sourceItemType, Type sourceType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            {
+                return NewCore(newInstanceType.IsGenericTypeDefinition
+                        ? newInstanceType.MakeGenericType(sourceType, sourceItemType, destinationItemType, destinationType)
+                        : newInstanceType,
+                        sourceExpression,
+                        sourceType,
+                        sourceItemType,
+                        destinationType,
+                        destinationItemType,
+                        configuration);
+            }
+
+            private Expression NewCore(Type createInstanceType, Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            {
+                var constructorInfo = createInstanceType.GetConstructor(MapConstants.InstanceBindingFlags, null, Type.EmptyTypes, null) ?? throw new NotSupportedException($"实例类【{newInstanceType}】不具备无参构造函数！");
+
+                var destinationItemsType = typeof(List<>).MakeGenericType(destinationItemType);
+
+                var createInstanceMtd = createInstanceType.GetMethod("New", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
+
+                if (createInstanceMtd is null || createInstanceMtd.ReturnType != destinationType)
+                {
+                    createInstanceMtd = NewInstance_T4_Type.MakeGenericType(sourceType, sourceItemType, destinationType, destinationItemType)
+                        .GetMethod("New", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
+                }
+
+                var bodyExp = configuration.Map(sourceExpression, destinationItemsType);
+
+                return Call(Expression.New(constructorInfo), createInstanceMtd, sourceExpression, bodyExp);
+            }
         }
 
         private class MemberMappingExpression<TSource, TMember> : IMemberMappingExpression<TSource, TMember>
@@ -154,25 +263,24 @@ namespace Inkslab.Map
         private bool disposedValue;
 
         private readonly List<MapSlot> mapSlots = new List<MapSlot>();
+        private readonly List<CreateInstanceSlot> instanceSlots = new List<CreateInstanceSlot>();
+        private readonly Dictionary<TypeCode, LambdaExpression> instanceCachings = new Dictionary<TypeCode, LambdaExpression>();
 
         /// <summary>
         /// 解决映射关系。
         /// </summary>
-        /// <param name="sourceExp">源。</param>
+        /// <param name="sourceExpression">源。</param>
         /// <param name="destinationExpression">目标。</param>
         /// <param name="configuration">配置。</param>
         /// <returns>赋值表达式。</returns>
         /// <exception cref="InvalidCastException">类型不能被转换。</exception>
-        protected virtual IEnumerable<BinaryExpression> ToSolve(ParameterExpression sourceExp, ParameterExpression destinationExpression, IMapConfiguration configuration)
+        protected virtual IEnumerable<BinaryExpression> ToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
             bool flag = true;
 
             PropertyInfo[] propertyInfos = null;
 
             var validSlots = new List<MapSlot>();
-
-            var sourceType = sourceExp.Type;
-            var destinationType = destinationExpression.Type;
 
             foreach (var propertyInfo in destinationType.GetProperties())
             {
@@ -218,7 +326,7 @@ namespace Inkslab.Map
 
                         if (slot.ValueExpression is LambdaExpression lambda)
                         {
-                            yield return Assign(Property(destinationExpression, propertyInfo), Invoke(lambda, sourceExp));
+                            yield return Assign(Property(destinationExpression, propertyInfo), Invoke(lambda, sourceExpression));
                         }
                         else
                         {
@@ -242,7 +350,7 @@ namespace Inkslab.Map
                     {
                         if (configuration.IsMatch(memberInfo.PropertyType, propertyInfo.PropertyType))
                         {
-                            yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExp, memberInfo), propertyInfo.PropertyType));
+                            yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExpression, memberInfo), propertyInfo.PropertyType));
                         }
                         else
                         {
@@ -263,7 +371,7 @@ label_skip:
         /// <param name="sourceType">源。/</param>
         /// <param name="destinationType">目标。</param>
         /// <returns>是否匹配。</returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => mapSlots.Exists(x => x.IsMatch(sourceType, destinationType));
+        public override bool IsMatch(Type sourceType, Type destinationType) => mapSlots.Exists(x => x.IsMatch(sourceType, destinationType));
 
         /// <summary>
         /// 映射。
@@ -276,117 +384,59 @@ label_skip:
         {
             var sourceType = sourceExpression.Type;
 
-            if (sourceExpression is ParameterExpression parameterExpression)
+            if (instanceCachings.TryGetValue(new TypeCode(sourceType, destinationType), out LambdaExpression lambdaExp))
             {
-                return ToSolve(parameterExpression, destinationType, configuration);
+                var instanceExpression = Invoke(lambdaExp, sourceExpression);
+
+                var destinationExpression = Variable(destinationType);
+
+                var bodyExp = ToSolve(sourceExpression, sourceType, destinationExpression, destinationType, configuration);
+
+                return Block(destinationType, new ParameterExpression[] { destinationExpression }, new Expression[] { Assign(destinationExpression, instanceExpression), bodyExp, destinationExpression });
             }
 
-            var lambdaExp = ToSolve(Parameter(sourceType), destinationType, configuration);
+            if (TryGetDestinationItemType(destinationType, out Type destinationItemType) && TryGetDestinationItemType(sourceType, out Type sourceItemType))
+            {
+                foreach (var instanceSlot in instanceSlots)
+                {
+                    if (instanceSlot.IsMatch(sourceType, sourceItemType, destinationType, destinationItemType))
+                    {
+                        return instanceSlot.New(sourceExpression, sourceType, sourceItemType, destinationType, destinationItemType, configuration);
+                    }
+                }
+            }
 
-            return Invoke(lambdaExp, sourceExpression);
+            return base.ToSolve(sourceExpression, sourceExpression.Type, destinationType, configuration);
         }
 
-        /// <summary>
-        /// 解决映射关系。
-        /// </summary>
-        /// <param name="sourceExpression">源。</param>
-        /// <param name="destinationType">目标。</param>
-        /// <param name="configuration">配置。</param>
-        /// <returns>映射表达式。</returns>
-        protected virtual LambdaExpression ToSolve(ParameterExpression sourceExpression, Type destinationType, IMapConfiguration configuration)
+        private static bool TryGetDestinationItemType(Type destinationType, out Type destinationItemType)
         {
-            Type sourceType = sourceExpression.Type;
-
-            var expressions = new List<Expression>();
-
-            var destinationExpression = Variable(destinationType);
-
-            var propertyInfos = sourceType.GetProperties();
-
-            var nonParameterConstructorInfo = destinationType.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, Type.EmptyTypes);
-
-            if (nonParameterConstructorInfo is null)
+            foreach (var interfaceType in destinationType.GetInterfaces())
             {
-                //? 无有效构造函数。
-                bool invalidFlag = true;
-
-                foreach (var constructorInfo in destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+                if (interfaceType.IsGenericType)
                 {
-                    //? 构造函数有效。
-                    bool validFlag = true;
+                    var typeDefinition = destinationType.GetGenericTypeDefinition();
 
-                    var parameterInfos = constructorInfo.GetParameters();
-
-                    foreach (var parameterInfo in parameterInfos)
+                    if (typeDefinition == typeof(IList<>)
+                        || typeDefinition == typeof(IReadOnlyList<>)
+                        || typeDefinition == typeof(ICollection<>)
+                        || typeDefinition == typeof(IReadOnlyCollection<>)
+                        || typeDefinition == typeof(IEnumerable<>))
                     {
-                        if (parameterInfo.IsOptional || parameterInfo.HasDefaultValue)
-                        {
-                            continue;
-                        }
+                        destinationItemType = interfaceType.GetGenericArguments()[0];
 
-                        foreach (var propertyInfo in propertyInfos)
-                        {
-                            if (propertyInfo.CanRead && string.Equals(parameterInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
-                            {
-                                if (IsMatch(parameterInfo.ParameterType, propertyInfo.PropertyType))
-                                {
-                                    continue;
-                                }
-                            }
-                        }
-
-                        validFlag = false;
-
-                        break;
-                    }
-
-                    if (validFlag)
-                    {
-                        invalidFlag = false;
-
-                        var arguments = new List<Expression>(parameterInfos.Length);
-
-                        foreach (var parameterInfo in parameterInfos)
-                        {
-                            foreach (var propertyInfo in propertyInfos)
-                            {
-                                if (string.Equals(parameterInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    if (configuration.IsMatch(parameterInfo.ParameterType, propertyInfo.PropertyType))
-                                    {
-                                        arguments.Add(configuration.Map(Property(sourceExpression, propertyInfo), parameterInfo.ParameterType));
-
-                                        goto label_skip;
-                                    }
-                                }
-                            }
-
-                            arguments.Add(Constant(parameterInfo.DefaultValue, parameterInfo.ParameterType));
-
-label_skip:
-                            continue;
-                        }
-
-                        expressions.Add(Assign(destinationExpression, New(constructorInfo, arguments)));
-
-                        break;
+                        return true;
                     }
                 }
-
-                if (invalidFlag)
-                {
-                    throw new InvalidCastException($"无法从【{sourceType}】源映射到【{destinationType}】的任意构造函数！");
-                }
-            }
-            else
-            {
-                expressions.Add(Assign(destinationExpression, New(nonParameterConstructorInfo)));
             }
 
-            expressions.AddRange(ToSolve(sourceExpression, destinationExpression, configuration));
+            destinationItemType = null;
 
-            return Lambda(Block(new ParameterExpression[1] { destinationExpression }, expressions), sourceExpression);
+            return false;
         }
+
+        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+            => Block(ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, configuration));
 
         /// <summary>
         /// 映射。
@@ -405,6 +455,84 @@ label_skip:
             return new MappingExpression<TSource, TDestination>(mapSlot);
         }
 
+        /// <summary>
+        /// 映射。
+        /// </summary>
+        /// <typeparam name="TSource">源。</typeparam>
+        /// <typeparam name="TDestination">目标。</typeparam>
+        /// <param name="createInstanceExpression">创建实例表达式。</param>
+        /// <returns>映射关系表达式。</returns>
+        public IMappingExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> createInstanceExpression)
+            where TSource : class
+            where TDestination : class
+        {
+            if (createInstanceExpression is null)
+            {
+                throw new ArgumentNullException(nameof(createInstanceExpression));
+            }
+
+            var sourceType = typeof(TSource);
+            var destinationType = typeof(TDestination);
+
+            var mapSlot = new MapSlot(sourceType, destinationType);
+
+            mapSlots.Add(mapSlot);
+
+            instanceCachings[new TypeCode(sourceType, destinationType)] = createInstanceExpression;
+
+            return new MappingExpression<TSource, TDestination>(mapSlot);
+        }
+
+        /// <summary>
+        /// 实例化，支持定义类型(<see cref="Type.IsTypeDefinition"/>)。
+        /// </summary>
+        /// <param name="newInstanceType">创建实例类型，必须实现 <see cref="INewInstance{TSource, TDestinationItem, TDestination}"/> 接口。</param>
+        public void New(Type newInstanceType)
+        {
+            if (newInstanceType is null)
+            {
+                throw new ArgumentNullException(nameof(newInstanceType));
+            }
+
+            if (newInstanceType.IsGenericTypeDefinition)
+            {
+                var genericArguments = newInstanceType.GetGenericArguments();
+
+                if (genericArguments.Length != 4)
+                {
+                    throw new NotSupportedException($"泛型定义【{newInstanceType}】的泛型个数不等于3！");
+                }
+
+                if (!NewInstance_T4_Type.IsLike(newInstanceType))
+                {
+                    throw new NotSupportedException($"泛型定义【{newInstanceType}】未实现【{NewInstance_T4_Type}】接口！");
+                }
+
+                instanceSlots.Add(new CreateInstanceSlot(newInstanceType, genericArguments[0], genericArguments[1], genericArguments[2], genericArguments[3]));
+            }
+            else
+            {
+                bool errorFlag = true;
+
+                foreach (var interfaceType in newInstanceType.GetInterfaces())
+                {
+                    if (interfaceType.IsGenericType && NewInstance_T4_Type == interfaceType.GetGenericTypeDefinition())
+                    {
+                        errorFlag = false;
+
+                        var genericArguments = interfaceType.GetGenericArguments();
+
+                        instanceSlots.Add(new CreateInstanceSlot(newInstanceType, genericArguments[0], genericArguments[1], genericArguments[2], genericArguments[3]));
+                    }
+                }
+
+                if (errorFlag)
+                {
+                    throw new NotSupportedException($"泛型定义【{newInstanceType}】未实现【{NewInstance_T4_Type}】接口！");
+                }
+            }
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
@@ -415,6 +543,10 @@ label_skip:
                 }
 
                 mapSlots.Clear();
+
+                instanceCachings.Clear();
+
+                instanceSlots.Clear();
 
                 disposedValue = true;
             }

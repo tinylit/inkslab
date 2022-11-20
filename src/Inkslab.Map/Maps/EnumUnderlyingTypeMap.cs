@@ -1,4 +1,7 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Inkslab.Map.Maps
@@ -37,9 +40,9 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) 
-            => sourceType.IsEnum && destinationType.IsEnum 
-            || sourceType.IsEnum && EnumTypes.Contains(destinationType) 
+        public bool IsMatch(Type sourceType, Type destinationType)
+            => sourceType.IsEnum && destinationType.IsEnum
+            || sourceType.IsEnum && EnumTypes.Contains(destinationType)
             || destinationType.IsEnum && EnumTypes.Contains(sourceType);
 
         /// <summary>

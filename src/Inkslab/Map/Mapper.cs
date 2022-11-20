@@ -15,22 +15,12 @@ namespace Inkslab.Map
         static Mapper() => _mapper = RuntimeServPools.Singleton<IMapper>();
 
         /// <summary>
-        /// 对象克隆。
-        /// </summary>
-        /// <param name="obj">数据源。</param>
-        /// <param name="def">默认值。</param>
-        /// <typeparam name="T">目标类型。</typeparam>
-        /// <returns></returns>
-        public static T Copy<T>(T obj, T def = default) where T : class => _mapper.Copy(obj, def);
-
-        /// <summary>
         /// 对象映射。
         /// </summary>
         /// <param name="obj">数据源。</param>
-        /// <param name="def">默认值。</param>
         /// <typeparam name="T">目标类型。</typeparam>
         /// <returns></returns>
-        public static T Map<T>(object obj, T def = default) => _mapper.Map(obj, def);
+        public static T Map<T>(object obj) => _mapper.Map<T>(obj);
 
         /// <summary> 
         /// 对象映射。

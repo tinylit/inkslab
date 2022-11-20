@@ -1,4 +1,6 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Inkslab.Map.Maps
@@ -9,7 +11,7 @@ namespace Inkslab.Map.Maps
     /// <summary>
     /// 从 <see cref="IEnumerable{T}"/>, T is <seealso cref="kvString"/> 中映射。
     /// </summary>
-    public class FromKeyStringValueObjectMap : AbstractMap, IMap
+    public class FromKeyIsStringValueIsObjectMap : AbstractMap, IMap
     {
         private readonly static Type kvStringType = typeof(kvString);
         private readonly static Type kvStringEnumerableType = typeof(IEnumerable<kvString>);

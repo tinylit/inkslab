@@ -26,7 +26,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{2A387FA8-C3E2-4A76-B1C7-5143D5542B4B}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		Directory.Build.props = Directory.Build.props
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inkslab.Map.Tests", "tests\Inkslab.Map.Tests\Inkslab.Map.Tests.csproj", "{CC86AB91-AD26-4F7A-AF04-42D95978B193}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -66,6 +69,10 @@ Global
 		{9A146ED4-D2FC-4AE8-835A-2D001B6EDBF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9A146ED4-D2FC-4AE8-835A-2D001B6EDBF3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9A146ED4-D2FC-4AE8-835A-2D001B6EDBF3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CC86AB91-AD26-4F7A-AF04-42D95978B193}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CC86AB91-AD26-4F7A-AF04-42D95978B193}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CC86AB91-AD26-4F7A-AF04-42D95978B193}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CC86AB91-AD26-4F7A-AF04-42D95978B193}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -79,6 +86,7 @@ Global
 		{18FCB230-B4E9-4E9E-A2E1-5E1C92909432} = {CBE18368-CB16-4386-8514-58520EFCC598}
 		{B4A1D0CB-B95E-4B14-8A63-BE5FFEF02DC0} = {EBB0D482-FD03-47B8-B2DF-5E4CF85AC635}
 		{9A146ED4-D2FC-4AE8-835A-2D001B6EDBF3} = {EBB0D482-FD03-47B8-B2DF-5E4CF85AC635}
+		{CC86AB91-AD26-4F7A-AF04-42D95978B193} = {EBB0D482-FD03-47B8-B2DF-5E4CF85AC635}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {7A21E72A-E95E-4E63-A5B2-AB002AD055DF}

@@ -1,4 +1,6 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using static System.Linq.Expressions.Expression;
@@ -81,7 +83,7 @@ namespace Inkslab.Map.Maps
                     {
                         elementType = interfaceType.GetGenericArguments()[0];
 
-                        addElementMtd = interfaceType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, new Type[] { elementType });
+                        addElementMtd = interfaceType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null);
 
                         if (addElementMtd is null)
                         {
@@ -95,7 +97,7 @@ namespace Inkslab.Map.Maps
 
             elementType = typeof(object);
 
-            addElementMtd = destinationType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, new Type[] { elementType });
+            addElementMtd = destinationType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null);
 
             return addElementMtd is not null;
         }
@@ -168,7 +170,7 @@ namespace Inkslab.Map.Maps
 
             var conversionType = typeof(List<>).MakeGenericType(destinationElementType);
 
-            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, new Type[] { destinationElementType });
+            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, null, new Type[] { destinationElementType }, null);
 
             var variableExp = Variable(conversionType);
             var enumeratorExp = Variable(MapConstants.EnumeratorType);
@@ -206,7 +208,7 @@ namespace Inkslab.Map.Maps
 
             var propertyInfo = enumeratorType.GetProperty("Current");
 
-            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, new Type[] { destinationElementType });
+            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, null, new Type[] { destinationElementType }, null);
 
             var variableExp = Variable(conversionType);
             var enumeratorExp = Variable(enumeratorType);

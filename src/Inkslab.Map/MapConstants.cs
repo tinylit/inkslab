@@ -1,4 +1,7 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace Inkslab.Map
@@ -64,13 +67,23 @@ namespace Inkslab.Map
         public readonly static MethodInfo ToNamingCaseMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.ToNamingCase), StaticDeclaredOnlyBindingFlags);
 
         /// <summary>
+        /// <see cref="Enumerable.Cast{TResult}(IEnumerable)"/> 方法。
+        /// </summary>
+        public readonly static MethodInfo CastMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast), StaticDeclaredOnlyBindingFlags);
+
+        /// <summary>
         /// <see cref="Enumerable.ToArray{TSource}(IEnumerable{TSource})"/> 方法。
         /// </summary>
         public readonly static MethodInfo ToArrayMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray), StaticDeclaredOnlyBindingFlags);
 
         /// <summary>
-        /// <see cref="string.ToLower"/>
+        /// <see cref="string.ToLower"/> 方法。
         /// </summary>
         public readonly static MethodInfo ToLowerMtd = typeof(string).GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags);
+
+        /// <summary>
+        /// <see cref="ICloneable.Clone"/> 方法。
+        /// </summary>
+        public readonly static MethodInfo CloneMtd = typeof(ICloneable).GetMethod(nameof(ICloneable.Clone));
     }
 }

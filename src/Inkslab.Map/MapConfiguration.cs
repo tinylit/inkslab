@@ -1,5 +1,9 @@
 ﻿using Inkslab.Map.Expressions;
+using Inkslab.Map.Maps;
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace Inkslab.Map
@@ -11,8 +15,27 @@ namespace Inkslab.Map
     /// </summary>
     public class MapConfiguration : Singleton<MapConfiguration>, IMapConfiguration, IConfiguration
     {
-        private readonly MapCollection maps;
+        private readonly IList<IMap> maps;
         private readonly List<Profile> profiles = new List<Profile>();
+
+        /// <summary>
+        /// 默认映射规则集合。
+        /// </summary>
+        public readonly static IList<IMap> DefaultMaps = new List<IMap>
+        {
+            new EnumerableMap(),
+            new ConvertMap(),
+            new ToStringMap(),
+            new ParseStringMap(),
+            new EnumUnderlyingTypeMap(),
+            new StringToEnumMap(),
+            new KeyValueMap(),
+            new ConstructorMap(),
+            new FromKeyIsStringValueIsObjectMap(),
+            new ToKeyIsStringValueIsObjectMap(),
+            new CloneableMap(),
+            new DefaultMap()
+        };
 
         /// <summary>
         /// 映射配置。
@@ -21,22 +44,17 @@ namespace Inkslab.Map
         {
         }
 
+        /// <summary>
         /// 映射配置。
         /// </summary>
-        private MapConfiguration(IConfiguration configuration) : this(new MapCollection(), configuration)
+        private MapConfiguration(IConfiguration configuration) : this(DefaultMaps, configuration)
         {
-            if (configuration is null)
-            {
-                throw new ArgumentNullException(nameof(configuration));
-            }
-
-            IsDepthMapping = configuration.IsDepthMapping;
-            AllowPropagationNullValues = configuration.AllowPropagationNullValues;
         }
 
+        /// <summary>
         /// 映射配置。
         /// </summary>
-        private MapConfiguration(MapCollection maps, IConfiguration configuration)
+        public MapConfiguration(IList<IMap> maps, IConfiguration configuration)
         {
             if (configuration is null)
             {
@@ -90,11 +108,9 @@ namespace Inkslab.Map
         /// <exception cref="InvalidCastException">无法转换。</exception>
         public Expression Map(Expression sourceExpression, Type destinationType)
         {
-            var sourceType = sourceExpression.Type;
+            var conversionType = destinationType;
 
-            var conversionType = destinationType.IsAbstract
-                ? destinationType
-                : sourceType;
+            var sourceType = sourceExpression.Type;
 
             if (conversionType.IsInterface)
             {
@@ -116,12 +132,21 @@ namespace Inkslab.Map
                         conversionType = typeof(Dictionary<,>).MakeGenericType(conversionType.GetGenericArguments());
                     }
                 }
-                else if (destinationType == typeof(IEnumerable)
-                    || destinationType == typeof(ICollection)
-                    || destinationType == typeof(IList))
+                else if (conversionType == typeof(IEnumerable)
+                    || conversionType == typeof(ICollection)
+                    || conversionType == typeof(IList))
                 {
                     conversionType = typeof(List<object>);
                 }
+            }
+            else if (conversionType == typeof(object))
+            {
+                if (sourceType.IsValueType)
+                {
+                    return Convert(Map(sourceExpression, sourceType), destinationType);
+                }
+
+                conversionType = sourceType;
             }
 
             if (conversionType.IsAbstract)
@@ -133,7 +158,7 @@ namespace Inkslab.Map
             {
                 if (sourceType == conversionType)
                 {
-                    if (AllowPropagationNullValues || !conversionType.IsNullable())
+                    if (AllowPropagationNullValues || !sourceType.IsNullable())
                     {
                         return sourceExpression;
                     }
@@ -141,23 +166,90 @@ namespace Inkslab.Map
                     return IgnoreIfNull(sourceExpression);
                 }
 
-                if (sourceType.IsValueType && conversionType.IsValueType)
+                if (sourceType.IsValueType)
+                {
+                    if (sourceType.IsNullable())
+                    {
+                        var underlyingSourceType = Nullable.GetUnderlyingType(sourceType);
+
+                        if (AllowPropagationNullValues)
+                        {
+                            if (conversionType.IsNullable())
+                            {
+                                var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                                return Condition(Property(sourceExpression, "HasValue"), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, underlyingDestinationType)), Default(conversionType));
+                            }
+
+                            return Condition(Property(sourceExpression, "HasValue"), MapGeneral(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, conversionType), Default(conversionType));
+
+                        }
+
+                        if (conversionType.IsNullable())
+                        {
+                            var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                            return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, underlyingDestinationType));
+                        }
+
+                        return MapGeneral(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, conversionType);
+                    }
+
+                    //? 非可空的值类型，不存在 null 值，不存在【AllowPropagationNullValues】的约束，均可映射。
+                    if (conversionType.IsNullable())
+                    {
+                        var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                        return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType));
+                    }
+
+                    return MapGeneral(sourceExpression, sourceType, destinationType, conversionType);
+                }
+
+                if (AllowPropagationNullValues)
+                {
+                    if (conversionType.IsNullable())
+                    {
+                        var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                        return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType)));
+                    }
+
+                    return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), MapGeneral(sourceExpression, sourceType, destinationType, conversionType));
+                }
+
+                if (conversionType.IsNullable())
+                {
+                    var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                    return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType));
+                }
+
+                return MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType);
+            }
+
+            if (sourceType == typeof(object))
+            {
+                if (AllowPropagationNullValues)
+                {
+                    return Convert(sourceExpression, conversionType);
+                }
+
+                return Convert(IgnoreIfNull(sourceExpression), conversionType);
+            }
+
+            if (conversionType.IsAssignableFrom(sourceType))
+            {
+                if (IsDepthMapping)
                 {
                     if (AllowPropagationNullValues)
                     {
-                        goto label_valueType;
+                        return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), Map(sourceExpression, sourceType, destinationType, conversionType));
                     }
 
-                    if (sourceType.IsNullable() && conversionType.IsNullable())
-                    {
-                        sourceExpression = IgnoreIfNull(sourceExpression);
-                    }
+                    return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType);
                 }
 
-                goto label_valueType;
-            }
-            else if (!IsDepthMapping && conversionType.IsAssignableFrom(sourceType))
-            {
                 if (AllowPropagationNullValues)
                 {
                     return sourceExpression;
@@ -165,16 +257,17 @@ namespace Inkslab.Map
 
                 return IgnoreIfNull(sourceExpression);
             }
-            else if (!AllowPropagationNullValues)
+
+            if (AllowPropagationNullValues)
             {
-                sourceExpression = IgnoreIfNull(sourceExpression);
+                return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), Map(sourceExpression, sourceType, destinationType, conversionType));
             }
 
-            if (sourceType == typeof(object))
-            {
-                return Convert(sourceExpression, conversionType);
-            }
+            return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType);
+        }
 
+        private Expression Map(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType)
+        {
             if (sourceType.IsClass && conversionType.IsClass)
             {
                 foreach (var profile in profiles)
@@ -186,8 +279,11 @@ namespace Inkslab.Map
                 }
             }
 
-label_valueType:
+            return MapGeneral(sourceExpression, sourceType, destinationType, conversionType);
+        }
 
+        private Expression MapGeneral(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType)
+        {
             foreach (var map in maps)
             {
                 if (map.IsMatch(sourceType, conversionType))

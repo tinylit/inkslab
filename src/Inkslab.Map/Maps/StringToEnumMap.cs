@@ -1,4 +1,7 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.Serialization;
 
@@ -11,6 +14,7 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class StringToEnumMap : IMap
     {
+        private static readonly PropertyInfo LengthPrt = typeof(string).GetProperty("length");
         private static readonly MethodInfo ParseMtd = typeof(Enum).GetMember(nameof(Enum.Parse), MemberTypes.Method, BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Cast<MethodInfo>()
             .Single(x =>
@@ -59,7 +63,7 @@ namespace Inkslab.Map.Maps
 
             var parseEnumExpression = Convert(Call(ParseMtd.MakeGenericMethod(destinationType), sourceExpression, Constant(true)), destinationType);
 
-            return Condition(Call(null, MapConstants.IsEmptyMtd, sourceExpression), Default(destinationType), Switch(Call(sourceExpression, MapConstants.ToLowerMtd), parseEnumExpression, null, switchCases));
+            return Condition(Equal(Property(sourceExpression, LengthPrt), Constant(0)), Default(destinationType), Switch(Call(sourceExpression, MapConstants.ToLowerMtd), parseEnumExpression, null, switchCases));
         }
     }
 }

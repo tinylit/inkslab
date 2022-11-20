@@ -169,7 +169,7 @@ label_typeDefinition:
 
                     implementationType = implementationType.BaseType;
 
-                } while (implementationType != null);
+                } while (implementationType is not null);
             }
             else
             {
@@ -182,7 +182,7 @@ label_typeDefinition:
 
                     implementationType = implementationType.BaseType;
 
-                } while (implementationType != null);
+                } while (implementationType is not null);
             }
 
             return false;
@@ -228,6 +228,32 @@ label_typeDefinition:
 
         private static bool IsLikeGenericArgument(Type typeArgument, Type implementationTypeArgument)
         {
+
+            //? 值类型约束。
+            if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) > (implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint))
+            {
+                return false;
+            }
+
+            //? 引用类约束。
+            if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) > (implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint))
+            {
+                return false;
+            }
+
+            //? 协变。
+            if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.Covariant) < (implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.Covariant))
+            {
+                return false;
+            }
+
+            //? 逆变。
+            if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.Contravariant) < (implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.Contravariant))
+            {
+                return false;
+            }
+
+            //? 无参构造函数。
             if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.DefaultConstructorConstraint) == GenericParameterAttributes.DefaultConstructorConstraint)
             {
                 if ((implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.DefaultConstructorConstraint) != GenericParameterAttributes.DefaultConstructorConstraint
@@ -237,20 +263,119 @@ label_typeDefinition:
                 }
             }
 
-            if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) != (implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint))
+            return IsLike(typeArgument, implementationTypeArgument);
+        }
+
+        /// <summary>
+        /// 可以接收从目标对象赋值。
+        /// </summary>
+        /// <param name="type">类型。</param>
+        /// <param name="implementationType">实现。</param>
+        /// <returns></returns>
+        public static bool IsAssignableLikeFrom(this Type type, Type implementationType)
+        {
+            if (type is null)
+            {
+                return implementationType is null;
+            }
+
+            if (implementationType is null)
             {
                 return false;
             }
 
-            if ((typeArgument.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) == GenericParameterAttributes.ReferenceTypeConstraint)
+            if (implementationType.IsGenericTypeDefinition)
             {
-                if ((implementationTypeArgument.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) == GenericParameterAttributes.NotNullableValueTypeConstraint)
+                if (type.IsGenericTypeDefinition)
+                {
+                    return IsLike(type, implementationType);
+                }
+
+                return false;
+            }
+
+            if (type.IsGenericTypeDefinition)
+            {
+                if (type.IsGenericParameter)
+                {
+                    return IsAssignableLikeGenericTypeDefinition(type, implementationType);
+                }
+
+                return IsAssignableLikeTypeDefinition(type, implementationType);
+            }
+
+            return type.IsAssignableFrom(implementationType);
+        }
+
+        private static bool IsAssignableLikeTypeDefinition(Type typeDefinition, Type implementationType)
+        {
+            if (typeDefinition.IsInterface)
+            {
+                foreach (var interfaceType in implementationType.GetInterfaces())
+                {
+                    if (interfaceType.IsGenericType && (interfaceType == typeDefinition || interfaceType.GetGenericTypeDefinition() == typeDefinition))
+                    {
+                        return true;
+                    }
+                }
+            }
+            else
+            {
+                do
+                {
+                    if (implementationType.IsGenericType && (typeDefinition == implementationType || typeDefinition == implementationType.GetGenericTypeDefinition()))
+                    {
+                        return true;
+                    }
+
+                    implementationType = implementationType.BaseType;
+
+                } while (implementationType is not null);
+            }
+
+            return false;
+        }
+
+        private static bool IsAssignableLikeGenericTypeDefinition(Type typeDefinition, Type implementationType)
+        {
+            //? 值类型约束。
+            if ((typeDefinition.GenericParameterAttributes & GenericParameterAttributes.NotNullableValueTypeConstraint) == GenericParameterAttributes.NotNullableValueTypeConstraint)
+            {
+                if (implementationType.IsClass || implementationType.IsNullable())
                 {
                     return false;
                 }
             }
 
-            return IsLike(typeArgument, implementationTypeArgument);
+            //? 引用类约束。
+            if ((typeDefinition.GenericParameterAttributes & GenericParameterAttributes.ReferenceTypeConstraint) == GenericParameterAttributes.ReferenceTypeConstraint)
+            {
+                if (implementationType.IsValueType)
+                {
+                    return false;
+                }
+            }
+
+            //? 无参构造函数。
+            if ((typeDefinition.GenericParameterAttributes & GenericParameterAttributes.DefaultConstructorConstraint) == GenericParameterAttributes.DefaultConstructorConstraint)
+            {
+                var constructorInfo = implementationType.GetConstructor(Type.EmptyTypes);
+
+                if (constructorInfo is null)
+                {
+                    return false;
+                }
+            }
+
+            foreach (var interfaceType in typeDefinition.GetInterfaces())
+            {
+                if (!IsAssignableLikeFrom(interfaceType, implementationType))
+                {
+                    return false;
+                }
+            }
+
+            return typeDefinition.BaseType is null || IsAssignableLikeFrom(typeDefinition.BaseType, implementationType);
         }
     }
 }

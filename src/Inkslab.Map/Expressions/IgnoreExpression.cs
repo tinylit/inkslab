@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Linq.Expressions;
 using static System.Linq.Expressions.Expression;
 
 namespace Inkslab.Map.Expressions
@@ -8,6 +9,7 @@ namespace Inkslab.Map.Expressions
     /// </summary>
     public sealed class IgnoreIfNullExpression : Expression
     {
+        private readonly Type type;
         private readonly Expression node;
 
         /// <summary>
@@ -23,16 +25,31 @@ namespace Inkslab.Map.Expressions
         {
             this.node = node ?? throw new ArgumentNullException(nameof(node));
 
-            if(node is IgnoreIfNullExpression ignoreNode)
+            if (node is IgnoreIfNullExpression ignoreNode)
             {
                 this.node = ignoreNode.node;
+                this.type = ignoreNode.type;
+            }
+            else if (node.Type.IsClass)
+            {
+                this.node = node;
+                this.type = node.Type;
+            }
+            else if (node.Type.IsNullable())
+            {
+                this.node = node;
+                this.type = Nullable.GetUnderlyingType(node.Type);
+            }
+            else
+            {
+                throw new ArgumentException($"类型【{node.Type}】的值不可能为null！");
             }
         }
 
         /// <summary>
         /// 类型。
         /// </summary>
-        public override Type Type => node.Type;
+        public override Type Type => type;
 
         /// <summary>
         /// 节点类型。
@@ -62,6 +79,11 @@ namespace Inkslab.Map.Expressions
                 return ignore.VisitIgnoreIfNull(this);
             }
 
+            if (node.Type.IsNullable())
+            {
+                return visitor.Visit(Property(node, "Value"));
+            }
+
             return visitor.Visit(node);
         }
     }
@@ -82,22 +104,30 @@ namespace Inkslab.Map.Expressions
         /// <returns></returns>
         protected internal virtual Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
         {
-            var reduceNode = node.CanReduce 
-                ? node.Reduce() 
+            var reduceNode = node.CanReduce
+                ? node.Reduce()
                 : node;
+
+            bool nullable = reduceNode.Type.IsNullable();
+
+            Expression test = nullable
+                ? Property(reduceNode, "HasValue")
+                : NotEqual(reduceNode, Default(reduceNode.Type));
 
             if (HasIgnore)
             {
-                Test = AndAlso(Test, NotEqual(reduceNode, Default(reduceNode.Type)));
+                Test = AndAlso(Test, test);
             }
             else
             {
                 HasIgnore = true;
 
-                Test = NotEqual(reduceNode, Default(reduceNode.Type));
+                Test = test;
             }
 
-            return reduceNode;
+            return nullable 
+                ? Property(reduceNode, "Value")
+                : reduceNode;
         }
     }
 }

@@ -199,7 +199,7 @@ namespace Inkslab
                         })
                         .ToList();
 
-                    var constructorInfo = Resolved(constructorInfos);
+                    var constructorInfo = Resolved(conversionType, constructorInfos);
 
                     if (constructorInfo is null)
                     {
@@ -209,7 +209,7 @@ namespace Inkslab
 
                             foreach (var parameterInfo in parameterInfos)
                             {
-                                if (parameterInfo.IsOptional || IsSurport(parameterInfo.ParameterType))
+                                if (parameterInfo.IsOptional || IsSurport(conversionType, parameterInfo.ParameterType))
                                 {
                                     continue;
                                 }
@@ -222,7 +222,7 @@ namespace Inkslab
                     Instance = CreateInstance(constructorInfo);
                 }
 
-                private static ConstructorInfo Resolved(List<ConstructorInfo> constructorInfos)
+                private static ConstructorInfo Resolved(Type conversionType, List<ConstructorInfo> constructorInfos)
                 {
                     foreach (var constructorInfo in constructorInfos)
                     {
@@ -232,7 +232,7 @@ namespace Inkslab
 
                         foreach (var parameterInfo in parameterInfos)
                         {
-                            if (parameterInfo.IsOptional || IsSurport(parameterInfo.ParameterType))
+                            if (parameterInfo.IsOptional || IsSurport(conversionType, parameterInfo.ParameterType))
                             {
                                 continue;
                             }
@@ -251,7 +251,7 @@ namespace Inkslab
                     return null;
                 }
 
-                private static bool IsSurport(Type parameterType)
+                private static bool IsSurport(Type conversionType, Type parameterType)
                 {
                     if (ServiceCaching.ContainsKey(parameterType))
                     {
@@ -262,6 +262,11 @@ namespace Inkslab
                     {
                         if (parameterType.IsAssignableFrom(kv.Key))
                         {
+                            if (conversionType.IsAssignableFrom(kv.Key))
+                            {
+                                continue;
+                            }
+
                             ServiceCaching[parameterType] = kv.Value;
 
                             return true;

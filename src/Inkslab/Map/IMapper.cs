@@ -8,29 +8,19 @@ namespace Inkslab.Map
     public interface IMapper
     {
         /// <summary>
-        /// 对象克隆。
-        /// </summary>
-        /// <param name="obj">数据源。</param>
-        /// <param name="def">默认值。</param>
-        /// <typeparam name="T">目标类型。</typeparam>
-        /// <returns></returns>
-        T Copy<T>(T obj, T def = default) where T : class;
-
-        /// <summary>
         /// 对象映射。
         /// </summary>
         /// <param name="obj">数据源。</param>
-        /// <param name="def">默认值。</param>
         /// <typeparam name="T">目标类型。</typeparam>
-        /// <returns></returns>
-        T Map<T>(object obj, T def = default);
+        /// <returns>映射的对象。</returns>
+        T Map<T>(object obj);
 
         /// <summary> 
         /// 对象映射。
         /// </summary>
         /// <param name="obj">数据源。</param>
         /// <param name="conversionType">目标类型。</param>
-        /// <returns></returns>
+        /// <returns>映射的对象。</returns>
         object Map(object obj, Type conversionType);
     }
 }

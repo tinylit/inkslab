@@ -1,4 +1,6 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Inkslab.Map
@@ -21,7 +23,6 @@ namespace Inkslab.Map
             var bodyExp = ToSolve(sourceExpression, sourceType, destinationExpression, destinationType, configuration);
 
             return Block(destinationType, new ParameterExpression[] { destinationExpression }, new Expression[] { Assign(destinationExpression, instanceExpression), bodyExp, destinationExpression });
-
         }
 
         protected abstract Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration);
@@ -30,7 +31,7 @@ namespace Inkslab.Map
         {
             var constructorInfo = destinationType.GetConstructor(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
 
-            if (constructorInfo != null)
+            if (constructorInfo is not null)
             {
                 return New(constructorInfo);
             }

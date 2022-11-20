@@ -1,6 +1,9 @@
 ﻿using Inkslab.Collections;
+using System;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -55,18 +58,41 @@ namespace Inkslab.Map.Expressions
             var sourceType = source.GetType();
             var destinationType = typeof(TDestination);
 
-            if (IsMatch(sourceType, destinationType))
+            if (sourceType.IsClass && destinationType.IsClass && IsMatch(sourceType, destinationType))
             {
-                var router = routerCachings
-                        .GetOrAdd(destinationType, type => new MapRouter<TDestination>(type));
-
-                if (router is MapRouter<TDestination> mapRouter)
-                {
-                    return mapRouter.Map(this, source);
-                }
+                return (TDestination)routerCachings.GetOrAdd(destinationType, Type => new MapRouter(Type))
+                        .Map(this, source);
             }
 
-            return Mapper<TDestination>.Map(configuration, source);
+            if (destinationType.IsValueType)
+            {
+                return Mapper<TDestination>.Map(configuration, source);
+            }
+
+            return (TDestination)Mapper.Map(configuration, source, destinationType);
+        }
+
+        public virtual object Map(object source, Type destinationType)
+        {
+            if (destinationType is null)
+            {
+                throw new ArgumentNullException(nameof(destinationType));
+            }
+
+            if (source is null)
+            {
+                return null;
+            }
+
+            var sourceType = source.GetType();
+
+            if (sourceType.IsClass && destinationType.IsClass && IsMatch(sourceType, destinationType))
+            {
+                return routerCachings.GetOrAdd(destinationType, Type => new MapRouter(Type))
+                        .Map(this, source);
+            }
+
+            return Mapper.Map(configuration, source, destinationType);
         }
 
         protected override void Dispose(bool disposing)
@@ -84,31 +110,27 @@ namespace Inkslab.Map.Expressions
             base.Dispose(disposing);
         }
 
-        private readonly ConcurrentDictionary<Type, IRouter> routerCachings = new ConcurrentDictionary<Type, IRouter>();
+        private readonly ConcurrentDictionary<Type, MapRouter> routerCachings = new ConcurrentDictionary<Type, MapRouter>();
 
-        private interface IRouter : IDisposable
-        {
-        }
-
-        private class MapRouter<TDestination> : IRouter, IDisposable
+        private class MapRouter : IDisposable
         {
             private readonly Type destinationType;
-            private readonly ConcurrentDictionary<Type, Func<object, TDestination>> cachings = new ConcurrentDictionary<Type, Func<object, TDestination>>();
+            private readonly ConcurrentDictionary<Type, Func<object, object>> cachings = new ConcurrentDictionary<Type, Func<object, object>>();
 
             public MapRouter(Type destinationType)
             {
                 this.destinationType = destinationType;
             }
 
-            public TDestination Map(ProfileExpression<TMapper, TConfiguration> mapper, object source)
+            public object Map(ProfileExpression<TMapper, TConfiguration> mapper, object source)
             {
                 var factory = cachings.GetOrAdd(source.GetType(), type =>
                 {
                     var sourceExp = Variable(type);
 
-                    var bodyExp = Mapper<TDestination>.Visit(mapper.Map(sourceExp, destinationType));
+                    var bodyExp = Mapper.Visit(mapper.Map(sourceExp, destinationType));
 
-                    if (bodyExp.Type != destinationType)
+                    if (!destinationType.IsAssignableFrom(bodyExp.Type))
                     {
                         throw new InvalidOperationException();
                     }
@@ -124,8 +146,24 @@ namespace Inkslab.Map.Expressions
                     {
                         case LambdaExpression lambdaExp:
 
-                            if (lambdaExp.Parameters.Count != 1 || !ReferenceEquals(lambdaExp.Parameters[0], sourceExp))
+                            if (lambdaExp.Parameters.Count != 1)
                             {
+                                throw new InvalidOperationException();
+                            }
+
+                            var parameterByLambdaExp = lambdaExp.Parameters[0];
+
+                            if (!ReferenceEquals(parameterByLambdaExp, sourceExp))
+                            {
+                                if (parameterByLambdaExp.Type.IsAssignableFrom(sourceExp.Type))
+                                {
+                                    var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
+
+                                    expressions.Add(visitor.Visit(lambdaExp.Body));
+
+                                    break;
+                                }
+
                                 throw new InvalidOperationException();
                             }
 
@@ -138,7 +176,7 @@ namespace Inkslab.Map.Expressions
                             break;
                     }
 
-                    var lambda = Lambda<Func<object, TDestination>>(Block(new ParameterExpression[] { sourceExp }, expressions), parameterExp);
+                    var lambda = Lambda<Func<object, object>>(Block(typeof(object), new ParameterExpression[] { sourceExp }, expressions), parameterExp);
 
                     return lambda.Compile();
                 });
@@ -146,12 +184,255 @@ namespace Inkslab.Map.Expressions
                 return factory.Invoke(source);
             }
 
-            public void Dispose()
-            {
-                cachings.Clear();
+            public void Dispose() => cachings.Clear();
+        }
 
-                GC.SuppressFinalize(this);
+        private static class Mapper
+        {
+            private static readonly LFU<Type, Func<object, object>> cachings = new LFU<Type, Func<object, object>>();
+
+            public static object Map(TConfiguration mapper, object source, Type destinationType)
+            {
+                var sourceType = source.GetType();
+
+                var conversionType = destinationType;
+
+                if (conversionType.IsInterface)
+                {
+                    if (conversionType.IsGenericType)
+                    {
+                        var typeDefinition = conversionType.GetGenericTypeDefinition();
+
+                        if (typeDefinition == typeof(IList<>)
+                            || typeDefinition == typeof(IReadOnlyList<>)
+                            || typeDefinition == typeof(ICollection<>)
+                            || typeDefinition == typeof(IReadOnlyCollection<>)
+                            || typeDefinition == typeof(IEnumerable<>))
+                        {
+                            conversionType = typeof(List<>).MakeGenericType(conversionType.GetGenericArguments());
+                        }
+                        else if (typeDefinition == typeof(IDictionary<,>)
+                            || typeDefinition == typeof(IReadOnlyDictionary<,>))
+                        {
+                            conversionType = typeof(Dictionary<,>).MakeGenericType(conversionType.GetGenericArguments());
+                        }
+                    }
+                    else if (conversionType == typeof(IEnumerable)
+                        || conversionType == typeof(ICollection)
+                        || conversionType == typeof(IList))
+                    {
+                        conversionType = typeof(List<object>);
+                    }
+                }
+                else if (conversionType == typeof(object))
+                {
+                    conversionType = sourceType;
+                }
+
+                if (conversionType.IsAbstract)
+                {
+                    throw new InvalidCastException($"无法从源【{sourceType}】分析到目标【{destinationType}】的可实列化类型！");
+                }
+
+                if (!mapper.IsMatch(sourceType, conversionType))
+                {
+                    throw new InvalidCastException();
+                }
+
+                var factory = cachings.GetOrCreate(sourceType, type =>
+                {
+                    bool convertFlag = destinationType.IsValueType;
+
+                    var objectType = typeof(object);
+
+                    var sourceExp = Variable(type);
+
+                    var bodyExp = Visit(mapper.Map(sourceExp, conversionType));
+
+                    if (!conversionType.IsAssignableFrom(bodyExp.Type))
+                    {
+                        throw new InvalidOperationException();
+                    }
+
+                    var parameterExp = Parameter(objectType);
+
+                    var expressions = new List<Expression>
+                    {
+                        Assign(sourceExp, Convert(parameterExp, type))
+                    };
+
+                    switch (bodyExp)
+                    {
+                        case LambdaExpression lambdaExp:
+
+                            if (lambdaExp.Parameters.Count != 1)
+                            {
+                                throw new InvalidOperationException();
+                            }
+
+                            var parameterByLambdaExp = lambdaExp.Parameters[0];
+
+                            if (!ReferenceEquals(parameterByLambdaExp, sourceExp))
+                            {
+                                if (parameterByLambdaExp.Type.IsAssignableFrom(sourceExp.Type))
+                                {
+                                    if (convertFlag)
+                                    {
+                                        convertFlag = false;
+
+                                        expressions.Add(Convert(Invoke(lambdaExp, sourceExp), objectType));
+                                    }
+                                    else
+                                    {
+                                        var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
+
+                                        expressions.Add(visitor.Visit(lambdaExp.Body));
+                                    }
+
+                                    break;
+                                }
+
+                                throw new InvalidOperationException();
+                            }
+
+                            if (convertFlag)
+                            {
+                                convertFlag = false;
+
+                                expressions.Add(Convert(Invoke(lambdaExp, sourceExp), objectType));
+                            }
+                            else
+                            {
+                                expressions.Add(lambdaExp.Body);
+                            }
+
+                            break;
+                        default:
+                            if (convertFlag)
+                            {
+                                switch (bodyExp.NodeType)
+                                {
+                                    case ExpressionType.Add:
+                                    case ExpressionType.AddChecked:
+                                    case ExpressionType.And:
+                                    case ExpressionType.AndAlso:
+                                    case ExpressionType.ArrayLength:
+                                    case ExpressionType.ArrayIndex:
+                                    case ExpressionType.Call:
+                                    case ExpressionType.Coalesce:
+                                    case ExpressionType.Conditional:
+                                    case ExpressionType.Constant:
+                                    case ExpressionType.Convert:
+                                    case ExpressionType.ConvertChecked:
+                                    case ExpressionType.Divide:
+                                    case ExpressionType.Equal:
+                                    case ExpressionType.ExclusiveOr:
+                                    case ExpressionType.GreaterThan:
+                                    case ExpressionType.GreaterThanOrEqual:
+                                    case ExpressionType.LeftShift:
+                                    case ExpressionType.MemberAccess:
+                                    case ExpressionType.Modulo:
+                                    case ExpressionType.Multiply:
+                                    case ExpressionType.LessThan:
+                                    case ExpressionType.LessThanOrEqual:
+                                    case ExpressionType.MultiplyChecked:
+                                    case ExpressionType.Negate:
+                                    case ExpressionType.UnaryPlus:
+                                    case ExpressionType.NegateChecked:
+                                    case ExpressionType.New:
+                                    case ExpressionType.Not:
+                                    case ExpressionType.NotEqual:
+                                    case ExpressionType.Or:
+                                    case ExpressionType.OrElse:
+                                    case ExpressionType.Parameter:
+                                    case ExpressionType.Power:
+                                    case ExpressionType.TypeAs:
+                                    case ExpressionType.TypeIs:
+                                    case ExpressionType.RightShift:
+                                    case ExpressionType.Subtract:
+                                    case ExpressionType.SubtractChecked:
+                                    case ExpressionType.Assign:
+                                    case ExpressionType.Increment:
+                                    case ExpressionType.Decrement:
+                                    case ExpressionType.Default:
+                                    case ExpressionType.Index:
+                                    case ExpressionType.Unbox:
+                                    case ExpressionType.AddAssign:
+                                    case ExpressionType.AndAssign:
+                                    case ExpressionType.DivideAssign:
+                                    case ExpressionType.ExclusiveOrAssign:
+                                    case ExpressionType.LeftShiftAssign:
+                                    case ExpressionType.ModuloAssign:
+                                    case ExpressionType.MultiplyAssign:
+                                    case ExpressionType.OrAssign:
+                                    case ExpressionType.PowerAssign:
+                                    case ExpressionType.RightShiftAssign:
+                                    case ExpressionType.SubtractAssign:
+                                    case ExpressionType.AddAssignChecked:
+                                    case ExpressionType.MultiplyAssignChecked:
+                                    case ExpressionType.SubtractAssignChecked:
+                                    case ExpressionType.PreIncrementAssign:
+                                    case ExpressionType.PreDecrementAssign:
+                                    case ExpressionType.PostIncrementAssign:
+                                    case ExpressionType.PostDecrementAssign:
+                                    case ExpressionType.TypeEqual:
+                                    case ExpressionType.OnesComplement:
+                                    case ExpressionType.IsTrue:
+                                    case ExpressionType.IsFalse:
+
+                                        convertFlag = false;
+
+                                        expressions.Add(Convert(bodyExp, objectType));
+                                        break;
+                                    case ExpressionType.Quote:
+                                    case ExpressionType.Invoke:
+                                    case ExpressionType.Lambda:
+                                    case ExpressionType.ListInit:
+                                    case ExpressionType.MemberInit:
+                                    case ExpressionType.NewArrayInit:
+                                    case ExpressionType.NewArrayBounds:
+                                    case ExpressionType.Block:
+                                    case ExpressionType.DebugInfo:
+                                    case ExpressionType.Dynamic:
+                                    case ExpressionType.Extension:
+                                    case ExpressionType.Goto:
+                                    case ExpressionType.Label:
+                                    case ExpressionType.RuntimeVariables:
+                                    case ExpressionType.Loop:
+                                    case ExpressionType.Switch:
+                                    case ExpressionType.Throw:
+                                    case ExpressionType.Try:
+                                    default:
+                                        expressions.Add(bodyExp);
+
+                                        break;
+                                }
+                            }
+                            else
+                            {
+                                expressions.Add(bodyExp);
+                            }
+
+                            break;
+                    }
+
+                    Expression blockExp = Block(new ParameterExpression[] { sourceExp }, expressions);
+
+                    if (convertFlag)
+                    {
+                        blockExp = Convert(Invoke(Lambda(blockExp, parameterExp), parameterExp), objectType);
+                    }
+
+                    var lambda = Lambda<Func<object, object>>(blockExp, parameterExp);
+
+                    return lambda.Compile();
+
+                });
+
+                return factory.Invoke(source);
             }
+
+            public static Expression Visit(Expression node) => MapperExpressionVisitor.Instance.Visit(node);
         }
 
         private static class Mapper<TDestination>
@@ -201,11 +482,6 @@ namespace Inkslab.Map.Expressions
 
                 var conversionType = destinationType;
 
-                if (sourceType.IsNullable())
-                {
-                    sourceType = Nullable.GetUnderlyingType(sourceType);
-                }
-
                 if (runtimeType.IsInterface || runtimeType.IsAbstract)
                 {
                     if (runtimeType.IsAssignableFrom(sourceType))
@@ -235,9 +511,9 @@ namespace Inkslab.Map.Expressions
                 {
                     var sourceExp = Variable(type);
 
-                    var bodyExp = Visit(mapper.Map(sourceExp, conversionType));
+                    var bodyExp = Mapper.Visit(mapper.Map(sourceExp, conversionType));
 
-                    if (bodyExp.Type != destinationType)
+                    if (!destinationType.IsAssignableFrom(bodyExp.Type))
                     {
                         throw new InvalidOperationException();
                     }
@@ -253,8 +529,24 @@ namespace Inkslab.Map.Expressions
                     {
                         case LambdaExpression lambdaExp:
 
-                            if (lambdaExp.Parameters.Count != 1 || !ReferenceEquals(lambdaExp.Parameters[0], sourceExp))
+                            if (lambdaExp.Parameters.Count != 1)
                             {
+                                throw new InvalidOperationException();
+                            }
+
+                            var parameterByLambdaExp = lambdaExp.Parameters[0];
+
+                            if (!ReferenceEquals(parameterByLambdaExp, sourceExp))
+                            {
+                                if (parameterByLambdaExp.Type.IsAssignableFrom(sourceExp.Type))
+                                {
+                                    var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
+
+                                    expressions.Add(visitor.Visit(lambdaExp.Body));
+
+                                    break;
+                                }
+
                                 throw new InvalidOperationException();
                             }
 
@@ -274,8 +566,27 @@ namespace Inkslab.Map.Expressions
 
                 return factory.Invoke(source);
             }
+        }
 
-            public static Expression Visit(Expression node) => MapperExpressionVisitor.Instance.Visit(node);
+        private class ReplaceExpressionVisitor : ExpressionVisitor
+        {
+            private readonly Expression _oldExpression;
+            private readonly Expression _newExpression;
+
+            public ReplaceExpressionVisitor(Expression oldExpression, Expression newExpression)
+            {
+                _oldExpression = oldExpression;
+                _newExpression = newExpression;
+            }
+            public override Expression Visit(Expression node)
+            {
+                if (_oldExpression == node)
+                {
+                    return base.Visit(_newExpression);
+                }
+
+                return base.Visit(node);
+            }
         }
 
         /// <summary>
@@ -320,7 +631,7 @@ namespace Inkslab.Map.Expressions
 
                 if (visitor.HasIgnore)
                 {
-                    return Condition(visitor.Test, node, Throw(New(typeof(InvalidCastException))), node.Type);
+                    return Condition(visitor.Test, node, Throw(Expression.New(typeof(InvalidCastException))), node.Type);
                 }
 
                 return node;
@@ -368,7 +679,7 @@ namespace Inkslab.Map.Expressions
 
                     var lambdaExp = Lambda(Block(node.Type, expressions), parameterExp);
 
-                    return Invoke(lambdaExp, Condition(visitor.Test, node.NewExpression, Throw(New(typeof(InvalidCastException))), node.NewExpression.Type));
+                    return Invoke(lambdaExp, Condition(visitor.Test, node.NewExpression, Throw(Expression.New(typeof(InvalidCastException))), node.NewExpression.Type));
                 }
 
                 return VisitMemberInitValid(node);

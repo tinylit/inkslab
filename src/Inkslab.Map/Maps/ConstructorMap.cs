@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Inkslab.Map.Maps
@@ -11,13 +12,23 @@ namespace Inkslab.Map.Maps
     public class ConstructorMap : IMap
     {
         public bool IsMatch(Type sourceType, Type destinationType)
-            => Array.Exists(destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), x => Array.TrueForAll(x.GetParameters(), y => y.ParameterType.IsAssignableFrom(sourceType)));
+            => Array.Exists(destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), x =>
+            {
+                var parameterInfos = x.GetParameters();
+
+                return parameterInfos.Length == 1 && Array.TrueForAll(parameterInfos, y => y.ParameterType.IsAssignableFrom(sourceType));
+            });
 
         public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
         {
-            var constructorInfo = Array.Find(destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), x => Array.TrueForAll(x.GetParameters(), y => y.ParameterType.IsAssignableFrom(sourceType)));
+            var constructorInfo = Array.Find(destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), x =>
+            {
+                var parameterInfos = x.GetParameters();
 
-            return New(constructorInfo, Array.ConvertAll(constructorInfo.GetParameters(), x => Convert(sourceExpression, x.ParameterType)));
+                return parameterInfos.Length == 1 && Array.TrueForAll(parameterInfos, y => y.ParameterType.IsAssignableFrom(sourceType));
+            });
+
+            return New(constructorInfo, sourceExpression);
         }
     }
 }
