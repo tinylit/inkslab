@@ -61,17 +61,11 @@ namespace Inkslab.Config
 
             ConnectionStrings = new Dictionary<string, ConnectionStringSettings>(StringComparer.OrdinalIgnoreCase);
 
-            switch (environment)
+            Config = environment switch
             {
-                case RuntimeEnvironment.Form:
-                case RuntimeEnvironment.Service:
-                    Config = ConfigurationManager.OpenExeConfiguration(string.Empty);
-                    break;
-                case RuntimeEnvironment.Web:
-                default:
-                    Config = WebConfigurationManager.OpenWebConfiguration("~");
-                    break;
-            }
+                RuntimeEnvironment.Form or RuntimeEnvironment.Service => ConfigurationManager.OpenExeConfiguration(string.Empty),
+                _ => WebConfigurationManager.OpenWebConfiguration("~"),
+            };
         }
 
         /// <summary>
@@ -80,14 +74,14 @@ namespace Inkslab.Config
         /// <typeparam name="T">返回类型。</typeparam>
         /// <param name="key">键。</param>
         /// <param name="defaultValue">默认值。</param>
-        /// <returns></returns>
+        /// <returns>获取到的值。</returns>
         public T Get<T>(string key, T defaultValue = default)
         {
             if (key.IndexOf('/') == -1)
             {
                 if (Configs.TryGetValue(key, out string value))
                 {
-                    return Mapper.Map(value, defaultValue);
+                    return Mapper.Map<T>(value);
                 }
 
                 return defaultValue;
@@ -99,14 +93,14 @@ namespace Inkslab.Config
             {
                 if (keys.Length == 1)
                 {
-                    return Mapper.Map(ConnectionStrings, defaultValue);
+                    return Mapper.Map<T>(ConnectionStrings);
                 }
 
                 if (ConnectionStrings.TryGetValue(keys[1], out ConnectionStringSettings value))
                 {
                     if (keys.Length == 2)
                     {
-                        return Mapper.Map(value, defaultValue);
+                        return Mapper.Map<T>(value);
                     }
 
                     if (keys.Length > 3)
@@ -115,13 +109,13 @@ namespace Inkslab.Config
                     }
 
                     if (string.Equals(keys[2], "connectionString", StringComparison.OrdinalIgnoreCase))
-                        return Mapper.Map(value.ConnectionString, defaultValue);
+                        return Mapper.Map<T>(value.ConnectionString);
 
                     if (string.Equals(keys[2], "name", StringComparison.OrdinalIgnoreCase))
-                        return Mapper.Map(value.Name, defaultValue);
+                        return Mapper.Map<T>(value.Name);
 
                     if (string.Equals(keys[2], "providerName", StringComparison.OrdinalIgnoreCase))
-                        return Mapper.Map(value.ProviderName, defaultValue);
+                        return Mapper.Map<T>(value.ProviderName);
                 }
 
                 return defaultValue;
@@ -131,12 +125,12 @@ namespace Inkslab.Config
             {
                 if (keys.Length == 1)
                 {
-                    return Mapper.Map(Configs, defaultValue);
+                    return Mapper.Map<T>(Configs);
                 }
 
                 if (keys.Length == 2 && Configs.TryGetValue(keys[1], out string value))
                 {
-                    return Mapper.Map(value, defaultValue);
+                    return Mapper.Map<T>(value);
                 }
 
                 if (keys.Length > 2)

@@ -99,7 +99,7 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="key">键。</param>
         /// <param name="addValue">值。</param>
-        /// <param name="updateValueFactory"创建更新值。></param>
+        /// <param name="updateValueFactory">创建更新值的工厂。</param>
         /// <returns>键的新值。若该键不存在，返回 <paramref name="addValue"/> ；否则，返回 <paramref name="updateValueFactory"/> 的结果。</returns>
         public TValue AddOrUpdate(TKey key, TValue addValue, Func<TKey, TValue, TValue> updateValueFactory)
         {
@@ -163,7 +163,8 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="key">键。</param>
         /// <param name="addValue">值。</param>
-        /// <param name="updateValueFactory"创建更新值。></param>
+        /// <param name="updateValueFactory">创建更新值的工厂。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>键的新值。若该键不存在，返回 <paramref name="addValue"/> ；否则，返回 <paramref name="updateValueFactory"/> 的结果。</returns>
         public Task<TValue> AddOrUpdateAsync(TKey key, TValue addValue, Func<TKey, TValue, CancellationToken, Task<TValue>> updateValueFactory, CancellationToken cancellationToken = default)
         {
@@ -186,6 +187,7 @@ namespace Inkslab.Collections
         /// <param name="key">键。</param>
         /// <param name="addValueFactory">创建新值。</param>
         /// <param name="updateValueFactory">创建更新值。</param>
+        /// <param name="cancellationToken">取消令牌。</param>
         /// <returns>键的新值。若该键存在，则返回 <paramref name="addValueFactory"/> 的结果；否则，返回 <paramref name="updateValueFactory"/> 的结果。</returns>
         public Task<TValue> AddOrUpdateAsync(TKey key, Func<TKey, CancellationToken, Task<TValue>> addValueFactory, Func<TKey, TValue, CancellationToken, Task<TValue>> updateValueFactory, CancellationToken cancellationToken = default)
         {

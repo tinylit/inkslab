@@ -150,6 +150,7 @@ namespace Inkslab.Collections
         /// 获取值。
         /// </summary>
         /// <param name="key">键。</param>
+        /// <param name="factory">创建值的工厂。</param>
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
         public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
         {

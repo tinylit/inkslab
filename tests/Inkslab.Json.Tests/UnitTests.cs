@@ -8,21 +8,41 @@ using Xunit;
 
 namespace Inkslab.Json.Tests
 {
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
     public class A
     {
-        //? 不序列化这个属性。
+        /// <summary>
+        /// 不序列化这个属性。
+        /// </summary>
         [Ignore]
         public int A1 { get; set; } = 100;
 
+        /// <summary>
+        /// <see cref="A2"/>
+        /// </summary>
         public int A2 { get; set; }
 
+        /// <summary>
+        /// <see cref="A3"/>
+        /// </summary>
         public string A3 { get; set; } = string.Empty;
 
+        /// <summary>
+        /// <see cref="A4"/>
+        /// </summary>
         public DateTime A4 { get; set; }
     }
 
+    /// <summary>
+    /// 单元测试。
+    /// </summary>
     public class UnitTests
     {
+        /// <summary>
+        /// 测试默认Json转换器。
+        /// </summary>
         [Fact]
         public void TestDef()
         {
@@ -54,6 +74,9 @@ namespace Inkslab.Json.Tests
             Assert.Equal(a.A3, a1.A3);
         }
 
+        /// <summary>
+        /// 测试自定义转换器。
+        /// </summary>
         [Fact]
         public void TestCus()
         {

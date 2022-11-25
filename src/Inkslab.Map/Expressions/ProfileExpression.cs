@@ -22,6 +22,11 @@ namespace Inkslab.Map.Expressions
 
         bool IConfiguration.AllowPropagationNullValues => configuration.AllowPropagationNullValues;
 
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="configuration">映射配置。</param>
+        /// <exception cref="ArgumentNullException">参数 <paramref name="configuration"/> is null.</exception>
         protected ProfileExpression(TConfiguration configuration)
         {
             this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -31,6 +36,13 @@ namespace Inkslab.Map.Expressions
 
         Expression IMapConfiguration.Map(Expression sourceExpression, Type destinationType) => Map(sourceExpression, destinationType);
 
+        /// <summary>
+        /// 映射。
+        /// </summary>
+        /// <param name="sourceExpression">源类型表达式。</param>
+        /// <param name="destinationType">目标类型。</param>
+        /// <returns>目标类型 <paramref name="destinationType"/> 的计算结果。</returns>
+        /// <exception cref="InvalidCastException">无法转换。</exception>
         protected virtual Expression Map(Expression sourceExpression, Type destinationType)
         {
             var sourceType = sourceExpression.Type;
@@ -48,6 +60,12 @@ namespace Inkslab.Map.Expressions
             throw new InvalidCastException($"无法从【{sourceType}】源映射到【{destinationType}】的类型！");
         }
 
+        /// <summary>
+        /// 映射。
+        /// </summary>
+        /// <typeparam name="TDestination">目标类型。</typeparam>
+        /// <param name="source">源对象。</param>
+        /// <returns>目标类型对象。</returns>
         public virtual TDestination Map<TDestination>(object source)
         {
             if (source is null)
@@ -72,6 +90,13 @@ namespace Inkslab.Map.Expressions
             return (TDestination)Mapper.Map(configuration, source, destinationType);
         }
 
+        /// <summary>
+        /// 映射。
+        /// </summary>
+        /// <param name="source">源对象。</param>
+        /// <param name="destinationType">目标类型。</param>
+        /// <returns>目标类型对象。</returns>
+        /// <exception cref="ArgumentNullException">参数 <paramref name="destinationType"/> is null.</exception>
         public virtual object Map(object source, Type destinationType)
         {
             if (destinationType is null)
@@ -95,17 +120,23 @@ namespace Inkslab.Map.Expressions
             return Mapper.Map(configuration, source, destinationType);
         }
 
+        /// <summary>
+        /// 释放资源。
+        /// </summary>
+        /// <param name="disposing">是否深度释放。</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                foreach (var kv in routerCachings)
-                {
-                    kv.Value.Dispose();
-                }
 
-                routerCachings.Clear();
             }
+
+            foreach (var kv in routerCachings)
+            {
+                kv.Value.Dispose();
+            }
+
+            routerCachings.Clear();
 
             base.Dispose(disposing);
         }
@@ -124,7 +155,14 @@ namespace Inkslab.Map.Expressions
 
             public object Map(ProfileExpression<TMapper, TConfiguration> mapper, object source)
             {
-                var factory = cachings.GetOrAdd(source.GetType(), type =>
+                var sourceType = source.GetType();
+
+                if (sourceType.IsNullable())
+                {
+                    sourceType = Nullable.GetUnderlyingType(sourceType);
+                }
+
+                var factory = cachings.GetOrAdd(sourceType, type =>
                 {
                     var sourceExp = Variable(type);
 
@@ -194,6 +232,11 @@ namespace Inkslab.Map.Expressions
             public static object Map(TConfiguration mapper, object source, Type destinationType)
             {
                 var sourceType = source.GetType();
+
+                if (sourceType.IsNullable())
+                {
+                    sourceType = Nullable.GetUnderlyingType(sourceType);
+                }
 
                 var conversionType = destinationType;
 
@@ -276,18 +319,9 @@ namespace Inkslab.Map.Expressions
                             {
                                 if (parameterByLambdaExp.Type.IsAssignableFrom(sourceExp.Type))
                                 {
-                                    if (convertFlag)
-                                    {
-                                        convertFlag = false;
+                                    var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
 
-                                        expressions.Add(Convert(Invoke(lambdaExp, sourceExp), objectType));
-                                    }
-                                    else
-                                    {
-                                        var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
-
-                                        expressions.Add(visitor.Visit(lambdaExp.Body));
-                                    }
+                                    expressions.Add(visitor.Visit(lambdaExp.Body));
 
                                     break;
                                 }
@@ -418,12 +452,7 @@ namespace Inkslab.Map.Expressions
 
                     Expression blockExp = Block(new ParameterExpression[] { sourceExp }, expressions);
 
-                    if (convertFlag)
-                    {
-                        blockExp = Convert(Invoke(Lambda(blockExp, parameterExp), parameterExp), objectType);
-                    }
-
-                    var lambda = Lambda<Func<object, object>>(blockExp, parameterExp);
+                    var lambda = Lambda<Func<object, object>>(convertFlag ? Convert(blockExp, objectType) : blockExp, parameterExp);
 
                     return lambda.Compile();
 
@@ -479,6 +508,11 @@ namespace Inkslab.Map.Expressions
             public static TDestination Map(TConfiguration mapper, object source)
             {
                 var sourceType = source.GetType();
+
+                if (sourceType.IsNullable())
+                {
+                    sourceType = Nullable.GetUnderlyingType(sourceType);
+                }
 
                 var conversionType = destinationType;
 
@@ -631,7 +665,7 @@ namespace Inkslab.Map.Expressions
 
                 if (visitor.HasIgnore)
                 {
-                    return Condition(visitor.Test, node, Throw(Expression.New(typeof(InvalidCastException))), node.Type);
+                    return Block(new Expression[] { IfThen(Not(visitor.Test), Throw(Expression.New(typeof(InvalidCastException)))), node });
                 }
 
                 return node;
@@ -679,7 +713,7 @@ namespace Inkslab.Map.Expressions
 
                     var lambdaExp = Lambda(Block(node.Type, expressions), parameterExp);
 
-                    return Invoke(lambdaExp, Condition(visitor.Test, node.NewExpression, Throw(Expression.New(typeof(InvalidCastException))), node.NewExpression.Type));
+                    return Invoke(lambdaExp, Condition(visitor.Test, node.NewExpression, Throw(Expression.New(typeof(InvalidCastException))), node.Type));
                 }
 
                 return VisitMemberInitValid(node);

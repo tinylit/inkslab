@@ -12,6 +12,11 @@ namespace Inkslab.Config.Settings
     {
         private readonly string[] configPaths;
 
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="configPaths">配置文件物理路径。</param>
+        /// <exception cref="ArgumentNullException">参数 <paramref name="configPaths"/> is null.</exception>
         public JsonPathConfigSettings(params string[] configPaths)
         {
             this.configPaths = configPaths ?? throw new ArgumentNullException(nameof(configPaths));

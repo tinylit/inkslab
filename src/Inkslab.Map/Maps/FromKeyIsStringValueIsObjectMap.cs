@@ -24,10 +24,32 @@ namespace Inkslab.Map.Maps
         private readonly static PropertyInfo PropertyKey = kvStringType.GetProperty("Key");
         private readonly static PropertyInfo PropertyValue = kvStringType.GetProperty("Value");
 
+        /// <summary>
+        /// 解决从 <see cref="IEnumerable{T}"/>, T is <seealso cref="kvString"/> 到对象的映射。
+        /// </summary>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType) => kvStringEnumerableType.IsAssignableFrom(sourceType);
 
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
+        /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationExpression"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <param name="configuration"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
+            var propertyInfos = Array.FindAll(destinationType.GetProperties(), x => x.CanWrite);
+
+            if (propertyInfos.Length == 0)
+            {
+                return destinationExpression;
+            }
+
             LabelTarget break_label = Label(typeof(void));
             LabelTarget continue_label = Label(typeof(void));
 
@@ -39,13 +61,8 @@ namespace Inkslab.Map.Maps
 
             List<SwitchCase> switchCases = new List<SwitchCase>();
 
-            foreach (var propertyInfo in destinationType.GetProperties())
+            foreach (var propertyInfo in propertyInfos)
             {
-                if (!propertyInfo.CanWrite)
-                {
-                    continue;
-                }
-
                 var destinationProp = Property(destinationExpression, propertyInfo);
 
                 switchCases.Add(SwitchCase(Assign(destinationProp, configuration.Map(sourceValueProp, propertyInfo.PropertyType)), Constant(propertyInfo.Name.ToPascalCase())));

@@ -17,24 +17,26 @@ namespace Inkslab.Map.Maps
         private static readonly PropertyInfo EnumeratorCurrentProp = MapConstants.EnumeratorType.GetProperty(nameof(IEnumerator.Current));
 
         /// <summary>
-        /// 是否匹配。
+        /// 解决迭代器类型（<see cref="IEnumerable"/>）之间的转换。
         /// </summary>
-        /// <param name="sourceType">源。</param>
-        /// <param name="destinationType">目标。</param>
-        /// <returns></returns>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
-            => sourceType != typeof(string)
+            => !sourceType.IsPrimitive && !destinationType.IsPrimitive
+                && sourceType != typeof(string)
                 && destinationType != typeof(string)
                 && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
                 && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
 
         /// <summary>
-        /// 解决。
+        /// <inheritdoc/>
         /// </summary>
-        /// <param name="sourceExpression"></param>
-        /// <param name="destinationType"></param>
-        /// <param name="configuration"></param>
-        /// <returns></returns>
+        /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <param name="configuration"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         /// <exception cref="NotImplementedException"></exception>
         public override Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
         {
@@ -344,6 +346,16 @@ namespace Inkslab.Map.Maps
              });
         }
 
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
+        /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationExpression"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <param name="configuration"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
+        /// <exception cref="InvalidCastException">目标类型 <paramref name="destinationType"/> 为集合，但没有找到添加元素的方法！</exception>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
             if (TryGet(destinationType, out Type elementType, out MethodInfo addElementMtd))

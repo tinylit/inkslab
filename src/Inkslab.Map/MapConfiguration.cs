@@ -83,7 +83,25 @@ namespace Inkslab.Map
         /// <param name="sourceType">源。</param>
         /// <param name="destinationType">目标。</param>
         /// <returns>是否匹配。</returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => profiles.Any(x => x.IsMatch(sourceType, destinationType)) || maps.Any(x => x.IsMatch(sourceType, destinationType));
+        public bool IsMatch(Type sourceType, Type destinationType)
+        {
+            if (sourceType.IsNullable())
+            {
+                sourceType = Nullable.GetUnderlyingType(sourceType);
+            }
+
+            if (destinationType.IsNullable())
+            {
+                destinationType = Nullable.GetUnderlyingType(destinationType);
+            }
+
+            if (sourceType.IsValueType && sourceType == destinationType)
+            {
+                return true;
+            }
+
+            return profiles.Any(x => x.IsMatch(sourceType, destinationType)) || maps.Any(x => x.IsMatch(sourceType, destinationType));
+        }
 
         /// <summary>
         /// 添加配置。
@@ -156,76 +174,7 @@ namespace Inkslab.Map
 
             if (sourceType.IsValueType || conversionType.IsValueType)
             {
-                if (sourceType == conversionType)
-                {
-                    if (AllowPropagationNullValues || !sourceType.IsNullable())
-                    {
-                        return sourceExpression;
-                    }
-
-                    return IgnoreIfNull(sourceExpression);
-                }
-
-                if (sourceType.IsValueType)
-                {
-                    if (sourceType.IsNullable())
-                    {
-                        var underlyingSourceType = Nullable.GetUnderlyingType(sourceType);
-
-                        if (AllowPropagationNullValues)
-                        {
-                            if (conversionType.IsNullable())
-                            {
-                                var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
-
-                                return Condition(Property(sourceExpression, "HasValue"), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, underlyingDestinationType)), Default(conversionType));
-                            }
-
-                            return Condition(Property(sourceExpression, "HasValue"), MapGeneral(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, conversionType), Default(conversionType));
-
-                        }
-
-                        if (conversionType.IsNullable())
-                        {
-                            var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
-
-                            return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, underlyingDestinationType));
-                        }
-
-                        return MapGeneral(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, conversionType);
-                    }
-
-                    //? 非可空的值类型，不存在 null 值，不存在【AllowPropagationNullValues】的约束，均可映射。
-                    if (conversionType.IsNullable())
-                    {
-                        var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
-
-                        return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType));
-                    }
-
-                    return MapGeneral(sourceExpression, sourceType, destinationType, conversionType);
-                }
-
-                if (AllowPropagationNullValues)
-                {
-                    if (conversionType.IsNullable())
-                    {
-                        var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
-
-                        return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType)));
-                    }
-
-                    return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), MapGeneral(sourceExpression, sourceType, destinationType, conversionType));
-                }
-
-                if (conversionType.IsNullable())
-                {
-                    var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
-
-                    return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType));
-                }
-
-                return MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType);
+                return MapAnyOfValueType(sourceExpression, sourceType, destinationType, conversionType);
             }
 
             if (sourceType == typeof(object))
@@ -264,6 +213,90 @@ namespace Inkslab.Map
             }
 
             return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType);
+        }
+
+        /// <summary>
+        /// 含值类型。
+        /// </summary>
+        private Expression MapAnyOfValueType(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType)
+        {
+            if (sourceType == conversionType)
+            {
+                if (AllowPropagationNullValues || !sourceType.IsNullable())
+                {
+                    return sourceExpression;
+                }
+
+                return IgnoreIfNull(sourceExpression);
+            }
+
+            if (sourceType.IsValueType)
+            {
+                if (sourceType.IsNullable())
+                {
+                    var underlyingSourceType = Nullable.GetUnderlyingType(sourceType);
+
+                    if (AllowPropagationNullValues)
+                    {
+                        if (conversionType.IsNullable())
+                        {
+                            var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                            var destinationExpression = underlyingSourceType == underlyingDestinationType
+                                ? Property(sourceExpression, "Value")
+                                : MapGeneral(Property(sourceExpression, "Value"), sourceType, destinationType, underlyingDestinationType);
+
+                            return Condition(Property(sourceExpression, "HasValue"), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression), Default(conversionType));
+                        }
+
+                        return Condition(Property(sourceExpression, "HasValue"), MapGeneral(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, conversionType), Default(conversionType));
+                    }
+
+                    if (conversionType.IsNullable())
+                    {
+                        var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                        var destinationExpression = sourceType == underlyingDestinationType
+                            ? IgnoreIfNull(sourceExpression)
+                            : MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType);
+
+                        return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
+                    }
+
+                    return MapGeneral(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, conversionType);
+                }
+
+                //? 非可空的值类型，不存在 null 值，不存在【AllowPropagationNullValues】的约束，均可映射。
+                if (conversionType.IsNullable())
+                {
+                    var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                    return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType));
+                }
+
+                return MapGeneral(sourceExpression, sourceType, destinationType, conversionType);
+            }
+
+            if (AllowPropagationNullValues)
+            {
+                if (conversionType.IsNullable())
+                {
+                    var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                    return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType)));
+                }
+
+                return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), MapGeneral(sourceExpression, sourceType, destinationType, conversionType));
+            }
+
+            if (conversionType.IsNullable())
+            {
+                var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+
+                return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType));
+            }
+
+            return MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType);
         }
 
         private Expression Map(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType)

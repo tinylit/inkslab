@@ -15,22 +15,8 @@ namespace Inkslab.Map.Maps
     public class StringToEnumMap : IMap
     {
         private static readonly PropertyInfo LengthPrt = typeof(string).GetProperty("length");
-        private static readonly MethodInfo ParseMtd = typeof(Enum).GetMember(nameof(Enum.Parse), MemberTypes.Method, BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-            .Cast<MethodInfo>()
-            .Single(x =>
-            {
-                if (x.IsGenericMethod)
-                {
-                    var parameterInfos = x.GetParameters();
+        private readonly static MethodInfo ConcatMtd = typeof(string).GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { typeof(string), typeof(string), typeof(string) }, null);
 
-                    if (parameterInfos.Length == 2)
-                    {
-                        return parameterInfos[0].ParameterType == typeof(string) && parameterInfos[1].ParameterType == typeof(bool);
-                    }
-                }
-
-                return false;
-            });
 
         /// <summary>
         /// <inheritdoc/>
@@ -44,6 +30,7 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         /// </summary>
         /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <param name="configuration"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
@@ -55,15 +42,32 @@ namespace Inkslab.Map.Maps
             {
                 var attribute = (EnumMemberAttribute)Attribute.GetCustomAttribute(memberInfo, typeof(EnumMemberAttribute));
 
+                if (attribute is null)
+                {
+                    continue;
+                }
+
                 if (attribute.IsValueSetExplicitly)
                 {
                     switchCases.Add(SwitchCase(Constant(memberInfo.GetRawConstantValue(), destinationType), Constant(attribute.Value?.ToLower())));
                 }
             }
 
-            var parseEnumExpression = Convert(Call(ParseMtd.MakeGenericMethod(destinationType), sourceExpression, Constant(true)), destinationType);
+            var destinationExpression = Variable(destinationType);
 
-            return Condition(Equal(Property(sourceExpression, LengthPrt), Constant(0)), Default(destinationType), Switch(Call(sourceExpression, MapConstants.ToLowerMtd), parseEnumExpression, null, switchCases));
+            var bodyExp = Block(new ParameterExpression[] { destinationExpression }, IfThen(Not(Call(MapConstants.TryParseMtd.MakeGenericMethod(destinationType), sourceExpression, Constant(true, typeof(bool)), destinationExpression)), ThrowError(sourceExpression, sourceType, destinationType)), destinationExpression);
+
+            if (switchCases.Count == 0)
+            {
+                return bodyExp;
+            }
+
+            return Condition(Equal(Property(sourceExpression, LengthPrt), Constant(0)), Default(destinationType), Switch(Call(sourceExpression, MapConstants.ToLowerMtd), bodyExp, null, switchCases));
+        }
+
+        private static Expression ThrowError(Expression variable, Type sourceType, Type destinationType)
+        {
+            return Throw(New(MapConstants.InvalidCastExceptionCtorOfString, Call(ConcatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceType.GetMethod("ToString", Type.EmptyTypes)), Constant($"转换为类型({destinationType})!"))));
         }
     }
 }

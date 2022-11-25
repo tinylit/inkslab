@@ -77,13 +77,24 @@ namespace Inkslab.Map
         public readonly static MethodInfo ToArrayMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray), StaticDeclaredOnlyBindingFlags);
 
         /// <summary>
-        /// <see cref="string.ToLower"/> 方法。
+        /// <see cref="string.ToLower()"/> 方法。
         /// </summary>
-        public readonly static MethodInfo ToLowerMtd = typeof(string).GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags);
+        public readonly static MethodInfo ToLowerMtd = typeof(string).GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags, null, Type.EmptyTypes, null);
 
         /// <summary>
-        /// <see cref="ICloneable.Clone"/> 方法。
+        /// <see cref="ICloneable.Clone()"/> 方法。
         /// </summary>
         public readonly static MethodInfo CloneMtd = typeof(ICloneable).GetMethod(nameof(ICloneable.Clone));
+
+        /// <summary>
+        /// <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)"/> 方法。
+        /// </summary>
+        public static readonly MethodInfo TryParseMtd = typeof(Enum).GetMember(nameof(Enum.TryParse), MemberTypes.Method, BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
+                                            .Cast<MethodInfo>()
+                                            .First(x => x.IsGenericMethod && x.GetParameters().Length == 3);
+        /// <summary>
+        /// <see cref="InvalidCastException(string)"/> 构造函数。
+        /// </summary>
+        public readonly static ConstructorInfo InvalidCastExceptionCtorOfString = typeof(InvalidCastException).GetConstructor(new Type[1] { typeof(string) });
     }
 }

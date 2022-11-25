@@ -18,7 +18,7 @@ namespace Inkslab
         private static readonly Type StartupType = typeof(IStartup);
 
         /// <summary>
-        /// 启动（获取所有DLL的类型启动）<see cref="AssemblyFinder.All()"/>。
+        /// 启动（获取所有DLL的类型启动）<see cref="AssemblyFinder.FindAll()"/>。
         /// </summary>
         public XStartup() : this(AssemblyFinder.FindAll())
         {

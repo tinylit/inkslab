@@ -23,8 +23,23 @@ namespace Inkslab.Map.Maps
         private static readonly MethodInfo collectionAddMtd = kvStringCollectionType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[1] { kvStringType }, null);
         private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { typeof(string), typeof(object) }, null);
 
+        /// <summary>
+        /// 解决 <see cref="KeyValuePair{TKey, TValue}"/>, TKey is <seealso cref="string"/>, TValue is <seealso cref="object"/> 到对象的映射。
+        /// </summary>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType) => kvStringCollectionType.IsAssignableFrom(destinationType);
 
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
+        /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationExpression"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <param name="configuration"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
             var propertyInfos = Array.FindAll(sourceType.GetProperties(), x => x.CanRead);

@@ -51,7 +51,7 @@ namespace Inkslab.Map
         /// <summary>
         /// 常量。
         /// </summary>
-        /// <param name=""></param>
+        /// <param name="member">成员值。</param>
         void Constant(TMember member);
 
         /// <summary>

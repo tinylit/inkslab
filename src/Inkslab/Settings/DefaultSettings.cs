@@ -57,7 +57,7 @@ namespace Inkslab.Settings
         /// <summary>
         /// 设置 【PropConverter】 将在内容替换期间使用到它。
         /// </summary>
-        public ICollection<IConverter> Converters => converters ?? (converters = new List<IConverter>());
+        public ICollection<IConverter> Converters => converters ??= new List<IConverter>();
 
         /// <summary>
         /// 属性名解析。
@@ -144,7 +144,7 @@ namespace Inkslab.Settings
         /// <summary>
         /// 替换内容。
         /// </summary>
-        /// <param name="propertyItem">属性。</param>
+        /// <param name="propertyInfo">属性。</param>
         /// <param name="value">属性值。</param>
         /// <returns></returns>
         public string Convert(PropertyInfo propertyInfo, object value)

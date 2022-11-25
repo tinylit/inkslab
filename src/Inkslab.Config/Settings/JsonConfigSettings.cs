@@ -11,6 +11,11 @@ namespace Inkslab.Config.Settings
     {
         private readonly Action<IConfigurationBuilder> configuration;
 
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="configuration">配置。</param>
+        /// <exception cref="ArgumentNullException">参数 <paramref name="configuration"/> is null.</exception>
         public JsonConfigSettings(Action<IConfigurationBuilder> configuration)
         {
             this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));

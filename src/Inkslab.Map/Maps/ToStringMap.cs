@@ -6,7 +6,7 @@ namespace Inkslab.Map.Maps
     using static Expression;
 
     /// <summary>
-    /// 转字符串。
+    /// 转字符串。调用 <see cref="object.ToString"/> 方法完成。
     /// </summary>
     public class ToStringMap : IMap
     {
@@ -22,6 +22,7 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         /// </summary>
         /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <param name="configuration"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>

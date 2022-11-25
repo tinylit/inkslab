@@ -269,10 +269,12 @@ namespace Inkslab.Map
         /// <summary>
         /// 解决映射关系。
         /// </summary>
-        /// <param name="sourceExpression">源。</param>
-        /// <param name="destinationExpression">目标。</param>
-        /// <param name="configuration">配置。</param>
-        /// <returns>赋值表达式。</returns>
+        /// <param name="sourceExpression">源对象表达式。</param>
+        /// <param name="sourceType">源类型。</param>
+        /// <param name="destinationExpression">目标对象表达式。</param>
+        /// <param name="destinationType">目标类型。</param>
+        /// <param name="configuration">映射配置。</param>
+        /// <returns>赋值表达式迭代器。</returns>
         /// <exception cref="InvalidCastException">类型不能被转换。</exception>
         protected virtual IEnumerable<BinaryExpression> ToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
@@ -376,10 +378,10 @@ label_skip:
         /// <summary>
         /// 映射。
         /// </summary>
-        /// <param name="sourceExpression">源。</param>
-        /// <param name="destinationType">目标。</param>
+        /// <param name="sourceExpression">源对象表达式。</param>
+        /// <param name="destinationType">目标类型。</param>
         /// <param name="configuration">配置。</param>
-        /// <returns>映射表达式。</returns>
+        /// <returns>目标类型<paramref name="destinationType"/>的映射结果表达式。</returns>
         public Expression Map(Expression sourceExpression, Type destinationType, IMapConfiguration configuration)
         {
             var sourceType = sourceExpression.Type;
@@ -435,6 +437,15 @@ label_skip:
             return false;
         }
 
+        /// <summary>
+        /// 解决<paramref name="sourceType"/>到<paramref name="destinationType"/>的映射。
+        /// </summary>
+        /// <param name="sourceExpression">源对象表达式。</param>
+        /// <param name="sourceType">源类型。</param>
+        /// <param name="destinationExpression">目标对象表达式。</param>
+        /// <param name="destinationType">目标类型。</param>
+        /// <param name="configuration">映射配置。</param>
+        /// <returns>目标类型<paramref name="destinationType"/>的映射结果表达式。</returns>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
             => Block(ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, configuration));
 
@@ -484,9 +495,9 @@ label_skip:
         }
 
         /// <summary>
-        /// 实例化，支持定义类型(<see cref="Type.IsTypeDefinition"/>)。
+        /// 实例化，支持定义类型(<see cref="Type.IsGenericTypeDefinition"/>)。
         /// </summary>
-        /// <param name="newInstanceType">创建实例类型，必须实现 <see cref="INewInstance{TSource, TDestinationItem, TDestination}"/> 接口。</param>
+        /// <param name="newInstanceType">创建实例类型，必须实现 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 接口。</param>
         public void New(Type newInstanceType)
         {
             if (newInstanceType is null)
@@ -533,6 +544,10 @@ label_skip:
             }
         }
 
+        /// <summary>
+        /// 释放资源。
+        /// </summary>
+        /// <param name="disposing">释放深度释放。</param>
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)

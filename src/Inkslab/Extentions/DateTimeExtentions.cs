@@ -42,16 +42,12 @@
         /// <returns>日末时间。</returns>
         public static DateTime EndOfDay(this DateTime date, DatePrecision datePrecision = DatePrecision.None)
         {
-            switch (datePrecision)
+            return datePrecision switch
             {
-                case DatePrecision.MySQL:
-                    return date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerSecond);
-                case DatePrecision.SqlServer:
-                    return date.Date.AddTicks(TimeSpan.TicksPerDay - 3L * TimeSpan.TicksPerMillisecond);
-                case DatePrecision.None:
-                default:
-                    return date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerMillisecond);
-            }
+                DatePrecision.MySQL => date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerSecond),
+                DatePrecision.SqlServer => date.Date.AddTicks(TimeSpan.TicksPerDay - 3L * TimeSpan.TicksPerMillisecond),
+                _ => date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerMillisecond),
+            };
         }
 
         /// <summary>
@@ -70,7 +66,7 @@
         }
 
         /// <summary>
-        /// 周末（当 <paramref name="date"/>.Kind 等于 <see cref="DateTimeKind.Utc"/> 时，周六作为一周的最后一天；否则，周日作为一周的最后一天），当 <paramref name="ignoreMilliseconds"/> 为 <seealso cref="true"/>时，返回：yyyy-MM-dd 23:59:59；否则，返回: yyyy-MM-dd 23:59:59.999。
+        /// 周末（当 <paramref name="date"/>.Kind 等于 <see cref="DateTimeKind.Utc"/> 时，周六作为一周的最后一天；否则，周日作为一周的最后一天），当 <paramref name="datePrecision"/> 为 <seealso cref="DatePrecision.MySQL"/>时，返回：yyyy-MM-dd 23:59:59；否则，返回: yyyy-MM-dd 23:59:59.999。
         /// </summary>
         /// <param name="date">日期。</param>
         /// <param name="datePrecision">日期精度。</param>

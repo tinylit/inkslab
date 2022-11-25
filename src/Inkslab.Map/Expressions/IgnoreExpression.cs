@@ -20,7 +20,7 @@ namespace Inkslab.Map.Expressions
         /// <summary>
         /// 构造函数。
         /// </summary>
-        /// <param name="type">类型。</param>
+        /// <param name="node">表达式节点。</param>
         public IgnoreIfNullExpression(Expression node)
         {
             this.node = node ?? throw new ArgumentNullException(nameof(node));
@@ -93,8 +93,14 @@ namespace Inkslab.Map.Expressions
     /// </summary>
     public class IgnoreIfNullExpressionVisitor : ExpressionVisitor
     {
+        /// <summary>
+        /// 是否含有忽略条件。
+        /// </summary>
         public bool HasIgnore { private set; get; }
 
+        /// <summary>
+        /// 是否不为空。
+        /// </summary>
         public Expression Test { private set; get; }
 
         /// <summary>

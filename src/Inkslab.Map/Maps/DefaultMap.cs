@@ -11,6 +11,12 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class DefaultMap : AbstractMap
     {
+        /// <summary>
+        /// 目标类型 <paramref name="destinationType"/> 不是抽象类型，且源类型 <paramref name="sourceType"/> 和目标类型 <paramref name="destinationType"/> 均不是基础类型。
+        /// </summary>
+        /// <param name="sourceType"></param>
+        /// <param name="destinationType"></param>
+        /// <returns></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
         {
             if (destinationType.IsAbstract)
@@ -26,6 +32,15 @@ namespace Inkslab.Map.Maps
             return true;
         }
 
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
+        /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationExpression"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <param name="configuration"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
             var propertyInfos = Array.FindAll(destinationType.GetProperties(), x => x.CanWrite);

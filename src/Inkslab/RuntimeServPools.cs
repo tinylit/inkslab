@@ -199,7 +199,7 @@ namespace Inkslab
                         })
                         .ToList();
 
-                    var constructorInfo = Resolved(conversionType, constructorInfos);
+                    var constructorInfo = Resolved(typeof(Nested<TImplementation>), constructorInfos);
 
                     if (constructorInfo is null)
                     {
@@ -258,15 +258,41 @@ namespace Inkslab
                         return true;
                     }
 
+                    if (!parameterType.IsAbstract)
+                    {
+                        foreach (var kv in ServiceCaching)
+                        {
+                            if (kv.Value == parameterType)
+                            {
+                                ServiceCaching[parameterType] = kv.Value;
+
+                                return true;
+                            }
+                        }
+                    }
+
                     foreach (var kv in ServiceCaching)
                     {
-                        if (parameterType.IsAssignableFrom(kv.Key))
+                        if (parameterType.IsInterface)
                         {
-                            if (conversionType.IsAssignableFrom(kv.Key))
+                            if (kv.Value == conversionType)
                             {
                                 continue;
                             }
 
+                            if (parameterType.IsAssignableFrom(kv.Key))
+                            {
+                                ServiceCaching[parameterType] = kv.Value;
+
+                                return true;
+                            }
+                        }
+                        else if (parameterType.IsAssignableFrom(conversionType))
+                        {
+                            continue;
+                        }
+                        else if (parameterType.IsAssignableFrom(kv.Key))
+                        {
                             ServiceCaching[parameterType] = kv.Value;
 
                             return true;

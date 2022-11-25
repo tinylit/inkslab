@@ -25,14 +25,9 @@ namespace Inkslab.Map.Maps
             typeof(ulong)
         };
 
-        private static readonly MethodInfo TryParseMtd = typeof(Enum).GetMember(nameof(Enum.TryParse), MemberTypes.Method, BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly)
-                                                    .Cast<MethodInfo>()
-                                                    .First(x => x.IsGenericMethod && x.GetParameters().Length == 3);
-
         private static readonly MethodInfo ToStringMtd = typeof(Enum).GetMethod(nameof(Enum.ToString), Type.EmptyTypes);
 
         private readonly static MethodInfo ConcatMtd = typeof(string).GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { typeof(string), typeof(string), typeof(string) }, null);
-        private readonly static ConstructorInfo InvalidCastExceptionCtor = typeof(InvalidCastException).GetConstructor(new Type[1] { typeof(string) });
 
         /// <summary>
         /// <inheritdoc/>
@@ -49,16 +44,22 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         /// </summary>
         /// <param name="sourceExpression"><inheritdoc/></param>
+        /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <param name="configuration"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
         {
-            var variableExp = Variable(destinationType);
+            if (sourceType.IsEnum && destinationType.IsEnum)
+            {
+                var destinationExpression = Variable(destinationType);
 
-            var tryParseExp = Call(TryParseMtd.MakeGenericMethod(destinationType), Call(sourceExpression, ToStringMtd), Constant(true), variableExp);
+                var bodyExp = Call(MapConstants.TryParseMtd.MakeGenericMethod(destinationType), Call(sourceExpression, ToStringMtd), Constant(true, typeof(bool)), destinationExpression);
 
-            return Block(destinationType, new ParameterExpression[1] { variableExp }, Condition(tryParseExp, variableExp, Aw_ToSolve(sourceType, destinationType, sourceExpression)));
+                return Block(destinationType, new ParameterExpression[1] { destinationExpression }, Condition(bodyExp, destinationExpression, Aw_ToSolve(sourceType, destinationType, sourceExpression)));
+            }
+
+            return Aw_ToSolve(sourceType, destinationType, sourceExpression);
         }
 
         private static Expression Aw_ToSolve(Type sourceType, Type conversionType, Expression sourceExpression)
@@ -116,7 +117,7 @@ namespace Inkslab.Map.Maps
 
         private static Expression ThrowError(Expression variable, Type sourceUnderlyingType, Type sourceType, Type conversionType)
         {
-            return Throw(New(InvalidCastExceptionCtor, Call(ConcatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceUnderlyingType.GetMethod("ToString", Type.EmptyTypes)), Constant($"转换为类型({conversionType})!"))));
+            return Throw(New(MapConstants.InvalidCastExceptionCtorOfString, Call(ConcatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceUnderlyingType.GetMethod("ToString", Type.EmptyTypes)), Constant($"转换为类型({conversionType})!"))));
         }
     }
 }

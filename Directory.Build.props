@@ -2,6 +2,9 @@
 	<PropertyGroup>
 		<Copyright>2022 TINYLIT.</Copyright>
 		<LangVersion>9.0</LangVersion>
+		<Features>strict</Features>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 		<DocumentationFile Condition="'$(Configuration)' != 'Debug'">bin/$(Configuration)/$(TargetFramework)/publish/$(AssemblyName).xml</DocumentationFile>
 	</PropertyGroup>
 

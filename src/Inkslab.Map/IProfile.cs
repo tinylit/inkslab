@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 
@@ -32,9 +31,9 @@ namespace Inkslab.Map
             where TDestination : class;
 
         /// <summary>
-        /// 实例化，支持定义类型(<see cref="Type.IsTypeDefinition"/>)。
+        /// 实例化，支持定义类型(<see cref="Type.IsGenericTypeDefinition"/>)。
         /// </summary>
-        /// <param name="newInstanceType">创建实例类型，必须实现 <see cref="INewInstance{TSource, TDestinationItem, TDestination}"/> 接口。</param>
+        /// <param name="newInstanceType">创建实例类型，必须实现 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 接口。</param>
         void New(Type newInstanceType);
     }
 
