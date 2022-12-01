@@ -46,24 +46,14 @@ namespace Inkslab.DI.Options
         /// </summary>
         public ServiceLifetime Lifetime { get; set; } = ServiceLifetime.Scoped;
 
-        /// <summary>
-        /// 自动注入实现 <see cref="IConfigureServices"/> 的配置。默认：true。
-        /// </summary>
-        public bool DiConfigureServices { get; set; } = true;
-
-        /// <summary>
-        /// 自动注入控制器服务。默认：true。
-        /// </summary>
-        public bool DiController { get; set; } = true;
-
 #if NET_Traditional
         /// <summary>
-        /// 自动注入接口行为参数，与 <see cref="DiController"/> 同时为 true 时，生效。默认：false。
+        /// 自动注入接口行为参数，默认：false。
         /// </summary>
         public bool DiControllerActionIsFromServicesParameters { get; set; }
 #else
         /// <summary>
-        /// 自动注入接口行为参数，与 <see cref="DiController"/> 同时为 true 时，生效。默认：true。
+        /// 自动注入接口行为参数为 true 时，生效。默认：true。
         /// </summary>
         public bool DiControllerActionIsFromServicesParameters { get; set; } = true;
 #endif

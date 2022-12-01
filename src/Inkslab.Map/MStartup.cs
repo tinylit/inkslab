@@ -15,7 +15,7 @@ namespace Inkslab.Map
 
             public T Map<T>(object obj) => mapperInstance.Map<T>(obj);
 
-            public object Map(object obj, Type conversionType) => mapperInstance.Map(obj, conversionType);
+            public object Map(object obj, Type destinationType) => mapperInstance.Map(obj, destinationType);
         }
 
         /// <summary>

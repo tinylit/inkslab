@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -9,7 +8,7 @@ namespace Inkslab.Map.Maps
     using static Expression;
 
     /// <summary>
-    /// 枚举转换枚举。
+    /// 枚举转换枚举或枚举与枚举基础类型之间的映射。
     /// </summary>
     public class EnumUnderlyingTypeMap : IMap
     {

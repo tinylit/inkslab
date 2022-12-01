@@ -50,8 +50,8 @@ namespace Inkslab.Map.Maps
                 return destinationExpression;
             }
 
-            LabelTarget break_label = Label(typeof(void));
-            LabelTarget continue_label = Label(typeof(void));
+            LabelTarget break_label = Label(MapConstants.VoidType);
+            LabelTarget continue_label = Label(MapConstants.VoidType);
 
             var keyValueExp = Variable(typeof(kvString));
             var enumeratorExp = Variable(kvStringEnumeratorType);
@@ -68,7 +68,7 @@ namespace Inkslab.Map.Maps
                 switchCases.Add(SwitchCase(Assign(destinationProp, configuration.Map(sourceValueProp, propertyInfo.PropertyType)), Constant(propertyInfo.Name.ToPascalCase())));
             }
 
-            var bodyExp = Switch(Call(MapConstants.ToNamingCaseMtd, sourceKeyProp, Constant(NamingType.PascalCase)), null, null, switchCases);
+            var bodyExp = Switch(MapConstants.VoidType, Call(MapConstants.ToNamingCaseMtd, sourceKeyProp, Constant(NamingType.PascalCase)), null, null, switchCases);
 
             return Block(new ParameterExpression[]
              {
@@ -81,6 +81,7 @@ namespace Inkslab.Map.Maps
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
+                            MapConstants.VoidType,
                             Assign(keyValueExp, Property(enumeratorExp, PropertyCurrent)),
                             bodyExp,
                             Continue(continue_label)

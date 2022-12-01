@@ -17,13 +17,30 @@ namespace Microsoft.Extensions.DependencyInjection
     public static class IServiceCollectionExtentions
     {
         /// <summary>
-        /// 配置服务集合。
+        /// 调用所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(XServiceCollection)"/> 注入约定。
         /// </summary>
         /// <param name="services">服务集合。</param>
-        public static void ConfigureServices(this IServiceCollection services) => ConfigureServices(services, DependencyInjectionOptions.Instance);
+        public static IServiceCollection ConfigureServicesAll(this IServiceCollection services)
+        {
+            if (services is null)
+            {
+                throw new ArgumentNullException(nameof(services));
+            }
+
+            var assemblies = AssemblyFinder.FindAll();
+
+            var assembliyTypes = assemblies
+                .SelectMany(x => x.GetTypes())
+                .Where(x => !x.IsValueType && !x.IsAbstract)
+                .ToList();
+
+            DiConfigureServices(new Inkslab.DI.Collections.ServiceCollection(services), assembliyTypes);
+
+            return services;
+        }
 
         /// <summary>
-        /// 配置服务集合。
+        /// 配置服务集合，自动注入控制器（Controller）的构造函数参数和控制器行为（ControllerAction）需要注入的参数。
         /// </summary>
         /// <param name="services">服务集合。</param>
         /// <param name="options">依赖注入配置。</param>
@@ -46,15 +63,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 .Where(x => !x.IsValueType && !x.IsAbstract)
                 .ToList();
 
-            if (options.DiConfigureServices)
-            {
-                DiConfigureServices(new Inkslab.DI.Collections.ServiceCollection(services), assembliyTypes);
-            }
-
-            if (options.DiController)
-            {
-                DiController(services, options, assembliyTypes);
-            }
+            DiController(services, options, assembliyTypes);
         }
 
         private static void DiConfigureServices(XServiceCollection services, List<Type> assembliyTypes)
@@ -287,7 +296,7 @@ namespace Microsoft.Extensions.DependencyInjection
                               .OrderBy(y => OrderByDepth(typeDefinition, y, interfaceTypes))
                               .ToList();
 
-            return DiServiceLifetime(services, options, serviceType, typeDefinitionTypes, assemblyTypes, depth, dependencies, isMulti);
+            return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, assemblyTypes, depth, dependencies, isMulti);
         }
 
         private static int OrderByDepth(Type serviceType, Type implementationType, Type[] interfaceTypes)

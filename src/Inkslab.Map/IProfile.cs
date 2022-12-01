@@ -47,11 +47,11 @@ namespace Inkslab.Map
     public interface INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : IEnumerable<TSourceItem> where TDestination : IEnumerable<TDestinationItem>
     {
         /// <summary>
-        /// 实例化。
+        /// 创建实例。
         /// </summary>
         /// <param name="source">源数据。</param>
         /// <param name="destinationItems">目标集合元素数据。</param>
         /// <returns>目标类型实例。</returns>
-        TDestination New(TSource source, List<TDestinationItem> destinationItems);
+        TDestination NewInstance(TSource source, List<TDestinationItem> destinationItems);
     }
 }

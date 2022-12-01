@@ -93,6 +93,17 @@ namespace Inkslab.Map.Expressions
     /// </summary>
     public class IgnoreIfNullExpressionVisitor : ExpressionVisitor
     {
+        private readonly ExpressionVisitor visitor;
+
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="visitor">原始访问器。</param>
+        public IgnoreIfNullExpressionVisitor(ExpressionVisitor visitor)
+        {
+            this.visitor = visitor ?? throw new ArgumentNullException(nameof(visitor));
+        }
+
         /// <summary>
         /// 是否含有忽略条件。
         /// </summary>
@@ -102,6 +113,21 @@ namespace Inkslab.Map.Expressions
         /// 是否不为空。
         /// </summary>
         public Expression Test { private set; get; }
+
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
+        /// <param name="node"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
+        public override Expression Visit(Expression node)
+        {
+            if (node.NodeType == IgnoreIfNullExpression.IgnoreIfNull)
+            {
+                return base.Visit(node);
+            }
+
+            return visitor.Visit(node);
+        }
 
         /// <summary>
         /// 访问为空忽略表达式。
@@ -131,7 +157,7 @@ namespace Inkslab.Map.Expressions
                 Test = test;
             }
 
-            return nullable 
+            return nullable
                 ? Property(reduceNode, "Value")
                 : reduceNode;
         }

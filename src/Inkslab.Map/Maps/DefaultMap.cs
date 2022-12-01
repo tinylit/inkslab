@@ -7,7 +7,7 @@ namespace Inkslab.Map.Maps
     using static Expression;
 
     /// <summary>
-    /// 默认映射。
+    /// 默认映射，根据属性名称（不区分大小写）匹配。
     /// </summary>
     public class DefaultMap : AbstractMap
     {
@@ -54,7 +54,7 @@ namespace Inkslab.Map.Maps
                     var sourcePrt = Property(sourceExpression, y);
                     var destinationPrt = Property(destinationExpression, x);
 
-                    expressions.Add(Assign(destinationExpression, configuration.Map(sourcePrt, x.PropertyType)));
+                    expressions.Add(Assign(destinationPrt, configuration.Map(sourcePrt, x.PropertyType)));
                 }
             }, StringComparer.OrdinalIgnoreCase);
 

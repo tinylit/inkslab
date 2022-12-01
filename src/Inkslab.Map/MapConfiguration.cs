@@ -40,7 +40,11 @@ namespace Inkslab.Map
         /// <summary>
         /// 映射配置。
         /// </summary>
-        private MapConfiguration() : this(new Configuration())
+        private MapConfiguration() : this(new Configuration
+        {
+            IsDepthMapping = true,
+            AllowPropagationNullValues = false
+        })
         {
         }
 
@@ -172,11 +176,6 @@ namespace Inkslab.Map
                 throw new InvalidCastException($"无法从源【{sourceType}】分析到目标【{destinationType}】的可实列化类型！");
             }
 
-            if (sourceType.IsValueType || conversionType.IsValueType)
-            {
-                return MapAnyOfValueType(sourceExpression, sourceType, destinationType, conversionType);
-            }
-
             if (sourceType == typeof(object))
             {
                 if (AllowPropagationNullValues)
@@ -185,6 +184,11 @@ namespace Inkslab.Map
                 }
 
                 return Convert(IgnoreIfNull(sourceExpression), conversionType);
+            }
+
+            if (sourceType.IsValueType || conversionType.IsValueType)
+            {
+                return MapAnyOfValueType(sourceExpression, sourceType, destinationType, conversionType);
             }
 
             if (conversionType.IsAssignableFrom(sourceType))
@@ -271,7 +275,11 @@ namespace Inkslab.Map
                 {
                     var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
 
-                    return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType));
+                    var destinationExpression = sourceType == underlyingDestinationType
+                            ? sourceExpression
+                            : MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType);
+
+                    return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
                 }
 
                 return MapGeneral(sourceExpression, sourceType, destinationType, conversionType);

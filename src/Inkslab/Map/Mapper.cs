@@ -26,8 +26,8 @@ namespace Inkslab.Map
         /// 对象映射。
         /// </summary>
         /// <param name="obj">数据源。</param>
-        /// <param name="conversionType">目标类型。</param>
+        /// <param name="destinationType">目标类型。</param>
         /// <returns></returns>
-        public static object Map(object obj, Type conversionType) => _mapper.Map(obj, conversionType);
+        public static object Map(object obj, Type destinationType) => _mapper.Map(obj, destinationType);
     }
 }

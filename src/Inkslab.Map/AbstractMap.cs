@@ -52,7 +52,7 @@ namespace Inkslab.Map
 
         private static NewExpression CreateNew(Type destinationType)
         {
-            var constructorInfo = destinationType.GetConstructor(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
+            var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, Type.EmptyTypes, null);
 
             if (constructorInfo is not null)
             {

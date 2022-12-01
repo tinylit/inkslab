@@ -11,7 +11,7 @@ namespace Inkslab.Map.Maps
     public class CloneableMap : IMap
     {
         /// <summary>
-        /// <inheritdoc/>
+        /// 源 <paramref name="sourceType"/> 类型是目标类型 <paramref name="destinationType"/> 的父类，且实现了 <see cref="ICloneable"/> 接口。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
@@ -26,6 +26,6 @@ namespace Inkslab.Map.Maps
         /// <param name="destinationType"><inheritdoc/></param>
         /// <param name="configuration"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration) => Call(sourceExpression, MapConstants.CloneMtd);
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration) => Convert(Call(sourceExpression, MapConstants.CloneMtd), destinationType);
     }
 }

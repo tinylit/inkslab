@@ -455,7 +455,6 @@ namespace Inkslab.Map.Expressions
                     var lambda = Lambda<Func<object, object>>(convertFlag ? Convert(blockExp, objectType) : blockExp, parameterExp);
 
                     return lambda.Compile();
-
                 });
 
                 return factory.Invoke(source);
@@ -632,171 +631,220 @@ namespace Inkslab.Map.Expressions
 
             protected override Expression VisitMethodCall(MethodCallExpression node)
             {
-                var visitor = new IgnoreIfNullExpressionVisitor();
+                var visitor = new IgnoreIfNullExpressionVisitor(this);
+
+                var arguments = new List<Expression>(node.Arguments.Count);
 
                 foreach (var argument in node.Arguments)
                 {
-                    visitor.Visit(argument);
+                    arguments.Add(visitor.Visit(argument));
                 }
 
-                visitor.Visit(node.Object);
+                var objectNode = visitor.Visit(node.Object);
+
+                var resultNode = node.Update(objectNode, arguments);
 
                 if (visitor.HasIgnore)
                 {
-                    if (node.Type == typeof(void))
+                    if (node.Type == MapConstants.VoidType)
                     {
-                        return IfThen(visitor.Test, node);
+                        return IfThen(visitor.Test, resultNode);
                     }
 
-                    return Condition(visitor.Test, node, Default(node.Type));
+                    return Condition(visitor.Test, resultNode, Default(resultNode.Type));
                 }
 
-                return node;
+                return resultNode;
             }
 
             protected override Expression VisitNew(NewExpression node)
             {
-                var visitor = new IgnoreIfNullExpressionVisitor();
+                var visitor = new IgnoreIfNullExpressionVisitor(this);
+
+                var arguments = new List<Expression>(node.Arguments.Count);
 
                 foreach (var argument in node.Arguments)
                 {
-                    visitor.Visit(argument);
+                    arguments.Add(visitor.Visit(argument));
                 }
+
+                var resultNode = node.Update(arguments);
 
                 if (visitor.HasIgnore)
                 {
-                    return Block(new Expression[] { IfThen(Not(visitor.Test), Throw(Expression.New(typeof(InvalidCastException)))), node });
+                    return Block(new Expression[] { IfThen(Not(visitor.Test), Throw(Expression.New(typeof(InvalidCastException)))), resultNode });
                 }
 
-                return node;
+                return resultNode;
             }
 
             protected override Expression VisitMemberInit(MemberInitExpression node)
             {
-                var visitor = new IgnoreIfNullExpressionVisitor();
+                var visitor = new IgnoreIfNullExpressionVisitor(this);
 
-                foreach (var argument in node.NewExpression.Arguments)
+                var newNode = node.NewExpression;
+
+                var arguments = new List<Expression>(newNode.Arguments.Count);
+
+                foreach (var argument in newNode.Arguments)
                 {
-                    visitor.Visit(argument);
+                    arguments.Add(visitor.Visit(argument));
                 }
 
-                if (visitor.HasIgnore)
-                {
-                    var parameterExp = Parameter(node.Type);
+                var parameterNode = Parameter(node.Type);
 
-                    var expressions = new List<Expression>(node.Bindings.Count + 1);
-
-                    foreach (var binding in node.Bindings)
-                    {
-                        if ((binding.Member.MemberType == MemberTypes.Field || binding.Member.MemberType == MemberTypes.Property) && binding is MemberAssignment assignment)
-                        {
-                            var ignoreVisitor = new IgnoreIfNullExpressionVisitor();
-
-                            ignoreVisitor.Visit(assignment.Expression);
-
-                            if (ignoreVisitor.HasIgnore)
-                            {
-                                expressions.Add(IfThen(ignoreVisitor.Test, Assign(MakeMemberAccess(parameterExp, assignment.Member), assignment.Expression)));
-                            }
-                            else
-                            {
-                                expressions.Add(Assign(MakeMemberAccess(parameterExp, assignment.Member), assignment.Expression));
-                            }
-                        }
-                        else
-                        {
-                            throw new InvalidCastException();
-                        }
-                    }
-
-                    expressions.Add(parameterExp);
-
-                    var lambdaExp = Lambda(Block(node.Type, expressions), parameterExp);
-
-                    return Invoke(lambdaExp, Condition(visitor.Test, node.NewExpression, Throw(Expression.New(typeof(InvalidCastException))), node.Type));
-                }
-
-                return VisitMemberInitValid(node);
-            }
-
-            private static Expression VisitMemberInitValid(MemberInitExpression node)
-            {
-                var bindings = new List<MemberAssignment>();
-                var conditions = new List<Expression>();
+                var bindings = new List<MemberBinding>();
+                var expressions = new List<Expression>();
 
                 foreach (var binding in node.Bindings)
                 {
                     if ((binding.Member.MemberType == MemberTypes.Field || binding.Member.MemberType == MemberTypes.Property) && binding is MemberAssignment assignment)
                     {
-                        var visitor = new IgnoreIfNullExpressionVisitor();
+                        var ignoreVisitor = new IgnoreIfNullExpressionVisitor(this);
 
-                        visitor.Visit(assignment.Expression);
+                        var bodyNode = ignoreVisitor.Visit(assignment.Expression);
 
-                        if (visitor.HasIgnore)
+                        if (ignoreVisitor.HasIgnore)
                         {
-                            bindings.Add(assignment);
-
-                            conditions.Add(visitor.Test);
+                            expressions.Add(IfThen(ignoreVisitor.Test, Assign(MakeMemberAccess(parameterNode, assignment.Member), bodyNode)));
+                        }
+                        else
+                        {
+                            bindings.Add(assignment.Update(bodyNode));
                         }
                     }
                 }
 
-                if (bindings.Count == 0)
+                var resultNewNode = newNode.Update(arguments);
+
+                Expression resultNode = bindings.Count == 0
+                    ? resultNewNode
+                    : node.Update(resultNewNode, bindings);
+
+                if (expressions.Count == 0)
                 {
-                    return node;
+                    if (visitor.HasIgnore)
+                    {
+                        return Block(new Expression[] { IfThen(Not(visitor.Test), Throw(Expression.New(typeof(InvalidCastException)))), resultNode });
+                    }
+
+                    return resultNode;
                 }
 
-                var parameterExp = Parameter(node.Type);
+                expressions.Add(parameterNode);
 
-                var expressions = new List<Expression>(bindings.Count + 1);
+                var lambdaNode = Lambda(Block(node.Type, expressions), parameterNode);
 
-                expressions.AddRange(bindings.Zip(conditions, (x, y) => IfThen(y, Assign(MakeMemberAccess(parameterExp, x.Member), x.Expression))));
-                expressions.Add(parameterExp);
-
-                var lambdaExp = Lambda(Block(node.Type, expressions), parameterExp);
-
-                if (bindings.Count == node.Bindings.Count)
+                if (visitor.HasIgnore)
                 {
-                    return Invoke(lambdaExp, node.NewExpression);
+                    return Invoke(lambdaNode, Block(new Expression[] { IfThen(Not(visitor.Test), Throw(Expression.New(typeof(InvalidCastException)))), resultNode }));
                 }
 
-                return Invoke(lambdaExp, node.Update(node.NewExpression, node.Bindings.Except(bindings)));
+                return Invoke(lambdaNode, resultNode);
+            }
+
+            protected override Expression VisitBlock(BlockExpression node)
+            {
+                if (node.Type == MapConstants.VoidType)
+                {
+                    var visitor = new IgnoreIfNullExpressionVisitor(this);
+
+                    var expressions = new List<Expression>(node.Expressions.Count + 1);
+
+                    foreach (var item in node.Expressions)
+                    {
+                        expressions.Add(visitor.Visit(item));
+                    }
+
+                    if (visitor.HasIgnore)
+                    {
+                        expressions.Insert(0, IfThen(Not(visitor.Test), Throw(Expression.New(typeof(InvalidCastException)))));
+                    }
+
+                    return node.Update(node.Variables, expressions);
+                }
+
+                return base.VisitBlock(node);
             }
 
             protected override Expression VisitBinary(BinaryExpression node)
             {
-                var visitor = new IgnoreIfNullExpressionVisitor();
+                var visitor = new IgnoreIfNullExpressionVisitor(this);
 
-                visitor.Visit(node.Right);
+                var rightNode = visitor.Visit(node.Right);
+
+                var resultNode = node.Update(node.Left, node.Conversion, rightNode);
 
                 if (visitor.HasIgnore)
                 {
-                    return IfThen(visitor.Test, node);
+                    return IfThen(visitor.Test, resultNode);
                 }
 
-                return node;
+                return resultNode;
             }
 
             protected override Expression VisitInvocation(InvocationExpression node)
             {
-                var visitor = new IgnoreIfNullExpressionVisitor();
+                var visitor = new IgnoreIfNullExpressionVisitor(this);
+                var arguments = new List<Expression>(node.Arguments.Count);
 
                 foreach (var argument in node.Arguments)
                 {
-                    visitor.Visit(argument);
+                    arguments.Add(visitor.Visit(argument));
                 }
+
+                var bodyNode = visitor.Visit(node.Expression);
+
+                var resultNode = node.Update(bodyNode, arguments);
 
                 if (visitor.HasIgnore)
                 {
-                    if (node.Type == typeof(void))
+                    if (node.Type == MapConstants.VoidType)
                     {
-                        return IfThen(visitor.Test, node);
+                        return IfThen(visitor.Test, resultNode);
                     }
 
-                    return Condition(visitor.Test, node, Default(node.Type));
+                    return Condition(visitor.Test, resultNode, Default(node.Type));
                 }
 
-                return node;
+                return resultNode;
+            }
+
+            protected override Expression VisitSwitch(SwitchExpression node)
+            {
+                var cases = new List<SwitchCase>(node.Cases.Count + 1);
+
+                foreach (var switchCase in node.Cases)
+                {
+                    var visitor = new IgnoreIfNullExpressionVisitor(this);
+
+                    var testValues = new List<Expression>(switchCase.TestValues.Count + 1);
+
+                    foreach (var testValue in switchCase.TestValues)
+                    {
+                        testValues.Add(visitor.Visit(testValue));
+                    }
+
+                    if (visitor.HasIgnore)
+                    {
+                        testValues.Insert(0, visitor.Test);
+                    }
+
+                    cases.Add(switchCase.Update(switchCase.TestValues, base.Visit(switchCase.Body)));
+                }
+
+                var switchVisitor = new IgnoreIfNullExpressionVisitor(this);
+
+                var switchValue = switchVisitor.Visit(node.SwitchValue);
+
+                var resultNode = node.Update(switchValue, cases, base.Visit(node.DefaultBody));
+
+                if (switchVisitor.HasIgnore)
+                {
+                    return Condition(switchVisitor.Test, resultNode.DefaultBody, resultNode);
+                }
+
+                return resultNode;
             }
 
             public static ExpressionVisitor Instance = new MapperExpressionVisitor();

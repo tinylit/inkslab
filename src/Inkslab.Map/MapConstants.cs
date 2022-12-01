@@ -32,6 +32,11 @@ namespace Inkslab.Map
         public const BindingFlags InstanceDeclaredOnlyBindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
         /// <summary>
+        /// <see cref="void"/> 类型。
+        /// </summary>
+        public readonly static Type VoidType = typeof(void);
+
+        /// <summary>
         /// <see cref="IEnumerable"/> 接口。
         /// </summary>
         public readonly static Type EnumerableType = typeof(IEnumerable);

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using static System.Linq.Expressions.Expression;
@@ -13,7 +14,7 @@ namespace Inkslab.Map
     {
         private static readonly Type NewInstance_T4_Type = typeof(INewInstance<,,,>);
 
-        private class TypeCode : IEqualityComparer<TypeCode>
+        private class TypeCode
         {
             private readonly Type x;
             private readonly Type y;
@@ -24,34 +25,40 @@ namespace Inkslab.Map
                 this.y = y;
             }
 
-            public bool Equals(TypeCode x, TypeCode y)
+            private class TypeCodeEqualityComparer : IEqualityComparer<TypeCode>
             {
-                if (x is null)
+                public bool Equals(TypeCode x, TypeCode y)
                 {
-                    return y is null;
+                    if (x is null)
+                    {
+                        return y is null;
+                    }
+
+                    if (y is null)
+                    {
+                        return false;
+                    }
+
+                    return x.x == y.x && x.y == y.y;
                 }
 
-                if (y is null)
+                public int GetHashCode(TypeCode obj)
                 {
-                    return false;
-                }
+                    if (obj is null)
+                    {
+                        return 0;
+                    }
 
-                return x.x == y.x && x.y == y.y;
+                    var h1 = obj.x.GetHashCode();
+                    var h2 = obj.y.GetHashCode();
+
+                    return ((h1 << 5) + h1) ^ h2;
+                }
             }
 
-            public int GetHashCode(TypeCode obj)
-            {
-                if (obj is null)
-                {
-                    return 0;
-                }
-
-                var h1 = obj.x.GetHashCode();
-                var h2 = obj.y.GetHashCode();
-
-                return ((h1 << 5) + h1) ^ h2;
-            }
+            public static IEqualityComparer<TypeCode> InstanceComparer = new TypeCodeEqualityComparer();
         }
+
 
         private class Slot
         {
@@ -93,7 +100,98 @@ namespace Inkslab.Map
             public bool IsMatch(Type sourceType, Type destinationType) => this.sourceType == sourceType && destinationTypes.Contains(destinationType);
         }
 
-        private class CreateInstanceSlot
+        private abstract class CreateInstanceSlot
+        {
+            public abstract bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType);
+
+            public abstract Expression NewInstance(Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration);
+
+            protected Expression NewInstanceCore(Type createInstanceType, Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            {
+                var constructorInfo = createInstanceType.GetConstructor(MapConstants.InstanceBindingFlags, null, Type.EmptyTypes, null) ?? throw new NotSupportedException($"实例类【{createInstanceType}】不具备无参构造函数！");
+
+                var destinationItemsType = typeof(List<>).MakeGenericType(destinationItemType);
+
+                var createInstanceMtd = createInstanceType.GetMethod("NewInstance", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
+
+                if (createInstanceMtd is null || createInstanceMtd.ReturnType != destinationType)
+                {
+                    createInstanceMtd = NewInstance_T4_Type.MakeGenericType(sourceType, sourceItemType, destinationType, destinationItemType)
+                        .GetMethod("NewInstance", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
+                }
+
+                var bodyExp = configuration.Map(sourceExpression, destinationItemsType);
+
+                return Call(Expression.New(constructorInfo), createInstanceMtd, sourceExpression, bodyExp);
+            }
+        }
+
+        private class CreateInstanceOfNothingSlot : CreateInstanceSlot
+        {
+            private readonly Type newInstanceType;
+            private readonly Type sourceContractType;
+            private readonly Type destinationContractType;
+
+            public CreateInstanceOfNothingSlot(Type newInstanceType, Type sourceContractType, Type destinationContractType)
+            {
+                this.newInstanceType = newInstanceType;
+                this.sourceContractType = sourceContractType;
+                this.destinationContractType = destinationContractType;
+            }
+
+            public override bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType)
+            {
+                return destinationType == destinationContractType && sourceType == sourceContractType;
+            }
+
+            public override Expression NewInstance(Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            {
+                return NewInstanceCore(newInstanceType,
+                        sourceExpression,
+                        sourceType,
+                        sourceItemType,
+                        destinationType,
+                        destinationItemType,
+                        configuration);
+            }
+        }
+
+        private class CreateInstanceOfSingleSlot : CreateInstanceSlot
+        {
+            private readonly Type newInstanceType;
+            private readonly Type itemContractType;
+            private readonly Type sourceContractType;
+            private readonly Type destinationContractType;
+
+            public CreateInstanceOfSingleSlot(Type newInstanceType, Type sourceContractType, Type destinationContractType, Type itemContractType)
+            {
+                this.newInstanceType = newInstanceType;
+                this.sourceContractType = sourceContractType;
+                this.itemContractType = itemContractType;
+                this.destinationContractType = destinationContractType;
+            }
+
+            public override bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType)
+            {
+                return sourceItemType == destinationItemType
+                    && itemContractType.IsLikeTemplate(sourceItemType)
+                    && destinationContractType.IsLikeTemplate(destinationType)
+                    && sourceContractType.IsLikeTemplate(sourceType);
+            }
+
+            public override Expression NewInstance(Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            {
+                return NewInstanceCore(newInstanceType.MakeGenericType(sourceItemType),
+                        sourceExpression,
+                        sourceType,
+                        sourceItemType,
+                        destinationType,
+                        destinationItemType,
+                        configuration);
+            }
+        }
+
+        private class CreateInstanceOfDoubleSlot : CreateInstanceSlot
         {
             private readonly Type newInstanceType;
             private readonly Type sourceContractType;
@@ -101,7 +199,7 @@ namespace Inkslab.Map
             private readonly Type destinationItemContractType;
             private readonly Type destinationContractType;
 
-            public CreateInstanceSlot(Type newInstanceType, Type sourceContractType, Type sourceItemContractType, Type destinationContractType, Type destinationItemContractType)
+            public CreateInstanceOfDoubleSlot(Type newInstanceType, Type sourceContractType, Type sourceItemContractType, Type destinationContractType, Type destinationItemContractType)
             {
                 this.newInstanceType = newInstanceType;
                 this.sourceContractType = sourceContractType;
@@ -110,27 +208,17 @@ namespace Inkslab.Map
                 this.destinationItemContractType = destinationItemContractType;
             }
 
-            public bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType)
+            public override bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType)
             {
-                if (newInstanceType.IsGenericTypeDefinition)
-                {
-                    return destinationItemContractType.IsAssignableLikeFrom(destinationItemType)
-                        && destinationContractType.IsAssignableLikeFrom(destinationType)
-                        && sourceItemContractType.IsAssignableLikeFrom(sourceItemType)
-                        && sourceContractType.IsAssignableLikeFrom(sourceType);
-                }
-
-                return destinationItemContractType == destinationItemType
-                    && destinationContractType == destinationType
-                    && sourceItemContractType == sourceItemType
-                    && sourceContractType == sourceType;
+                return destinationItemContractType.IsLikeTemplate(destinationItemType)
+                    && sourceItemContractType.IsLikeTemplate(sourceItemType)
+                    && destinationContractType.IsLikeTemplate(destinationType)
+                    && sourceContractType.IsLikeTemplate(sourceType);
             }
 
-            public Expression New(Expression sourceExpression, Type sourceItemType, Type sourceType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            public override Expression NewInstance(Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
             {
-                return NewCore(newInstanceType.IsGenericTypeDefinition
-                        ? newInstanceType.MakeGenericType(sourceType, sourceItemType, destinationItemType, destinationType)
-                        : newInstanceType,
+                return NewInstanceCore(newInstanceType.MakeGenericType(sourceItemType, destinationItemType),
                         sourceExpression,
                         sourceType,
                         sourceItemType,
@@ -138,24 +226,42 @@ namespace Inkslab.Map
                         destinationItemType,
                         configuration);
             }
+        }
 
-            private Expression NewCore(Type createInstanceType, Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+        private class CreateInstanceOfFullSlot : CreateInstanceSlot
+        {
+            private readonly Type newInstanceType;
+            private readonly Type sourceContractType;
+            private readonly Type sourceItemContractType;
+            private readonly Type destinationItemContractType;
+            private readonly Type destinationContractType;
+
+            public CreateInstanceOfFullSlot(Type newInstanceType, Type sourceContractType, Type sourceItemContractType, Type destinationContractType, Type destinationItemContractType)
             {
-                var constructorInfo = createInstanceType.GetConstructor(MapConstants.InstanceBindingFlags, null, Type.EmptyTypes, null) ?? throw new NotSupportedException($"实例类【{newInstanceType}】不具备无参构造函数！");
+                this.newInstanceType = newInstanceType;
+                this.sourceContractType = sourceContractType;
+                this.sourceItemContractType = sourceItemContractType;
+                this.destinationContractType = destinationContractType;
+                this.destinationItemContractType = destinationItemContractType;
+            }
 
-                var destinationItemsType = typeof(List<>).MakeGenericType(destinationItemType);
+            public override bool IsMatch(Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType)
+            {
+                return destinationItemContractType.IsLikeTemplate(destinationItemType)
+                    && destinationContractType.IsLikeTemplate(destinationType)
+                    && sourceItemContractType.IsLikeTemplate(sourceItemType)
+                    && sourceContractType.IsLikeTemplate(sourceType);
+            }
 
-                var createInstanceMtd = createInstanceType.GetMethod("New", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
-
-                if (createInstanceMtd is null || createInstanceMtd.ReturnType != destinationType)
-                {
-                    createInstanceMtd = NewInstance_T4_Type.MakeGenericType(sourceType, sourceItemType, destinationType, destinationItemType)
-                        .GetMethod("New", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
-                }
-
-                var bodyExp = configuration.Map(sourceExpression, destinationItemsType);
-
-                return Call(Expression.New(constructorInfo), createInstanceMtd, sourceExpression, bodyExp);
+            public override Expression NewInstance(Expression sourceExpression, Type sourceType, Type sourceItemType, Type destinationType, Type destinationItemType, IMapConfiguration configuration)
+            {
+                return NewInstanceCore(newInstanceType.MakeGenericType(sourceType, sourceItemType, destinationType, destinationItemType),
+                        sourceExpression,
+                        sourceType,
+                        sourceItemType,
+                        destinationType,
+                        destinationItemType,
+                        configuration);
             }
         }
 
@@ -227,6 +333,7 @@ namespace Inkslab.Map
 
                 return this;
             }
+
             private static string NameOfAnalysis(Expression node)
             {
                 return node switch
@@ -264,7 +371,7 @@ namespace Inkslab.Map
 
         private readonly List<MapSlot> mapSlots = new List<MapSlot>();
         private readonly List<CreateInstanceSlot> instanceSlots = new List<CreateInstanceSlot>();
-        private readonly Dictionary<TypeCode, LambdaExpression> instanceCachings = new Dictionary<TypeCode, LambdaExpression>();
+        private readonly Dictionary<TypeCode, LambdaExpression> instanceCachings = new Dictionary<TypeCode, LambdaExpression>(TypeCode.InstanceComparer);
 
         /// <summary>
         /// 解决映射关系。
@@ -295,26 +402,28 @@ namespace Inkslab.Map
                 {
                     flag = false;
 
+                    Type currentType = sourceType;
+
                     do
                     {
                         for (int i = mapSlots.Count - 1; i >= 0; i--)
                         {
                             var mapSlot = mapSlots[i];
 
-                            if (mapSlot.IsMatch(sourceType, destinationType))
+                            if (mapSlot.IsMatch(currentType, destinationType))
                             {
                                 validSlots.Add(mapSlot);
                             }
                         }
 
-                        if (sourceType.BaseType is null)
+                        if (currentType.BaseType is null)
                         {
                             break;
                         }
 
-                        sourceType = sourceType.BaseType;
+                        currentType = currentType.BaseType;
 
-                    } while (sourceType != typeof(object));
+                    } while (currentType != typeof(object));
                 }
 
                 foreach (var mapSlot in validSlots)
@@ -373,7 +482,40 @@ label_skip:
         /// <param name="sourceType">源。/</param>
         /// <param name="destinationType">目标。</param>
         /// <returns>是否匹配。</returns>
-        public override bool IsMatch(Type sourceType, Type destinationType) => mapSlots.Exists(x => x.IsMatch(sourceType, destinationType));
+        public override bool IsMatch(Type sourceType, Type destinationType)
+        {
+            if (mapSlots.Exists(x => x.IsMatch(sourceType, destinationType)))
+            {
+                return true;
+            }
+
+            if (instanceCachings.ContainsKey(new TypeCode(sourceType, destinationType)))
+            {
+                return true;
+            }
+
+            if (instanceSlots.Count > 0)
+            {
+                //? 防递归。
+                if (destinationType.IsGenericType && destinationType.GetGenericTypeDefinition() == typeof(List<>))
+                {
+                    return false;
+                }
+
+                if (TryGetDestinationItemType(destinationType, out Type destinationItemType) && TryGetDestinationItemType(sourceType, out Type sourceItemType))
+                {
+                    foreach (var instanceSlot in instanceSlots)
+                    {
+                        if (instanceSlot.IsMatch(sourceType, sourceItemType, destinationType, destinationItemType))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
 
         /// <summary>
         /// 映射。
@@ -403,7 +545,7 @@ label_skip:
                 {
                     if (instanceSlot.IsMatch(sourceType, sourceItemType, destinationType, destinationItemType))
                     {
-                        return instanceSlot.New(sourceExpression, sourceType, sourceItemType, destinationType, destinationItemType, configuration);
+                        return instanceSlot.NewInstance(sourceExpression, sourceType, sourceItemType, destinationType, destinationItemType, configuration);
                     }
                 }
             }
@@ -417,7 +559,7 @@ label_skip:
             {
                 if (interfaceType.IsGenericType)
                 {
-                    var typeDefinition = destinationType.GetGenericTypeDefinition();
+                    var typeDefinition = interfaceType.GetGenericTypeDefinition();
 
                     if (typeDefinition == typeof(IList<>)
                         || typeDefinition == typeof(IReadOnlyList<>)
@@ -509,17 +651,69 @@ label_skip:
             {
                 var genericArguments = newInstanceType.GetGenericArguments();
 
-                if (genericArguments.Length != 4)
+                switch (genericArguments.Length)
                 {
-                    throw new NotSupportedException($"泛型定义【{newInstanceType}】的泛型个数不等于3！");
-                }
+                    case 1:
+                        foreach (var interfaceType in newInstanceType.GetInterfaces())
+                        {
+                            if (interfaceType.IsGenericType && NewInstance_T4_Type == interfaceType.GetGenericTypeDefinition())
+                            {
+                                var typeArguments = interfaceType.GetGenericArguments();
 
-                if (!NewInstance_T4_Type.IsLike(newInstanceType))
-                {
-                    throw new NotSupportedException($"泛型定义【{newInstanceType}】未实现【{NewInstance_T4_Type}】接口！");
-                }
+                                //? TSourceItem 和 TDestinationItem 相同。
+                                if (genericArguments[0] == typeArguments[1] && typeArguments[1] == typeArguments[3])
+                                {
+                                    instanceSlots.Add(new CreateInstanceOfSingleSlot(newInstanceType, typeArguments[0], typeArguments[2], genericArguments[0]));
+                                }
+                                else
+                                {
+                                    throw new NotSupportedException($"一个泛型参数的类型，代表元素类型相同的两个集合类型转换。如：{newInstanceType.Name}<{genericArguments[0].Name}> : INewInstance<List<{genericArguments[0].Name}>,{genericArguments[0].Name},HashSet<{genericArguments[0].Name}>,{genericArguments[0].Name}>");
+                                }
+                            }
+                        }
+                        break;
+                    case 2:
+                        foreach (var interfaceType in newInstanceType.GetInterfaces())
+                        {
+                            if (interfaceType.IsGenericType && NewInstance_T4_Type == interfaceType.GetGenericTypeDefinition())
+                            {
+                                var typeArguments = interfaceType.GetGenericArguments();
 
-                instanceSlots.Add(new CreateInstanceSlot(newInstanceType, genericArguments[0], genericArguments[1], genericArguments[2], genericArguments[3]));
+                                //? TSourceItem 和 TDestinationItem。
+                                if (genericArguments[0] == typeArguments[1] && genericArguments[1] == typeArguments[3])
+                                {
+                                    instanceSlots.Add(new CreateInstanceOfDoubleSlot(newInstanceType, typeArguments[0], typeArguments[1], typeArguments[2], typeArguments[3]));
+                                }
+                                else
+                                {
+                                    throw new NotSupportedException($"两个泛型参数的类型，代表两个满足约束的任意元素的集合类型之间的转换。如：{newInstanceType.Name}<{genericArguments[0].Name},{genericArguments[1].Name}> : INewInstance<List<{genericArguments[0].Name}>,{genericArguments[0].Name},HashSet<{genericArguments[1].Name}>,{genericArguments[1].Name}>");
+                                }
+                            }
+                        }
+                        break;
+                    case 4:
+                        foreach (var interfaceType in newInstanceType.GetInterfaces())
+                        {
+                            if (interfaceType.IsGenericType && NewInstance_T4_Type == interfaceType.GetGenericTypeDefinition())
+                            {
+                                var typeArguments = interfaceType.GetGenericArguments();
+
+                                if (genericArguments[0] == typeArguments[0] && genericArguments[1] == typeArguments[1] && genericArguments[2] == typeArguments[2] && genericArguments[3] == typeArguments[3])
+                                {
+                                    instanceSlots.Add(new CreateInstanceOfFullSlot(newInstanceType, typeArguments[0], typeArguments[1], typeArguments[2], typeArguments[3]));
+                                }
+                                else
+                                {
+                                    var template = string.Join(",", genericArguments.Select(x => x.Name));
+
+                                    throw new NotSupportedException($"四个泛型参数的类型，代表满足约束的任意元素类型、任意集合之间的转换。如：{newInstanceType.Name}<{template}> : INewInstance<List<{template}>");
+                                }
+                            }
+                        }
+                        break;
+                    default:
+                        throw new NotSupportedException($"泛型定义【{newInstanceType}】的泛型个数需为1、2、4！");
+                }
             }
             else
             {
@@ -533,7 +727,7 @@ label_skip:
 
                         var genericArguments = interfaceType.GetGenericArguments();
 
-                        instanceSlots.Add(new CreateInstanceSlot(newInstanceType, genericArguments[0], genericArguments[1], genericArguments[2], genericArguments[3]));
+                        instanceSlots.Add(new CreateInstanceOfNothingSlot(newInstanceType, genericArguments[0], genericArguments[2]));
                     }
                 }
 
