@@ -12,7 +12,7 @@ namespace Inkslab.Config
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static ConfigHelper() => _configHelper = RuntimeServPools.Singleton<IConfigHelper, DefaultConfigHelper>();
+        static ConfigHelper() => _configHelper = SingletonPools.Singleton<IConfigHelper, DefaultConfigHelper>();
 
         /// <summary>
         /// 配置。

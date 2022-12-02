@@ -20,6 +20,6 @@ namespace Inkslab.Json
         /// <summary>
         /// 启动。
         /// </summary>
-        public void Startup() => RuntimeServPools.TryAddSingleton<IJsonHelper, DefaultJsonHelper>();
+        public void Startup() => SingletonPools.TryAddSingleton<IJsonHelper, DefaultJsonHelper>();
     }
 }

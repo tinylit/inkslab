@@ -1,10 +1,14 @@
 ﻿using Inkslab.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
 namespace Inkslab.Tests
 {
+    /// <summary>
+    /// <see cref="LRU{TKey, TValue}"/> 算法测试。
+    /// </summary>
     public class LRUTests
     {
         /// <summary>

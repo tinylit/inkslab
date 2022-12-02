@@ -10,7 +10,7 @@
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static JsonHelper() => _jsonHelper = RuntimeServPools.Singleton<IJsonHelper>();
+        static JsonHelper() => _jsonHelper = SingletonPools.Singleton<IJsonHelper>();
 
         /// <summary> Json序列化。 </summary>
         /// <typeparam name="T">对象类型。</typeparam>

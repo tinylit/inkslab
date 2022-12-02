@@ -1,12 +1,14 @@
-﻿using System;
+﻿using Inkslab.Map.Visitors;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using static System.Linq.Expressions.Expression;
 
 namespace Inkslab.Map
 {
+    using static Expression;
+
     /// <summary>
     /// 配置。
     /// </summary>
@@ -59,6 +61,11 @@ namespace Inkslab.Map
             public static IEqualityComparer<TypeCode> InstanceComparer = new TypeCodeEqualityComparer();
         }
 
+        private enum MatchKind
+        {
+            Definition,
+            Assignable
+        }
 
         private class Slot
         {
@@ -97,7 +104,20 @@ namespace Inkslab.Map
 
             public bool TryGetSlot(string memberName, out Slot slot) => memberExpressions.TryGetValue(memberName, out slot);
 
-            public bool IsMatch(Type sourceType, Type destinationType) => this.sourceType == sourceType && destinationTypes.Contains(destinationType);
+            public bool IsMatch(Type sourceType, Type destinationType, bool definitionOnly = true)
+            {
+                if (this.sourceType == sourceType)
+                {
+                    return destinationTypes.Contains(destinationType);
+                }
+
+                if (definitionOnly || sourceType == MapConstants.ObjectType)
+                {
+                    return false;
+                }
+
+                return destinationTypes.Contains(destinationType) && sourceType.IsSubclassOf(this.sourceType);
+            }
         }
 
         private abstract class CreateInstanceSlot
@@ -423,7 +443,7 @@ namespace Inkslab.Map
 
                         currentType = currentType.BaseType;
 
-                    } while (currentType != typeof(object));
+                    } while (currentType != MapConstants.ObjectType);
                 }
 
                 foreach (var mapSlot in validSlots)
@@ -437,7 +457,9 @@ namespace Inkslab.Map
 
                         if (slot.ValueExpression is LambdaExpression lambda)
                         {
-                            yield return Assign(Property(destinationExpression, propertyInfo), Invoke(lambda, sourceExpression));
+                            var visitor = new ReplaceExpressionVisitor(lambda.Parameters[0], sourceExpression);
+
+                            yield return Assign(Property(destinationExpression, propertyInfo), visitor.Visit(lambda.Body));
                         }
                         else
                         {
@@ -484,7 +506,7 @@ label_skip:
         /// <returns>是否匹配。</returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
         {
-            if (mapSlots.Exists(x => x.IsMatch(sourceType, destinationType)))
+            if (mapSlots.Exists(x => x.IsMatch(sourceType, destinationType, false)))
             {
                 return true;
             }

@@ -12,7 +12,7 @@ namespace Inkslab.Keys
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static KeyGenFactory() => _keyGen = RuntimeServPools.Singleton<IKeyGenFactory, SnowflakeFactory>();
+        static KeyGenFactory() => _keyGen = SingletonPools.Singleton<IKeyGenFactory, SnowflakeFactory>();
 
         /// <summary>
         /// 生成主键工具箱（请用静态属性或字段接收）。

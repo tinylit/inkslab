@@ -31,6 +31,6 @@ namespace Inkslab.Map
         /// <summary>
         /// 启动。
         /// </summary>
-        public void Startup() => RuntimeServPools.TryAddSingleton<IMapper, Mapper>();
+        public void Startup() => SingletonPools.TryAdd<IMapper, Mapper>();
     }
 }

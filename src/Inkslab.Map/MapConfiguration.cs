@@ -161,7 +161,7 @@ namespace Inkslab.Map
                     conversionType = typeof(List<object>);
                 }
             }
-            else if (conversionType == typeof(object))
+            else if (conversionType == MapConstants.ObjectType)
             {
                 if (sourceType.IsValueType)
                 {
@@ -176,7 +176,7 @@ namespace Inkslab.Map
                 throw new InvalidCastException($"无法从源【{sourceType}】分析到目标【{destinationType}】的可实列化类型！");
             }
 
-            if (sourceType == typeof(object))
+            if (sourceType == MapConstants.ObjectType)
             {
                 if (AllowPropagationNullValues)
                 {

@@ -1,9 +1,9 @@
 ﻿using Inkslab.Collections;
+using Inkslab.Map.Visitors;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -173,7 +173,7 @@ namespace Inkslab.Map.Expressions
                         throw new InvalidOperationException();
                     }
 
-                    var parameterExp = Parameter(typeof(object));
+                    var parameterExp = Parameter(MapConstants.ObjectType);
 
                     var expressions = new List<Expression>
                     {
@@ -214,7 +214,7 @@ namespace Inkslab.Map.Expressions
                             break;
                     }
 
-                    var lambda = Lambda<Func<object, object>>(Block(typeof(object), new ParameterExpression[] { sourceExp }, expressions), parameterExp);
+                    var lambda = Lambda<Func<object, object>>(Block(MapConstants.ObjectType, new ParameterExpression[] { sourceExp }, expressions), parameterExp);
 
                     return lambda.Compile();
                 });
@@ -267,7 +267,7 @@ namespace Inkslab.Map.Expressions
                         conversionType = typeof(List<object>);
                     }
                 }
-                else if (conversionType == typeof(object))
+                else if (conversionType == MapConstants.ObjectType)
                 {
                     conversionType = sourceType;
                 }
@@ -286,7 +286,7 @@ namespace Inkslab.Map.Expressions
                 {
                     bool convertFlag = destinationType.IsValueType;
 
-                    var objectType = typeof(object);
+                    var objectType = MapConstants.ObjectType;
 
                     var sourceExp = Variable(type);
 
@@ -530,7 +530,7 @@ namespace Inkslab.Map.Expressions
                         throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
                     }
                 }
-                else if (runtimeType == typeof(object))
+                else if (runtimeType == MapConstants.ObjectType)
                 {
                     conversionType = sourceType;
                 }
@@ -551,7 +551,7 @@ namespace Inkslab.Map.Expressions
                         throw new InvalidOperationException();
                     }
 
-                    var parameterExp = Parameter(typeof(object));
+                    var parameterExp = Parameter(MapConstants.ObjectType);
 
                     var expressions = new List<Expression>
                     {
@@ -598,27 +598,6 @@ namespace Inkslab.Map.Expressions
                 });
 
                 return factory.Invoke(source);
-            }
-        }
-
-        private class ReplaceExpressionVisitor : ExpressionVisitor
-        {
-            private readonly Expression _oldExpression;
-            private readonly Expression _newExpression;
-
-            public ReplaceExpressionVisitor(Expression oldExpression, Expression newExpression)
-            {
-                _oldExpression = oldExpression;
-                _newExpression = newExpression;
-            }
-            public override Expression Visit(Expression node)
-            {
-                if (_oldExpression == node)
-                {
-                    return base.Visit(_newExpression);
-                }
-
-                return base.Visit(node);
             }
         }
 
