@@ -15,7 +15,7 @@ skip_commits:
     - '**/*.csproj'
     - '**/*.csproj.user'
     - 'Tests/'
-image: Visual Studio 2019
+image: Visual Studio 2022
 configuration: Release
 clone_depth: 5
 before_build:
