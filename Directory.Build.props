@@ -21,7 +21,6 @@
 		
 		<!-- 生成 xml 文件。 -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<DocumentationFile Condition="'$(Configuration)' != 'Debug'">bin/$(Configuration)/$(TargetFramework)/publish/$(AssemblyName).xml</DocumentationFile>
 	</PropertyGroup>
 
 	<ItemGroup>
