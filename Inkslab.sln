@@ -27,11 +27,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
 		Directory.Build.props = Directory.Build.props
+		inkslab-mini.jpg = inkslab-mini.jpg
+		inkslab.jpg = inkslab.jpg
+		LICENSE = LICENSE
+		README.md = README.md
 	EndProjectSection
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.Map.Tests", "tests\Inkslab.Map.Tests\Inkslab.Map.Tests.csproj", "{CC86AB91-AD26-4F7A-AF04-42D95978B193}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inkslab.DI.Tests", "tests\Inkslab.DI.Tests\Inkslab.DI.Tests.csproj", "{9DC50741-CFD9-4A32-9D1A-EEB444C0684A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.DI.Tests", "tests\Inkslab.DI.Tests\Inkslab.DI.Tests.csproj", "{9DC50741-CFD9-4A32-9D1A-EEB444C0684A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -97,7 +97,7 @@ namespace Inkslab.Map.Maps
                 }
             }
 
-            elementType = typeof(object);
+            elementType = MapConstants.ObjectType;
 
             addElementMtd = destinationType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null);
 

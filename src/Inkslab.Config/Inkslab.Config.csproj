@@ -5,20 +5,6 @@
 		<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
 	</PropertyGroup>
 
-	<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0" />
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
-		<FrameworkReference Include="Microsoft.AspNetCore.App"></FrameworkReference>
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
-		<Reference Include="System.Configuration" />
-		<Reference Include="System.Web" />
-	</ItemGroup>
-
 	<ItemGroup>
 		<ProjectReference Include="..\Inkslab\Inkslab.csproj" />
 	</ItemGroup>

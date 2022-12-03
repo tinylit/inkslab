@@ -18,7 +18,7 @@
 
         private static class Nested
         {
-            static Nested() => Instance = RuntimeServPools.Singleton<T>();
+            static Nested() => Instance = SingletonPools.Singleton<T>();
 
             public static readonly T Instance;
         }

@@ -9,6 +9,9 @@ namespace Inkslab.Config.Tests
     /// </summary>
     public class UnitTests
     {
+        /// <summary>
+        /// 默认。
+        /// </summary>
         [Fact]
         public void TestDef()
         {
@@ -27,6 +30,9 @@ namespace Inkslab.Config.Tests
             Assert.Equal(environment, equal);
         }
 
+        /// <summary>
+        /// 自定义。
+        /// </summary>
         [Fact]
         public void TestCus()
         {
@@ -36,7 +42,7 @@ namespace Inkslab.Config.Tests
                 xstartup.DoStartup();
             }
 
-            RuntimeServPools.TryAddSingleton(new JsonConfigSettings(x =>
+            SingletonPools.TryAdd(new JsonConfigSettings(x =>
             {
                 //TODO: 可以在这里初始化配置。
             }));

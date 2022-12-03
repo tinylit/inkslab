@@ -1,24 +1,29 @@
 ﻿using Inkslab.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
 namespace Inkslab.Tests
 {
+    /// <summary>
+    /// <see cref="LRU{TKey, TValue}"/> 算法测试。
+    /// </summary>
     public class LRUTests
     {
         /// <summary>
         /// 线程安全测试。
         /// </summary>
         [Fact]
-        public void TestThreadSafety()
+        public async Task TestThreadSafety()
         {
             int total = 0;
+            long totalMilliseconds = 0;
+
+            Stopwatch totalStopwatch = Stopwatch.StartNew();
 
             int capacity = 1000;
             var lru = new LRU<int, int>(capacity / 10, x => x * x);
-
-            Stopwatch stopwatch = new Stopwatch();
 
             var tasks = new List<Task>(capacity);
 
@@ -26,6 +31,8 @@ namespace Inkslab.Tests
             {
                 tasks.Add(Task.Run(() =>
                 {
+                    Stopwatch stopwatch = new Stopwatch();
+
                     for (int j = 0; j < capacity; j++)
                     {
                         stopwatch.Start();
@@ -38,12 +45,18 @@ namespace Inkslab.Tests
 
                         Assert.True(lru.Count <= capacity);
                     }
+
+                    stopwatch.Stop();
+
+                    totalMilliseconds += stopwatch.ElapsedMilliseconds;
                 }));
             }
 
-            Task.WaitAll(tasks.ToArray());
+            await Task.WhenAll(tasks.ToArray());
 
-            stopwatch.Stop();
+            totalStopwatch.Stop();
+
+            Debug.WriteLine($"计算{50 * capacity}次，共执行{totalMilliseconds}毫秒");
         }
 
         /// <summary>

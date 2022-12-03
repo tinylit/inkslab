@@ -1,39 +1,71 @@
 ﻿using Inkslab.Annotations;
 using Inkslab.Serialize.Xml;
+using System;
 using System.Diagnostics;
 using System.Xml.Serialization;
 using Xunit;
 
 namespace Inkslab.Tests
 {
+    /// <summary>
+    /// 测试 Xml。
+    /// </summary>
     [XmlRoot("xml")]
     public class XmlA
     {
+        /// <summary>
+        /// 忽略字段。
+        /// </summary>
         [Ignore] //? 忽略字段。
         public int A1 { get; set; } = 100;
 
-        //!? 生成 <![CDATA[{value}]]>
+        /// <summary>
+        /// 生成 <![CDATA[{value}]]>
+        /// </summary>
         public CData A2 { get; set; }
 
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
         public string A3 { get; set; }
 
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
         public DateTime A4 { get; set; }
     }
-
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
     [XmlRoot("xml")]
     public class XmlB
     {
+        /// <summary>
+        /// 忽略字段。
+        /// </summary>
         [Ignore] //? 忽略字段。
         public int A1 { get; set; } = 100;
-
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
         public string A2 { get; set; }
-
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
         public string A3 { get; set; }
-
+        /// <summary>
+        /// <inheritdoc/>
+        /// </summary>
         public DateTime A4 { get; set; }
     }
+    /// <summary>
+    /// <see cref="XmlHelper"/> 测试。
+    /// </summary>
     public class XmlHelperTests
     {
+        /// <summary>
+        /// 序列和反序列化。
+        /// </summary>
         [Fact]
         public void Test()
         {

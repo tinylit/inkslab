@@ -31,15 +31,11 @@ namespace Inkslab.Json
             /// <returns></returns>
             protected override string ResolvePropertyName(string propertyName)
             {
-                switch (_camelCase)
+                return _camelCase switch
                 {
-                    case NamingType.CamelCase:
-                    case NamingType.UrlCase:
-                    case NamingType.PascalCase:
-                        return propertyName.ToNamingCase(_camelCase);
-                    default:
-                        return base.ResolvePropertyName(propertyName);
-                }
+                    NamingType.CamelCase or NamingType.UrlCase or NamingType.PascalCase => propertyName.ToNamingCase(_camelCase),
+                    _ => base.ResolvePropertyName(propertyName),
+                };
             }
 
             /// <summary>
@@ -150,17 +146,6 @@ namespace Inkslab.Json
         public T Json<T>(string json, NamingType namingType = NamingType.Normal)
         {
             return JsonConvert.DeserializeObject<T>(json, LoadSetting(settings, namingType));
-        }
-
-        /// <summary> 将JSON反序列化到匿名对象。 </summary>
-        /// <typeparam name="T">结果类型。</typeparam>
-        /// <param name="json">JSON字符串。</param>
-        /// <param name="anonymousTypeObject">匿名对象。</param>
-        /// <param name="namingType">命名规则。</param>
-        /// <returns></returns>
-        public T Json<T>(string json, T anonymousTypeObject, NamingType namingType = NamingType.Normal)
-        {
-            return JsonConvert.DeserializeAnonymousType(json, anonymousTypeObject, LoadSetting(settings, namingType));
         }
 
         /// <summary>

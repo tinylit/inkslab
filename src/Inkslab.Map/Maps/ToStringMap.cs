@@ -28,7 +28,7 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
         {
-            Type objectType = typeof(object);
+            Type objectType = MapConstants.ObjectType;
 
             var toStringMethod = sourceType.GetMethod(nameof(object.ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(object.ToString), Type.EmptyTypes);
 

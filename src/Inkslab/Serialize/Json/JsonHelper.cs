@@ -10,7 +10,7 @@
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static JsonHelper() => _jsonHelper = RuntimeServPools.Singleton<IJsonHelper>();
+        static JsonHelper() => _jsonHelper = SingletonPools.Singleton<IJsonHelper>();
 
         /// <summary> Json序列化。 </summary>
         /// <typeparam name="T">对象类型。</typeparam>
@@ -35,7 +35,9 @@
         /// <param name="anonymousTypeObject">匿名对象类型。</param>
         /// <param name="namingType">命名规则。</param>
         /// <returns></returns>
+#pragma warning disable IDE0060 // 删除未使用的参数
         public static T Json<T>(string json, T anonymousTypeObject, NamingType namingType = NamingType.Normal)
-            => _jsonHelper.Json(json, anonymousTypeObject, namingType);
+#pragma warning restore IDE0060 // 删除未使用的参数
+            => Json<T>(json, namingType);
     }
 }

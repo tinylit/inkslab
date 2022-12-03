@@ -16,12 +16,12 @@ namespace Inkslab.Map.Maps
     {
         private static readonly Type kvStringType = typeof(kvString);
         private static readonly Type kvStringCollectionType = typeof(ICollection<kvString>);
-        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { typeof(string), typeof(object) });
+        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { typeof(string), MapConstants.ObjectType });
 
         private static readonly Type kvStringDictionaryType = typeof(IDictionary<string, object>);
 
         private static readonly MethodInfo collectionAddMtd = kvStringCollectionType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[1] { kvStringType }, null);
-        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { typeof(string), typeof(object) }, null);
+        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { typeof(string), MapConstants.ObjectType }, null);
 
         /// <summary>
         /// 解决 <see cref="KeyValuePair{TKey, TValue}"/>, TKey is <seealso cref="string"/>, TValue is <seealso cref="object"/> 到对象的映射。
@@ -51,7 +51,7 @@ namespace Inkslab.Map.Maps
             foreach (var propertyInfo in propertyInfos)
             {
                 var keyExpression = Constant(propertyInfo.Name);
-                var valueExpression = configuration.Map(Property(sourceExpression, propertyInfo), typeof(object));
+                var valueExpression = configuration.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
 
                 if (flag)
                 {

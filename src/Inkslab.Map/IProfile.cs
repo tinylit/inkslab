@@ -52,6 +52,6 @@ namespace Inkslab.Map
         /// <param name="source">源数据。</param>
         /// <param name="destinationItems">目标集合元素数据。</param>
         /// <returns>目标类型实例。</returns>
-        TDestination NewInstance(TSource source, List<TDestinationItem> destinationItems);
+        TDestination CreateInstance(TSource source, List<TDestinationItem> destinationItems);
     }
 }

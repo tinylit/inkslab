@@ -2,8 +2,14 @@ using Xunit;
 
 namespace Inkslab.Tests
 {
+    /// <summary>
+    /// <see cref="AssemblyFinder"/> ≤‚ ‘°£
+    /// </summary>
     public class AssemblyFinderTests
     {
+        /// <summary>
+        /// ≤È’“À˘”–°£
+        /// </summary>
         [Fact]
         public void FindAll()
         {

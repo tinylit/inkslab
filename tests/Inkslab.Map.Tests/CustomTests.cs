@@ -246,7 +246,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public LinkedList<C2> NewInstance(List<C1> source, List<C2> destinationItems) => new LinkedList<C2>(destinationItems);
+        public LinkedList<C2> CreateInstance(List<C1> source, List<C2> destinationItems) => new LinkedList<C2>(destinationItems);
     }
 
     /// <summary>
@@ -257,7 +257,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public ReadOnlyCollection<TItem> NewInstance(List<TItem> source, List<TItem> destinationItems) => new ReadOnlyCollection<TItem>(destinationItems);
+        public ReadOnlyCollection<TItem> CreateInstance(List<TItem> source, List<TItem> destinationItems) => new ReadOnlyCollection<TItem>(destinationItems);
     }
 
     /// <summary>
@@ -268,7 +268,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public PagedList<TDestinationItem> NewInstance(PagedList<TSourceItem> source, List<TDestinationItem> destinationItems) => new PagedList<TDestinationItem>(destinationItems, source.PageIndex, source.PageSize, source.Count);
+        public PagedList<TDestinationItem> CreateInstance(PagedList<TSourceItem> source, List<TDestinationItem> destinationItems) => new PagedList<TDestinationItem>(destinationItems, source.PageIndex, source.PageSize, source.Count);
     }
 
     /// <summary>
@@ -279,7 +279,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public TDestination NewInstance(TSource source, List<TDestinationItem> destinationItems)
+        public TDestination CreateInstance(TSource source, List<TDestinationItem> destinationItems)
         {
             var destination = new TDestination();
 
@@ -334,7 +334,7 @@ namespace Inkslab.Map.Tests
         /// 关系继承与重写（源类型及源的祖祖辈辈类型指定的关系，按照从子到祖的顺序优先被使用）。
         /// </summary>
         [Fact]
-        public void ExtendsOrOverwriteMapTest()
+        public void ExtendsOrOverwriteTest()
         {
             var constant = DateTimeKind.Utc;
 
@@ -367,6 +367,35 @@ namespace Inkslab.Map.Tests
             Assert.True(sourceC3.P3.ToString() == destinationC2.T3); //? 继承 C1 的映射关系。
             Assert.True(destinationC2.D4 == sourceC3.D4); //? 关系重写。
             Assert.True(sourceC3.I5 == destinationC2.I5); //! 关系重写。
+        }
+
+        /// <summary>
+        /// 包含。
+        /// </summary>
+        [Fact]
+        public void IncludeTest()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<C2, C1>()
+                .Include<C3>()
+                .Map(x => x.P1, y => y.From(z => z.R1))
+                .Map(x => x.P3, y => y.From(z => Convert.ToDateTime(z.T3)));
+
+            var sourceC2 = new C2
+            {
+                R1 = 1,
+                P2 = "Test",
+                T3 = DateTime.Now.ToString(),
+                D4 = DateTimeKind.Local,
+                I5 = 10000
+            };
+
+            var destinationC3 = instance.Map<C3>(sourceC2);
+
+            Assert.True(sourceC2.R1 == destinationC3.P1); //? 继承 C1 的映射关系。
+            Assert.True(sourceC2.P2 == destinationC3.P2); //? 继承 C1 的映射关系。
+            Assert.True(sourceC2.T3 == destinationC3.P3.ToString()); //? 继承 C1 的映射关系。
         }
 
         /// <summary>

@@ -12,7 +12,7 @@ namespace Inkslab.Map
         /// <summary>
         /// inheritdoc
         /// </summary>
-        static Mapper() => _mapper = RuntimeServPools.Singleton<IMapper>();
+        static Mapper() => _mapper = SingletonPools.Singleton<IMapper>();
 
         /// <summary>
         /// 对象映射。

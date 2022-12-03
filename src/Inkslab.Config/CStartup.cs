@@ -18,6 +18,6 @@
         /// <summary>
         /// 启动。
         /// </summary>
-        public void Startup() => RuntimeServPools.TryAddSingleton<IConfigHelper, DefaultConfigHelper>();
+        public void Startup() => SingletonPools.TryAdd<IConfigHelper, DefaultConfigHelper>();
     }
 }

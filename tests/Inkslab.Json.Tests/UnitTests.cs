@@ -80,7 +80,7 @@ namespace Inkslab.Json.Tests
         [Fact]
         public void TestCus()
         {
-            RuntimeServPools.TryAddSingleton(new JsonSerializerSettings
+            SingletonPools.TryAdd(new JsonSerializerSettings
             {
                 DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
                 DateFormatString = "yyyy-MM-dd", //? 指定时间格式为：yyyy-MM-dd

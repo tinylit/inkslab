@@ -6,26 +6,27 @@ using System.Reflection;
 namespace Inkslab
 {
     /// <summary>
-    /// 服务池。
+    /// 单列服务池。
     /// </summary>
-    public static class RuntimeServPools
+    public static class SingletonPools
     {
         /// <summary>
         /// 服务。
         /// </summary>
-        private static readonly Dictionary<Type, Type> ServiceCaching = new Dictionary<Type, Type>();
+        private static readonly Dictionary<Type, Type> ServiceCachings = new Dictionary<Type, Type>();
 
         /// <summary>
         /// 服务。
         /// </summary>
-        private static readonly Dictionary<Type, Type> DefaultCaching = new Dictionary<Type, Type>();
+        private static readonly Dictionary<Type, Type> DefaultCachings = new Dictionary<Type, Type>();
 
         /// <summary>
         /// 添加服务。
         /// </summary>
         /// <param name="instance">实现。</param>
         /// <typeparam name="TService">服务类型。</typeparam>
-        public static bool TryAddSingleton<TService>(TService instance)
+        /// <returns>是否添加成功。</returns>
+        public static bool TryAdd<TService>(TService instance)
             where TService : class
         {
             if (instance is null)
@@ -41,7 +42,8 @@ namespace Inkslab
         /// </summary>
         /// <typeparam name="TService">服务类型。</typeparam>
         /// <param name="factory">实现工厂。</param>
-        public static bool TryAddSingleton<TService>(Func<TService> factory)
+        /// <returns>是否添加成功。</returns>
+        public static bool TryAdd<TService>(Func<TService> factory)
             where TService : class
         {
             if (factory is null)
@@ -57,7 +59,8 @@ namespace Inkslab
         /// </summary>
         /// <typeparam name="TService">服务类型。</typeparam>
         /// <typeparam name="TImplementation">服务实现。</typeparam>
-        public static bool TryAddSingleton<TService, TImplementation>()
+        /// <returns>是否添加成功。</returns>
+        public static bool TryAdd<TService, TImplementation>()
             where TService : class
             where TImplementation : class, TService
             => Nested<TService>.TryAdd(() => Nested<TService, TImplementation>.Instance);
@@ -66,17 +69,20 @@ namespace Inkslab
         /// 获取服务。
         /// </summary>
         /// <typeparam name="TService">服务类型。</typeparam>
-        /// <returns></returns>
+        /// <exception cref="NotImplementedException"> <typeparamref name="TService"/> 是接口或抽象类。</exception>
+        /// <exception cref="NotSupportedException">未能找全 <typeparamref name="TService"/> 任意构造函数的参数。</exception>
+        /// <returns>返回唯一实例。</returns>
         public static TService Singleton<TService>()
             where TService : class
         => AutoNested<TService>.Instance;
 
         /// <summary>
-        /// 获取服务。
+        /// 获取服务，没有注入 <typeparamref name="TService"/> 单列实现时，使用 <typeparamref name="TImplementation"/> 的实现。
         /// </summary>
         /// <typeparam name="TService">服务类型。</typeparam>
         /// <typeparam name="TImplementation">服务实现。</typeparam>
-        /// <returns></returns>
+        /// <exception cref="NotSupportedException">未能找全 <typeparamref name="TImplementation"/> 任意构造函数的参数。</exception>
+        /// <returns>返回唯一实例。</returns>
         public static TService Singleton<TService, TImplementation>()
             where TService : class
             where TImplementation : class, TService
@@ -89,7 +95,7 @@ namespace Inkslab
             private static volatile bool _useBaseTryAdd = true;
             private static volatile bool _uninitialized = true;
 
-            static Nested() => ServiceCaching[typeof(TService)] = typeof(Nested<TService>);
+            static Nested() => ServiceCachings[typeof(TService)] = typeof(Nested<TService>);
 
             protected static void AddDefaultImpl(Func<TService> factory)
             {
@@ -193,7 +199,7 @@ namespace Inkslab
                             var parameterInfos = x.GetParameters();
 
                             //! 客户最优注册的类型。
-                            var specifiedCount = parameterInfos.Count(y => ServiceCaching.ContainsKey(y.ParameterType));
+                            var specifiedCount = parameterInfos.Count(y => ServiceCachings.ContainsKey(y.ParameterType));
 
                             return parameterInfos.Length * parameterInfos.Length + specifiedCount;
                         })
@@ -253,25 +259,25 @@ namespace Inkslab
 
                 private static bool IsSurport(Type conversionType, Type parameterType)
                 {
-                    if (ServiceCaching.ContainsKey(parameterType))
+                    if (ServiceCachings.ContainsKey(parameterType))
                     {
                         return true;
                     }
 
                     if (!parameterType.IsAbstract)
                     {
-                        foreach (var kv in ServiceCaching)
+                        foreach (var kv in ServiceCachings)
                         {
                             if (kv.Value == parameterType)
                             {
-                                ServiceCaching[parameterType] = kv.Value;
+                                ServiceCachings[parameterType] = kv.Value;
 
                                 return true;
                             }
                         }
                     }
 
-                    foreach (var kv in ServiceCaching)
+                    foreach (var kv in ServiceCachings)
                     {
                         if (parameterType.IsInterface)
                         {
@@ -282,7 +288,7 @@ namespace Inkslab
 
                             if (parameterType.IsAssignableFrom(kv.Key))
                             {
-                                ServiceCaching[parameterType] = kv.Value;
+                                ServiceCachings[parameterType] = kv.Value;
 
                                 return true;
                             }
@@ -293,7 +299,7 @@ namespace Inkslab
                         }
                         else if (parameterType.IsAssignableFrom(kv.Key))
                         {
-                            ServiceCaching[parameterType] = kv.Value;
+                            ServiceCachings[parameterType] = kv.Value;
 
                             return true;
                         }
@@ -312,7 +318,7 @@ namespace Inkslab
                     {
                         var parameterInfo = parameterInfos[i];
 
-                        if (ServiceCaching.TryGetValue(parameterInfo.ParameterType, out Type implementType))
+                        if (ServiceCachings.TryGetValue(parameterInfo.ParameterType, out Type implementType))
                         {
                             PropertyInfo instancePropertyInfo = implementType.GetProperty("Instance", DefaultLookup);
 
@@ -320,7 +326,7 @@ namespace Inkslab
 
                             if (instance is null)
                             {
-                                if (DefaultCaching.TryGetValue(parameterInfo.ParameterType, out Type defaultType))
+                                if (DefaultCachings.TryGetValue(parameterInfo.ParameterType, out Type defaultType))
                                 {
                                     //? 同时存在时以“Nested<TService, TImplementation>”类型存储。
                                     instancePropertyInfo = defaultType.GetProperty("Instance", DefaultLookup);
@@ -362,7 +368,7 @@ namespace Inkslab
                     throw new NotSupportedException($"单例服务({conversionType.FullName}=>{serviceType.FullName})的实现（{conversionType.FullName}）是抽象类，不能被实例化!");
                 }
 
-                DefaultCaching[typeof(TService)] = typeof(Nested<TService, TImplementation>);
+                DefaultCachings[typeof(TService)] = typeof(Nested<TService, TImplementation>);
             }
 
             public static TImplementation Instance => Lazy.Instance;
