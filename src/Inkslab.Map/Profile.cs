@@ -132,12 +132,12 @@ namespace Inkslab.Map
 
                 var destinationItemsType = typeof(List<>).MakeGenericType(destinationItemType);
 
-                var createInstanceMtd = createInstanceType.GetMethod("NewInstance", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
+                var createInstanceMtd = createInstanceType.GetMethod("CreateInstance", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
 
                 if (createInstanceMtd is null || createInstanceMtd.ReturnType != destinationType)
                 {
                     createInstanceMtd = NewInstance_T4_Type.MakeGenericType(sourceType, sourceItemType, destinationType, destinationItemType)
-                        .GetMethod("NewInstance", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
+                        .GetMethod("CreateInstance", MapConstants.InstanceBindingFlags, null, new Type[] { sourceType, destinationItemsType }, null);
                 }
 
                 var bodyExp = configuration.Map(sourceExpression, destinationItemsType);

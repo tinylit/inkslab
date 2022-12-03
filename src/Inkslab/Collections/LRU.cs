@@ -8,14 +8,75 @@ using Timer = System.Timers.Timer;
 namespace Inkslab.Collections
 {
     /// <summary>
+    /// LRU。
+    /// </summary>
+    /// <typeparam name="T">元素类型。</typeparam>
+    public class LRU<T>
+    {
+        private int refCount = -1;
+
+        private readonly T[] arrays;
+        private readonly int capacity;
+
+        /// <summary>
+        /// 指定容器大小。
+        /// </summary>
+        /// <param name="capacity">容器大小。</param>
+        public LRU(int capacity)
+        {
+            if (capacity < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity));
+            }
+
+            this.capacity = capacity;
+
+            arrays = new T[capacity];
+        }
+
+        /// <summary>
+        /// 挤出元素。
+        /// </summary>
+        /// <param name="value">值。</param>
+        /// <param name="removeValue">被移除的值。</param>
+        public bool TrySqueeze(T value, out T removeValue)
+        {
+            int index = Interlocked.Increment(ref refCount);
+
+            int offset = index % capacity;
+
+            if (index >= capacity)
+            {
+                removeValue = arrays[offset];
+
+                arrays[offset] = value;
+
+                return true;
+            }
+
+            arrays[offset] = value;
+
+            removeValue = default(T);
+
+            return false;
+        }
+
+        /// <summary>
+        /// 清空。
+        /// </summary>
+        public void Clear() => Interlocked.Exchange(ref refCount, -1);
+    }
+
+    /// <summary>
     /// 【线程安全】根据 LRU 算法，移除最近最少使用的数据。
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
     public class LRU<TKey, TValue>
     {
-        private readonly int capacity = DefaultCapacity;
+        private readonly int capacity;
         private readonly Func<TKey, TValue> factory;
+        private readonly LRU<TKey> lru;
 
         private readonly Timer timer;
         private bool timerIsRunning = false;
@@ -47,8 +108,28 @@ namespace Inkslab.Collections
         /// </summary>
         public const int DefaultCapacity = 1000;
 
-        private LRU(Func<TKey, TValue> factory, int initCapacity)
+        /// <summary>
+        /// 默认容量。
+        /// </summary>
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        /// <exception cref="ArgumentNullException"></exception>
+        public LRU(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
         {
+        }
+
+        /// <summary>
+        /// 指定最大容量。
+        /// </summary>
+        /// <param name="capacity">初始大小。</param>
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        public LRU(int capacity, Func<TKey, TValue> factory)
+        {
+            if (capacity < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(capacity));
+            }
+
+            this.capacity = capacity;
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
 #if NET_Traditional
@@ -63,26 +144,21 @@ namespace Inkslab.Collections
 
             timer.Stop();
 
-            cachings = new Dictionary<TKey, Slot>(initCapacity);
-        }
+            lru = new LRU<TKey>(capacity);
 
-        /// <summary>
-        /// 默认容量。
-        /// </summary>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        /// <exception cref="ArgumentNullException"></exception>
-        public LRU(Func<TKey, TValue> factory) : this(factory, DefaultCapacity / 8)
-        {
-        }
+            for (int i = 0; i < 3; i++)
+            {
+                if ((capacity & 1) == 0)
+                {
+                    capacity /= 2;
 
-        /// <summary>
-        /// 指定最大容量。
-        /// </summary>
-        /// <param name="capacity">初始大小。</param>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LRU(int capacity, Func<TKey, TValue> factory) : this(factory, capacity)
-        {
-            this.capacity = capacity;
+                    continue;
+                }
+
+                break;
+            }
+
+            cachings = new Dictionary<TKey, Slot>(capacity);
         }
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
@@ -93,10 +169,32 @@ namespace Inkslab.Collections
 
             var expireTicks = expire.Ticks;
 
-            var keys = cachings
-                    .Where(x => x.Value.Ticks < expireTicks)
-                    .Select(x => x.Key)
-                    .ToList();
+            bool lockTaken = false;
+
+            Monitor.TryEnter(lockObj, ref lockTaken);
+
+            Dictionary<TKey, Slot> snapshotCachings;
+
+            if (lockTaken)
+            {
+                try
+                {
+                    snapshotCachings = new Dictionary<TKey, Slot>(cachings);
+                }
+                finally
+                {
+                    Monitor.Enter(lockObj);
+                }
+            }
+            else
+            {
+                return;
+            }
+
+            var keys = snapshotCachings
+                .Where(x => x.Value.Ticks < expireTicks)
+                .Select(x => x.Key)
+                .ToList();
 
             if (keys.Count == 0)
             {
@@ -126,6 +224,8 @@ namespace Inkslab.Collections
             {
                 timerIsRunning = false;
 
+                lru.Clear();
+
                 timer.Stop();
             }
         }
@@ -145,6 +245,20 @@ namespace Inkslab.Collections
             if (key == null)
             {
                 throw new ArgumentNullException(nameof(key));
+            }
+
+            if (lru.TrySqueeze(key, out TKey removeKey))
+            {
+                if (cachings.Count == capacity)
+                {
+                    lock (lockObj)
+                    {
+                        if (cachings.Count == capacity)
+                        {
+                            cachings.Remove(removeKey);
+                        }
+                    }
+                }
             }
 
             return Get(key, DateTime.Now.Ticks);
@@ -180,24 +294,6 @@ label_locked:
                     slot.Ticks = ticks;
 
                     return slot.Value;
-                }
-
-                if (cachings.Count == capacity)
-                {
-                    var keys = cachings
-                        .OrderBy(x => x.Value.Ticks)
-                        .Select(x => x.Key)
-                        .Take(Math.Max(capacity / 10, 1))
-                        .ToList();
-
-                    processing = true;
-
-                    for (int i = 0, len = keys.Count; i < len; i++)
-                    {
-                        cachings.Remove(keys[i]);
-                    }
-
-                    processing = false;
                 }
 
                 if (!timerIsRunning)

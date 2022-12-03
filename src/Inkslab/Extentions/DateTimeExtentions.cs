@@ -111,37 +111,12 @@
             var year = date.Year;
             var month = date.Month;
 
-            switch (datePrecision)
+            return datePrecision switch
             {
-                case DatePrecision.MySQL:
-                    {
-                        if (month == 2)
-                        {
-                            return new DateTime(year, month, IsLeapYear(year) ? 29 : 28, 23, 59, 59, date.Kind);
-                        }
-
-                        return new DateTime(year, month, ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, date.Kind);
-                    }
-                case DatePrecision.SqlServer:
-                    {
-                        if (month == 2)
-                        {
-                            return new DateTime(year, month, IsLeapYear(year) ? 29 : 28, 23, 59, 59, 997, date.Kind);
-                        }
-
-                        return new DateTime(year, month, ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, 997, date.Kind);
-                    }
-                case DatePrecision.None:
-                default:
-                    {
-                        if (month == 2)
-                        {
-                            return new DateTime(year, month, IsLeapYear(year) ? 29 : 28, 23, 59, 59, 999, date.Kind);
-                        }
-
-                        return new DateTime(year, month, ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, 999, date.Kind);
-                    }
-            }
+                DatePrecision.MySQL => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, date.Kind),
+                DatePrecision.SqlServer => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, 997, date.Kind),
+                _ => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, 999, date.Kind),
+            };
         }
     }
 }

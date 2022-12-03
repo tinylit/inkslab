@@ -7,35 +7,52 @@ using Xunit;
 
 namespace Inkslab.Tests
 {
+    /// <summary>
+    /// 单列测试 -- 私有构造函数。
+    /// </summary>
     public class SingleA : Singleton<SingleA>
     {
         private SingleA() { }
     }
 
+    /// <summary>
+    /// 单列测试 -- 私有构造函数。
+    /// </summary>
     public class SimpleB
     {
         private SimpleB() { }
     }
 
+    /// <summary>
+    /// 单列测试 -- 私有构造函数，单例池构造函数注入。
+    /// </summary>
     public class CombinationC
     {
         private CombinationC() { }
 
         private CombinationC(SimpleB b) => SimpleB = b;
 
+        /// <summary>
+        /// 注入对象。
+        /// </summary>
         public SimpleB SimpleB { get; }
     }
 
+    /// <summary>
+    /// 单列测试 -- 公共构造函数。
+    /// </summary>
     public class NormalD
     {
-        public NormalD() { }
     }
 
     /// <summary>
     /// 运行时服务池。
     /// </summary>
-    public class RuntimeServPoolsTests
+    public class SingletonPoolsTests
     {
+        /// <summary>
+        /// 单例测试。
+        /// </summary>
         [Fact]
         public void TestSingleton()
         {
@@ -46,6 +63,9 @@ namespace Inkslab.Tests
             Assert.Equal(singleA, Singleton<SingleA>.Instance);
         }
 
+        /// <summary>
+        /// 简单单例测试。
+        /// </summary>
         [Fact]
         public void TestSimple()
         {
@@ -55,6 +75,9 @@ namespace Inkslab.Tests
             Assert.Equal(simpleB1, simpleB2);
         }
 
+        /// <summary>
+        /// 构造函数注入单例测试。
+        /// </summary>
         [Fact]
         public void TestCombinationWithB()
         {
@@ -66,7 +89,9 @@ namespace Inkslab.Tests
             Assert.Equal(combinationC2.SimpleB, simpleB);
             Assert.Equal(combinationC1, combinationC2);
         }
-
+        /// <summary>
+        /// 不指定构造函数参数测试。
+        /// </summary>
         [Fact]
         public void TestCombinationWithoutB()
         {
@@ -79,6 +104,9 @@ namespace Inkslab.Tests
             Assert.Equal(combinationC1, combinationC2);
         }
 
+        /// <summary>
+        /// 单例池指定对象。
+        /// </summary>
         [Fact]
         public void TestNormal()
         {

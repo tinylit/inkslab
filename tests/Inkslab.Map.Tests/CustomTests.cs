@@ -246,7 +246,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public LinkedList<C2> NewInstance(List<C1> source, List<C2> destinationItems) => new LinkedList<C2>(destinationItems);
+        public LinkedList<C2> CreateInstance(List<C1> source, List<C2> destinationItems) => new LinkedList<C2>(destinationItems);
     }
 
     /// <summary>
@@ -257,7 +257,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public ReadOnlyCollection<TItem> NewInstance(List<TItem> source, List<TItem> destinationItems) => new ReadOnlyCollection<TItem>(destinationItems);
+        public ReadOnlyCollection<TItem> CreateInstance(List<TItem> source, List<TItem> destinationItems) => new ReadOnlyCollection<TItem>(destinationItems);
     }
 
     /// <summary>
@@ -268,7 +268,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public PagedList<TDestinationItem> NewInstance(PagedList<TSourceItem> source, List<TDestinationItem> destinationItems) => new PagedList<TDestinationItem>(destinationItems, source.PageIndex, source.PageSize, source.Count);
+        public PagedList<TDestinationItem> CreateInstance(PagedList<TSourceItem> source, List<TDestinationItem> destinationItems) => new PagedList<TDestinationItem>(destinationItems, source.PageIndex, source.PageSize, source.Count);
     }
 
     /// <summary>
@@ -279,7 +279,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public TDestination NewInstance(TSource source, List<TDestinationItem> destinationItems)
+        public TDestination CreateInstance(TSource source, List<TDestinationItem> destinationItems)
         {
             var destination = new TDestination();
 
