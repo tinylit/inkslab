@@ -370,18 +370,6 @@ using (var startup = new XStartup())
     string named = "user_name".ToUrlCase(); // user_name
     ```
 
-### 读取配置文件。
-
-* 普通方式。
-
-  ```c#
-  T value = "key".Config<T>(); // 未找到时，返回指定类型的默认值。
-  ```
-
-  ```c#
-  T value = "key".Config(defaultValue); // 未找到时，返回defaultValue。
-  ```
-
 ### 字符串语法糖。
 
 ```c#
