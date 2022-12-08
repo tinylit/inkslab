@@ -17,7 +17,7 @@ namespace Inkslab.Tests
         [Fact]
         public async Task TestThreadSafety()
         {
-            int total = 0;
+            //int total = 0;
             long totalMilliseconds = 0;
 
             Stopwatch totalStopwatch = Stopwatch.StartNew();
@@ -31,24 +31,24 @@ namespace Inkslab.Tests
             {
                 tasks.Add(Task.Run(() =>
                 {
-                    Stopwatch stopwatch = new Stopwatch();
+                    //Stopwatch stopwatch = new Stopwatch();
 
                     for (int j = 0; j < capacity; j++)
                     {
-                        stopwatch.Start();
+                        //stopwatch.Start();
                         var v = lru.Get(j);
-                        stopwatch.Stop();
+                        //stopwatch.Stop();
 
-                        Debug.WriteLine(++total);
+                        //Debug.WriteLine(++total);
 
-                        Assert.Equal(j * j, v);
+                        //Assert.Equal(j * j, v);
 
-                        Assert.True(lru.Count <= capacity);
+                        //Assert.True(lru.Count <= capacity);
                     }
 
-                    stopwatch.Stop();
+                    //stopwatch.Stop();
 
-                    totalMilliseconds += stopwatch.ElapsedMilliseconds;
+                    //totalMilliseconds += stopwatch.ElapsedMilliseconds;
                 }));
             }
 
