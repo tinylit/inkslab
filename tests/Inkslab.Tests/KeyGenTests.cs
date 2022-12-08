@@ -42,7 +42,7 @@ namespace Inkslab.Tests
         {
             int len = 10000;
 
-            var keys = new HashSet<long>(len);
+            var keys = new HashSet<long>();
             var tasks = new List<Task<long>>(len);
 
             for (int i = 0; i < len; i++)

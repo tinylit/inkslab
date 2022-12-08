@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading;
 
 namespace Inkslab.Collections
@@ -15,9 +15,8 @@ namespace Inkslab.Collections
 
         private readonly int capacity;
         private readonly IEqualityComparer<T> comparer;
-        private readonly object[] locks;
         private readonly T[] arrays;
-        private readonly Dictionary<T, int> keys;
+        private readonly ConcurrentDictionary<T, int> keys;
 
         /// <summary>
         /// 指定容器大小。
@@ -36,13 +35,13 @@ namespace Inkslab.Collections
 
             arrays = new T[capacity];
 
-            keys = new Dictionary<T, int>(capacity, comparer);
+            int concurrencyLevel = capacity;
 
             for (int i = 0; i < 3; i++)
             {
-                if (capacity > 100 && (capacity & 1) == 0)
+                if (concurrencyLevel > 100 && (concurrencyLevel & 1) == 0)
                 {
-                    capacity /= 2;
+                    concurrencyLevel /= 2;
 
                     continue;
                 }
@@ -50,12 +49,7 @@ namespace Inkslab.Collections
                 break;
             }
 
-            locks = new object[capacity];
-
-            for (int i = 0; i < capacity; i++)
-            {
-                locks[i] = new object();
-            }
+            keys = new ConcurrentDictionary<T, int>(concurrencyLevel, capacity, comparer);
         }
 
         /// <summary>
@@ -81,14 +75,23 @@ namespace Inkslab.Collections
 
             if (index >= capacity)
             {
-                if (keys.TryGetValue(removeItem, out int local)) //? 最后一次出现的位置是被覆盖值的位置。
+                if (comparer.Equals(addItem, removeItem))
                 {
-                    if (local == offset)
-                    {
-                        flag = true;
+                    goto label_core;
+                }
 
-                        keys.Remove(removeItem);
-                    }
+                if (keys.Count == capacity || keys.TryGetValue(removeItem, out int local) && local == offset)
+                {
+                    flag = true;
+
+                    do
+                    {
+                        if (keys.TryRemove(removeItem, out _))
+                        {
+                            break;
+                        }
+
+                    } while (keys.ContainsKey(removeItem));
                 }
                 else //? 字典不存在，但被移除成功，代表值出现过，并被销毁了。
                 {
@@ -96,14 +99,9 @@ namespace Inkslab.Collections
                 }
             }
 
-            var hashCode = comparer.GetHashCode(addItem);
+label_core:
 
-            var lockCode = (hashCode & 0x7fffffff) % locks.Length;
-
-            lock (locks[lockCode])
-            {
-                keys[addItem] = offset;
-            }
+            keys[addItem] = offset;
 
             arrays[offset] = addItem;
 
@@ -172,12 +170,7 @@ namespace Inkslab.Collections
 
             for (int i = 0; i < 3; i++)
             {
-                if (capacity < 100)
-                {
-                    break;
-                }
-
-                if ((capacity & 1) == 0)
+                if (capacity > 100 && (capacity & 1) == 0)
                 {
                     capacity /= 2;
 

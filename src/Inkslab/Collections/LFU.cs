@@ -253,12 +253,7 @@ label_tree:
 
             for (int i = 0; i < 3; i++)
             {
-                if (capacity < 100)
-                {
-                    break;
-                }
-
-                if ((capacity & 1) == 0)
+                if (capacity > 100 && (capacity & 1) == 0)
                 {
                     capacity /= 2;
 
