@@ -44,7 +44,7 @@ namespace Inkslab.Map
     /// <typeparam name="TSourceItem">源集合元素类型。</typeparam>
     /// <typeparam name="TDestination">目标类型。</typeparam>
     /// <typeparam name="TDestinationItem">目标集合元素类型。</typeparam>
-    public interface INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : IEnumerable<TSourceItem> where TDestination : IEnumerable<TDestinationItem>
+    public interface INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : class, IEnumerable<TSourceItem> where TDestination : class, IEnumerable<TDestinationItem>
     {
         /// <summary>
         /// 创建实例。
