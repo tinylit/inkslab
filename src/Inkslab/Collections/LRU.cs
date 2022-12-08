@@ -1,28 +1,30 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.Diagnostics;
 using System.Threading;
-using System.Timers;
-using Timer = System.Timers.Timer;
 
 namespace Inkslab.Collections
 {
     /// <summary>
-    /// LRU。
+    /// 【线程安全】根据 LRU 算法，移除最近最久未使用的数据。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
     public class LRU<T>
     {
         private int refCount = -1;
 
-        private readonly T[] arrays;
         private readonly int capacity;
+        private readonly IEqualityComparer<T> comparer;
+        private readonly object[] locks;
+        private readonly T[] arrays;
+        private readonly Dictionary<T, int> keys;
 
         /// <summary>
         /// 指定容器大小。
         /// </summary>
         /// <param name="capacity">容器大小。</param>
-        public LRU(int capacity)
+        /// <param name="comparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
+        public LRU(int capacity, IEqualityComparer<T> comparer)
         {
             if (capacity < 0)
             {
@@ -30,78 +32,98 @@ namespace Inkslab.Collections
             }
 
             this.capacity = capacity;
+            this.comparer = comparer ?? EqualityComparer<T>.Default;
 
             arrays = new T[capacity];
+
+            keys = new Dictionary<T, int>(capacity, comparer);
+
+            for (int i = 0; i < 3; i++)
+            {
+                if (capacity > 100 && (capacity & 1) == 0)
+                {
+                    capacity /= 2;
+
+                    continue;
+                }
+
+                break;
+            }
+
+            locks = new object[capacity];
+
+            for (int i = 0; i < capacity; i++)
+            {
+                locks[i] = new object();
+            }
         }
 
         /// <summary>
-        /// 挤出元素。
+        /// 元素个数。
         /// </summary>
-        /// <param name="value">值。</param>
-        /// <param name="removeValue">被移除的值。</param>
-        public bool TrySqueeze(T value, out T removeValue)
+        public int Count => keys.Count;
+
+        /// <summary>
+        /// 若集合元素饱和，添加元素后，返回被淘汰的元素。
+        /// </summary>
+        /// <param name="addItem">添加的元素。</param>
+        /// <param name="removeItem">溢出的元素。</param>
+        /// <returns>元素是否溢出。</returns>
+        public bool Overflow(T addItem, out T removeItem)
         {
             int index = Interlocked.Increment(ref refCount);
 
             int offset = index % capacity;
 
+            bool flag = false;
+
+            removeItem = arrays[offset];
+
             if (index >= capacity)
             {
-                removeValue = arrays[offset];
+                if (keys.TryGetValue(removeItem, out int local)) //? 最后一次出现的位置是被覆盖值的位置。
+                {
+                    if (local == offset)
+                    {
+                        flag = true;
 
-                arrays[offset] = value;
-
-                return true;
+                        keys.Remove(removeItem);
+                    }
+                }
+                else //? 字典不存在，但被移除成功，代表值出现过，并被销毁了。
+                {
+                    flag = true;
+                }
             }
 
-            arrays[offset] = value;
+            var hashCode = comparer.GetHashCode(addItem);
 
-            removeValue = default(T);
+            var lockCode = (hashCode & 0x7fffffff) % locks.Length;
 
-            return false;
+            lock (locks[lockCode])
+            {
+                keys[addItem] = offset;
+            }
+
+            arrays[offset] = addItem;
+
+            return flag;
         }
-
-        /// <summary>
-        /// 清空。
-        /// </summary>
-        public void Clear() => Interlocked.Exchange(ref refCount, -1);
     }
 
     /// <summary>
-    /// 【线程安全】根据 LRU 算法，移除最近最少使用的数据。
+    /// 【线程安全】根据 LRU 算法，移除最近最久未使用的数据。
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
     public class LRU<TKey, TValue>
     {
-        private readonly int capacity;
-        private readonly Func<TKey, TValue> factory;
         private readonly LRU<TKey> lru;
+        private readonly Func<TKey, TValue> factory;
 
-        private readonly Timer timer;
-        private bool timerIsRunning = false;
-
-        private readonly Dictionary<TKey, Slot> cachings;
-
-        private volatile bool processing = false;
+        private readonly Dictionary<TKey, TValue> cachings;
 
         private readonly object lockObj = new object();
-
-        private class Slot
-        {
-            public Slot(TValue value, long ticks)
-            {
-                Version = 1;
-                Value = value;
-                Ticks = ticks;
-            }
-
-            public TValue Value { get; }
-
-            public int Version { get; set; }
-
-            public long Ticks { get; set; }
-        }
 
         /// <summary>
         /// 默认容量。
@@ -122,32 +144,39 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="capacity">初始大小。</param>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LRU(int capacity, Func<TKey, TValue> factory)
+        public LRU(int capacity, Func<TKey, TValue> factory) : this(capacity, factory, null)
+        {
+        }
+
+        /// <summary>
+        /// 指定最大容量。
+        /// </summary>
+        /// <param name="capacity">初始大小。</param>
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        /// <param name="comparer"> 在比较集中的值时使用的 <see cref="IEqualityComparer{T}"/> 实现，或为 null 以使用集类型的默认 <seealso cref="EqualityComparer{T}"/> 实现。</param>
+        public LRU(int capacity, Func<TKey, TValue> factory, IEqualityComparer<TKey> comparer)
         {
             if (capacity < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            this.capacity = capacity;
+            if (comparer is null)
+            {
+                comparer = EqualityComparer<TKey>.Default;
+            }
+
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
-#if NET_Traditional
-            var interval = "interval-lru".Config(5D * 60D * 1000D);
-#else
-            var interval = "interval:lru".Config(5D * 60D * 1000D);
-#endif
-
-            timer = new Timer(interval);
-
-            timer.Elapsed += Timer_Elapsed;
-
-            timer.Stop();
-
-            lru = new LRU<TKey>(capacity);
+            lru = new LRU<TKey>(capacity, comparer);
 
             for (int i = 0; i < 3; i++)
             {
+                if (capacity < 100)
+                {
+                    break;
+                }
+
                 if ((capacity & 1) == 0)
                 {
                     capacity /= 2;
@@ -158,76 +187,7 @@ namespace Inkslab.Collections
                 break;
             }
 
-            cachings = new Dictionary<TKey, Slot>(capacity);
-        }
-
-        private void Timer_Elapsed(object sender, ElapsedEventArgs e)
-        {
-            var now = DateTime.Now;
-
-            var expire = now.AddMinutes(-10D);
-
-            var expireTicks = expire.Ticks;
-
-            bool lockTaken = false;
-
-            Monitor.TryEnter(lockObj, ref lockTaken);
-
-            Dictionary<TKey, Slot> snapshotCachings;
-
-            if (lockTaken)
-            {
-                try
-                {
-                    snapshotCachings = new Dictionary<TKey, Slot>(cachings);
-                }
-                finally
-                {
-                    Monitor.Enter(lockObj);
-                }
-            }
-            else
-            {
-                return;
-            }
-
-            var keys = snapshotCachings
-                .Where(x => x.Value.Ticks < expireTicks)
-                .Select(x => x.Key)
-                .ToList();
-
-            if (keys.Count == 0)
-            {
-                return;
-            }
-
-            if (Monitor.TryEnter(lockObj, 1)) //? 在保证尽量清理的条件下，避免与槽锁发生线程死锁。
-            {
-                try
-                {
-                    processing = true;
-
-                    for (int i = 0, len = keys.Count; i < len; i++)
-                    {
-                        cachings.Remove(keys[i]);
-                    }
-
-                    processing = false;
-                }
-                finally
-                {
-                    Monitor.Enter(lockObj);
-                }
-            }
-
-            if (timerIsRunning && cachings.Count == 0)
-            {
-                timerIsRunning = false;
-
-                lru.Clear();
-
-                timer.Stop();
-            }
+            cachings = new Dictionary<TKey, TValue>(capacity, comparer);
         }
 
         /// <summary>
@@ -247,65 +207,29 @@ namespace Inkslab.Collections
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (lru.TrySqueeze(key, out TKey removeKey))
+            if (lru.Overflow(key, out TKey removeKey))
             {
-                if (cachings.Count == capacity)
+                lock (lockObj)
                 {
-                    lock (lockObj)
-                    {
-                        if (cachings.Count == capacity)
-                        {
-                            cachings.Remove(removeKey);
-                        }
-                    }
+                    cachings.Remove(removeKey);
                 }
             }
 
-            return Get(key, DateTime.Now.Ticks);
-        }
-
-        private TValue Get(TKey key, long ticks)
-        {
-            if (processing) //? 数据正在被处理。
+            if (cachings.TryGetValue(key, out TValue value))
             {
-                goto label_locked;
+                return value;
             }
-
-            if (cachings.TryGetValue(key, out Slot slot))
-            {
-                if (processing) //? 数据正在被处理。
-                {
-                    goto label_locked;
-                }
-
-                slot.Version++;
-                slot.Ticks = ticks;
-
-                return slot.Value;
-            }
-
-label_locked:
 
             lock (lockObj)
             {
-                if (cachings.TryGetValue(key, out slot))
+                if (cachings.TryGetValue(key, out value))
                 {
-                    slot.Version++;
-                    slot.Ticks = ticks;
-
-                    return slot.Value;
+                    return value;
                 }
 
-                if (!timerIsRunning)
-                {
-                    timerIsRunning = true;
+                value = factory.Invoke(key);
 
-                    timer.Start();
-                }
-
-                var value = factory.Invoke(key);
-
-                cachings[key] = new Slot(value, ticks);
+                cachings.Add(key, value);
 
                 return value;
             }
