@@ -111,6 +111,7 @@ namespace Inkslab.Map.Expressions
 
             var sourceType = source.GetType();
 
+            //? 自己独有的。
             if (sourceType.IsClass && destinationType.IsClass && IsMatch(sourceType, destinationType))
             {
                 return routerCachings.GetOrAdd(destinationType, Type => new MapRouter(Type))
@@ -225,245 +226,28 @@ namespace Inkslab.Map.Expressions
             public void Dispose() => cachings.Clear();
         }
 
+        private interface IMapper
+        {
+            object Map(TConfiguration mapper, object source);
+        }
+
         private static class Mapper
         {
-            private static readonly LFU<Type, Func<object, object>> cachings = new LFU<Type, Func<object, object>>();
+            private static readonly Type MapperType = typeof(TMapper);
+            private static readonly Type Mapper_T_Type = typeof(Mapper<>);
+            private static readonly Type TConfigurationType = typeof(TConfiguration);
+            private static readonly LRU<Type, IMapper> cachings = new LRU<Type, IMapper>(destinationType => (IMapper)Activator.CreateInstance(Mapper_T_Type.MakeGenericType(MapperType, TConfigurationType, destinationType)));
 
             public static object Map(TConfiguration mapper, object source, Type destinationType)
             {
-                var sourceType = source.GetType();
-
-                if (sourceType.IsNullable())
-                {
-                    sourceType = Nullable.GetUnderlyingType(sourceType);
-                }
-
-                var conversionType = destinationType;
-
-                if (conversionType.IsInterface)
-                {
-                    if (conversionType.IsGenericType)
-                    {
-                        var typeDefinition = conversionType.GetGenericTypeDefinition();
-
-                        if (typeDefinition == typeof(IList<>)
-                            || typeDefinition == typeof(IReadOnlyList<>)
-                            || typeDefinition == typeof(ICollection<>)
-                            || typeDefinition == typeof(IReadOnlyCollection<>)
-                            || typeDefinition == typeof(IEnumerable<>))
-                        {
-                            conversionType = typeof(List<>).MakeGenericType(conversionType.GetGenericArguments());
-                        }
-                        else if (typeDefinition == typeof(IDictionary<,>)
-                            || typeDefinition == typeof(IReadOnlyDictionary<,>))
-                        {
-                            conversionType = typeof(Dictionary<,>).MakeGenericType(conversionType.GetGenericArguments());
-                        }
-                    }
-                    else if (conversionType == typeof(IEnumerable)
-                        || conversionType == typeof(ICollection)
-                        || conversionType == typeof(IList))
-                    {
-                        conversionType = typeof(List<object>);
-                    }
-                }
-                else if (conversionType == MapConstants.ObjectType)
-                {
-                    conversionType = sourceType;
-                }
-
-                if (conversionType.IsAbstract)
-                {
-                    throw new InvalidCastException($"无法从源【{sourceType}】分析到目标【{destinationType}】的可实列化类型！");
-                }
-
-                if (!mapper.IsMatch(sourceType, conversionType))
-                {
-                    throw new InvalidCastException();
-                }
-
-                var factory = cachings.GetOrCreate(sourceType, type =>
-                {
-                    bool convertFlag = destinationType.IsValueType;
-
-                    var objectType = MapConstants.ObjectType;
-
-                    var sourceExp = Variable(type);
-
-                    var bodyExp = Visit(mapper.Map(sourceExp, conversionType));
-
-                    if (!conversionType.IsAssignableFrom(bodyExp.Type))
-                    {
-                        throw new InvalidOperationException();
-                    }
-
-                    var parameterExp = Parameter(objectType);
-
-                    var expressions = new List<Expression>
-                    {
-                        Assign(sourceExp, Convert(parameterExp, type))
-                    };
-
-                    switch (bodyExp)
-                    {
-                        case LambdaExpression lambdaExp:
-
-                            if (lambdaExp.Parameters.Count != 1)
-                            {
-                                throw new InvalidOperationException();
-                            }
-
-                            var parameterByLambdaExp = lambdaExp.Parameters[0];
-
-                            if (!ReferenceEquals(parameterByLambdaExp, sourceExp))
-                            {
-                                if (parameterByLambdaExp.Type.IsAssignableFrom(sourceExp.Type))
-                                {
-                                    var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
-
-                                    expressions.Add(visitor.Visit(lambdaExp.Body));
-
-                                    break;
-                                }
-
-                                throw new InvalidOperationException();
-                            }
-
-                            if (convertFlag)
-                            {
-                                convertFlag = false;
-
-                                expressions.Add(Convert(Invoke(lambdaExp, sourceExp), objectType));
-                            }
-                            else
-                            {
-                                expressions.Add(lambdaExp.Body);
-                            }
-
-                            break;
-                        default:
-                            if (convertFlag)
-                            {
-                                switch (bodyExp.NodeType)
-                                {
-                                    case ExpressionType.Add:
-                                    case ExpressionType.AddChecked:
-                                    case ExpressionType.And:
-                                    case ExpressionType.AndAlso:
-                                    case ExpressionType.ArrayLength:
-                                    case ExpressionType.ArrayIndex:
-                                    case ExpressionType.Call:
-                                    case ExpressionType.Coalesce:
-                                    case ExpressionType.Conditional:
-                                    case ExpressionType.Constant:
-                                    case ExpressionType.Convert:
-                                    case ExpressionType.ConvertChecked:
-                                    case ExpressionType.Divide:
-                                    case ExpressionType.Equal:
-                                    case ExpressionType.ExclusiveOr:
-                                    case ExpressionType.GreaterThan:
-                                    case ExpressionType.GreaterThanOrEqual:
-                                    case ExpressionType.LeftShift:
-                                    case ExpressionType.MemberAccess:
-                                    case ExpressionType.Modulo:
-                                    case ExpressionType.Multiply:
-                                    case ExpressionType.LessThan:
-                                    case ExpressionType.LessThanOrEqual:
-                                    case ExpressionType.MultiplyChecked:
-                                    case ExpressionType.Negate:
-                                    case ExpressionType.UnaryPlus:
-                                    case ExpressionType.NegateChecked:
-                                    case ExpressionType.New:
-                                    case ExpressionType.Not:
-                                    case ExpressionType.NotEqual:
-                                    case ExpressionType.Or:
-                                    case ExpressionType.OrElse:
-                                    case ExpressionType.Parameter:
-                                    case ExpressionType.Power:
-                                    case ExpressionType.TypeAs:
-                                    case ExpressionType.TypeIs:
-                                    case ExpressionType.RightShift:
-                                    case ExpressionType.Subtract:
-                                    case ExpressionType.SubtractChecked:
-                                    case ExpressionType.Assign:
-                                    case ExpressionType.Increment:
-                                    case ExpressionType.Decrement:
-                                    case ExpressionType.Default:
-                                    case ExpressionType.Index:
-                                    case ExpressionType.Unbox:
-                                    case ExpressionType.AddAssign:
-                                    case ExpressionType.AndAssign:
-                                    case ExpressionType.DivideAssign:
-                                    case ExpressionType.ExclusiveOrAssign:
-                                    case ExpressionType.LeftShiftAssign:
-                                    case ExpressionType.ModuloAssign:
-                                    case ExpressionType.MultiplyAssign:
-                                    case ExpressionType.OrAssign:
-                                    case ExpressionType.PowerAssign:
-                                    case ExpressionType.RightShiftAssign:
-                                    case ExpressionType.SubtractAssign:
-                                    case ExpressionType.AddAssignChecked:
-                                    case ExpressionType.MultiplyAssignChecked:
-                                    case ExpressionType.SubtractAssignChecked:
-                                    case ExpressionType.PreIncrementAssign:
-                                    case ExpressionType.PreDecrementAssign:
-                                    case ExpressionType.PostIncrementAssign:
-                                    case ExpressionType.PostDecrementAssign:
-                                    case ExpressionType.TypeEqual:
-                                    case ExpressionType.OnesComplement:
-                                    case ExpressionType.IsTrue:
-                                    case ExpressionType.IsFalse:
-
-                                        convertFlag = false;
-
-                                        expressions.Add(Convert(bodyExp, objectType));
-                                        break;
-                                    case ExpressionType.Quote:
-                                    case ExpressionType.Invoke:
-                                    case ExpressionType.Lambda:
-                                    case ExpressionType.ListInit:
-                                    case ExpressionType.MemberInit:
-                                    case ExpressionType.NewArrayInit:
-                                    case ExpressionType.NewArrayBounds:
-                                    case ExpressionType.Block:
-                                    case ExpressionType.DebugInfo:
-                                    case ExpressionType.Dynamic:
-                                    case ExpressionType.Extension:
-                                    case ExpressionType.Goto:
-                                    case ExpressionType.Label:
-                                    case ExpressionType.RuntimeVariables:
-                                    case ExpressionType.Loop:
-                                    case ExpressionType.Switch:
-                                    case ExpressionType.Throw:
-                                    case ExpressionType.Try:
-                                    default:
-                                        expressions.Add(bodyExp);
-
-                                        break;
-                                }
-                            }
-                            else
-                            {
-                                expressions.Add(bodyExp);
-                            }
-
-                            break;
-                    }
-
-                    Expression blockExp = Block(new ParameterExpression[] { sourceExp }, expressions);
-
-                    var lambda = Lambda<Func<object, object>>(convertFlag ? Convert(blockExp, objectType) : blockExp, parameterExp);
-
-                    return lambda.Compile();
-                });
-
-                return factory.Invoke(source);
+                return cachings.Get(destinationType)
+                        .Map(mapper, source);
             }
 
             public static Expression Visit(Expression node) => MapperExpressionVisitor.Instance.Visit(node);
         }
 
-        private static class Mapper<TDestination>
+        private class Mapper<TDestination> : IMapper
         {
             private static readonly Type runtimeType;
 
@@ -599,6 +383,8 @@ namespace Inkslab.Map.Expressions
 
                 return factory.Invoke(source);
             }
+
+            object IMapper.Map(TConfiguration mapper, object source) => Map(mapper, source);
         }
 
         /// <summary>

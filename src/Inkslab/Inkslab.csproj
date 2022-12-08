@@ -4,4 +4,8 @@
 		<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;</TargetFrameworks>
 		<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <Compile Remove="Collections\LRU - 复制.cs" />
+	</ItemGroup>
 </Project>
