@@ -18,6 +18,8 @@ namespace Inkslab.Map.Expressions
     {
         private readonly TConfiguration configuration;
 
+        private readonly ConcurrentDictionary<Tuple<Type, Type>, bool> matchCachings = new ConcurrentDictionary<Tuple<Type, Type>, bool>();
+
         bool IConfiguration.IsDepthMapping => configuration.IsDepthMapping;
 
         bool IConfiguration.AllowPropagationNullValues => configuration.AllowPropagationNullValues;
@@ -32,7 +34,7 @@ namespace Inkslab.Map.Expressions
             this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
-        bool IMapConfiguration.IsMatch(Type sourceType, Type destinationType) => IsMatch(sourceType, destinationType) || configuration.IsMatch(sourceType, destinationType);
+        bool IMapConfiguration.IsMatch(Type sourceType, Type destinationType) => matchCachings.GetOrAdd(Tuple.Create(sourceType, destinationType), tuple => base.IsMatch(tuple.Item1, tuple.Item2)) || configuration.IsMatch(sourceType, destinationType);
 
         Expression IMapConfiguration.Map(Expression sourceExpression, Type destinationType) => Map(sourceExpression, destinationType);
 
@@ -76,7 +78,7 @@ namespace Inkslab.Map.Expressions
             var sourceType = source.GetType();
             var destinationType = typeof(TDestination);
 
-            if (sourceType.IsClass && destinationType.IsClass && IsMatch(sourceType, destinationType))
+            if (sourceType.IsClass && destinationType.IsClass && matchCachings.GetOrAdd(Tuple.Create(sourceType, destinationType), tuple => base.IsMatch(tuple.Item1, tuple.Item2)))
             {
                 return (TDestination)routerCachings.GetOrAdd(destinationType, Type => new MapRouter(Type))
                         .Map(this, source);
@@ -138,6 +140,8 @@ namespace Inkslab.Map.Expressions
             }
 
             routerCachings.Clear();
+
+            matchCachings.Clear();
 
             base.Dispose(disposing);
         }
