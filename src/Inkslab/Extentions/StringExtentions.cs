@@ -9,15 +9,13 @@ using System.Text.RegularExpressions;
 
 namespace System
 {
-    using static System.Linq.Expressions.Expression;
+    using static Expression;
 
     /// <summary>
     /// 字符串扩展。
     /// </summary>
     public static class StringExtentions
     {
-        private static readonly Regex Pattern = new Regex("\\{(?<name>[\\w|\\u4e00-\\u9fa5]+)([\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*(?<name>[\\w|\\u4e00-\\u9fa5]+))*\\}", RegexOptions.Multiline);
-
         private static readonly Regex PatternCamelCase = new Regex("_[a-z]", RegexOptions.Singleline | RegexOptions.Compiled);
 
         private static readonly Regex PatternPascalCase = new Regex("(^|_)[a-z]", RegexOptions.Singleline | RegexOptions.Compiled);
