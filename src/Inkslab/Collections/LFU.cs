@@ -13,18 +13,16 @@ namespace Inkslab.Collections
         private int version = 0;
 
         private readonly int capacity;
-        private readonly IEqualityComparer<T> equalityComparer;
-        private readonly object[] locks;
         private readonly SortedSet<Node> sortKeys;
         private readonly Dictionary<T, Node> keys;
 
-        private readonly object lockObj = new object();
+        private readonly object lockKeys = new object();
 
         private interface IComparerOrEquals<TItem> : IComparer<TItem>, IEqualityComparer<TItem>
         {
         }
 
-        [DebuggerDisplay("{rank}:{Value}")]
+        [DebuggerDisplay("{Value}(rank:{rank})")]
         private class Node
         {
             private readonly T key;
@@ -66,10 +64,9 @@ namespace Inkslab.Collections
                         return 1;
                     }
 
-                    //? 第一次优先加入缓存。
-                    if (x.version == 0 && y.version > 0)
+                    if (ReferenceEquals(x, y))
                     {
-                        return 1;
+                        return 0;
                     }
 
                     if (x.rank == y.rank)
@@ -103,7 +100,7 @@ namespace Inkslab.Collections
             }
 
             this.capacity = capacity;
-            this.equalityComparer = equalityComparer ??= EqualityComparer<T>.Default;
+            equalityComparer ??= EqualityComparer<T>.Default;
 
             keys = new Dictionary<T, Node>(capacity, equalityComparer);
 
@@ -120,13 +117,6 @@ namespace Inkslab.Collections
 
                 break;
             }
-
-            locks = new object[capacity];
-
-            for (int i = 0; i < capacity; i++)
-            {
-                locks[i] = new object();
-            }
         }
 
         /// <summary>
@@ -142,63 +132,62 @@ namespace Inkslab.Collections
         /// <returns>元素是否溢出。</returns>
         public bool Overflow(T addItem, out T removeItem)
         {
-            var hashCode = equalityComparer.GetHashCode(addItem);
-
-            var lockCode = (hashCode & 0x7fffffff) % locks.Length;
-
-            removeItem = default;
-
-            bool removeFlag = false;
-
-            if (keys.TryGetValue(addItem, out Node node))
+            lock (lockKeys)
             {
-                lock (lockObj)
+                removeItem = default;
+
+                bool removeFlag = false;
+
+                if (keys.TryGetValue(addItem, out Node node)) //? 有节点数据。
                 {
                     sortKeys.Remove(node);
-                }
 
-                goto label_tree;
-            }
+                    node.Update(++version);
 
-            lock (locks[lockCode])
-            {
-                if (keys.TryGetValue(addItem, out node))
-                {
-                    lock (lockObj)
-                    {
-                        sortKeys.Remove(node);
-                    }
+                    sortKeys.Add(node);
 
-                    goto label_tree;
+                    return removeFlag;
                 }
 
                 if (keys.Count == capacity)
                 {
-                    lock (lockObj)
+                    removeFlag = true;
+label_removeItem:
+                    bool removeMinFlag = true;
+
+                    while (removeMinFlag)
                     {
                         var min = sortKeys.Min;
 
                         removeItem = min.Value;
 
-                        if (keys.Remove(removeItem))
+                        removeMinFlag = sortKeys.Remove(min);
+
+                        if (removeMinFlag && keys.Remove(removeItem))
                         {
-                            sortKeys.Remove(min);
+                            goto label_add;
                         }
                     }
+
+                    sortKeys.Clear();
+
+                    foreach (var kv in keys)
+                    {
+                        sortKeys.Add(kv.Value);
+                    }
+
+                    goto label_removeItem;
                 }
 
-                keys.Add(addItem, node = new Node(addItem, version, capacity));
-            }
-label_tree:
-
-            lock (lockObj)
-            {
-                node.Update(++version);
+label_add:
+                node = new Node(addItem, version, capacity);
 
                 sortKeys.Add(node);
-            }
 
-            return removeFlag;
+                keys.Add(addItem, node);
+
+                return removeFlag;
+            }
         }
     }
 
@@ -213,6 +202,7 @@ label_tree:
 
         private readonly Dictionary<TKey, TValue> cachings;
 
+        private readonly int capacity;
         private readonly object lockObj = new object();
 
         /// <summary>
@@ -247,6 +237,7 @@ label_tree:
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
+            this.capacity = capacity;
             comparer ??= EqualityComparer<TKey>.Default;
 
             lfu = new LFU<TKey>(capacity, comparer);
@@ -277,31 +268,41 @@ label_tree:
         /// <param name="key">键。</param>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
-        public TValue GetOrCreate(TKey key, Func<TKey, TValue> factory)
+        public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory)
         {
             if (key == null)
             {
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (lfu.Overflow(key, out TKey removeKey))
+            if (cachings.TryGetValue(key, out TValue value))
             {
-                lock (lockObj)
+                if (lfu.Overflow(key, out TKey removeKey))
+                {
+                    lock (lockObj)
+                    {
+                        cachings.Remove(removeKey);
+                    }
+                }
+
+                return value;
+            }
+label_ref:
+            lock (lockObj)
+            {
+                if (lfu.Overflow(key, out TKey removeKey))
                 {
                     cachings.Remove(removeKey);
                 }
-            }
 
-            if (cachings.TryGetValue(key, out TValue value))
-            {
-                return value;
-            }
-
-            lock (lockObj)
-            {
                 if (cachings.TryGetValue(key, out value))
                 {
                     return value;
+                }
+
+                if (cachings.Count == capacity)
+                {
+                    goto label_ref; //? 释放锁，让移除方法得到锁。
                 }
 
                 value = factory.Invoke(key);

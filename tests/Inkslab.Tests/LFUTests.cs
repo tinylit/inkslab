@@ -17,34 +17,32 @@ namespace Inkslab.Tests
         [Fact]
         public async Task TestThreadSafety()
         {
-            int total = 0;
+           // int total = 0;
             long totalMilliseconds = 0;
 
             Stopwatch totalStopwatch = Stopwatch.StartNew();
 
-            int capacity = 1000;
-            var lfu = new LFU<int, int>(capacity / 10);
+            int length = 1000;
+            int capacity = length / 10;
+            var lfu = new LFU<int, int>(capacity);
 
-            int length = 20;
-            var tasks = new List<Task>(capacity);
+            var tasks = new List<Task>(50);
 
-            for (int i = 0; i < length; i++)
+            for (int i = 0; i < 50; i++)
             {
                 tasks.Add(Task.Run(() =>
                 {
                     Stopwatch stopwatch = new Stopwatch();
 
-                    for (int j = 0; j < capacity; j++)
+                    for (int j = 0; j < length; j++)
                     {
                         stopwatch.Start();
-                        var v = lfu.GetOrCreate(j, x => x * x);
+                        var v = lfu.GetOrAdd(j, x => x * x);
                         stopwatch.Stop();
-
-                        Debug.WriteLine(++total);
 
                         Assert.Equal(j * j, v);
 
-                        Assert.True(lfu.Count <= capacity);
+                        Assert.True(lfu.Count <= length);
                     }
 
                     stopwatch.Stop();
@@ -57,7 +55,9 @@ namespace Inkslab.Tests
 
             totalStopwatch.Stop();
 
-            Debug.WriteLine($"计算{length * capacity}次，共执行{totalMilliseconds}毫秒");
+            Assert.True(lfu.Count == capacity);
+
+            Debug.WriteLine($"计算{50 * length}次，共执行{totalMilliseconds}毫秒");
         }
 
         /// <summary>
@@ -77,7 +77,7 @@ namespace Inkslab.Tests
                 for (int j = 0; j < capacity; j++)
                 {
                     stopwatch.Start();
-                    var v = lfu.GetOrCreate(j, x => x * x);
+                    var v = lfu.GetOrAdd(j, x => x * x);
                     stopwatch.Stop();
 
                     Assert.Equal(j * j, v);
@@ -106,7 +106,7 @@ namespace Inkslab.Tests
                 for (int j = 0; j < capacity; j++)
                 {
                     stopwatch.Start();
-                    var v = lfu.GetOrCreate(j, x => x * x);
+                    var v = lfu.GetOrAdd(j, x => x * x);
                     stopwatch.Stop();
 
                     Assert.Equal(j * j, v);

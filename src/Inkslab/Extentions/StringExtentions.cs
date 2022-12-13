@@ -1,6 +1,7 @@
 ﻿using Inkslab;
 using Inkslab.Config;
 using Inkslab.Settings;
+using Inkslab.Sugars;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -15,7 +16,7 @@ namespace System
     /// </summary>
     public static class StringExtentions
     {
-        private static readonly Regex Pattern = new Regex("\\{(?<name>\\w+)([\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*(?<name>[\\w|\\u4e00-\\u9fa5]+))*\\}", RegexOptions.Multiline);
+        private static readonly Regex Pattern = new Regex("\\{(?<name>[\\w|\\u4e00-\\u9fa5]+)([\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*(?<name>[\\w|\\u4e00-\\u9fa5]+))*\\}", RegexOptions.Multiline);
 
         private static readonly Regex PatternCamelCase = new Regex("_[a-z]", RegexOptions.Singleline | RegexOptions.Compiled);
 
@@ -296,7 +297,7 @@ namespace System
         /// <param name="source">资源。</param>
         /// <param name="namingType">比较的命名方式。</param>
         /// <returns></returns>
-        public static string PropSugar<T>(this string value, T source, NamingType namingType = NamingType.Normal) where T : class => PropSugar(value, source, new DefaultSettings(namingType));
+        public static string StringSugar<T>(this string value, T source, NamingType namingType = NamingType.Normal) where T : class => StringSugar(value, source, new DefaultSettings(namingType));
 
         /// <summary>
         /// 属性格式化语法糖(支持属性空字符串【空字符串运算符（A?B 或 A??B），当属性A为“null”时，返回B内容，否则返回A内容】、属性内容合并(A+B)，属性非“null”合并【空试探合并符(A?+B)，当属性A为“null”时，返回A内容，否则返回A+B的内容】，可以组合使用任意多个。如 {x?y?z} 或 {x+y+z} 或 {x+y?z} 等操作)。从左往右依次计算，不支持小括号。
@@ -306,7 +307,7 @@ namespace System
         /// <param name="source">资源。</param>
         /// <param name="settings">属性配置。</param>
         /// <returns></returns>
-        public static string PropSugar<T>(this string value, T source, DefaultSettings settings) where T : class
+        public static string StringSugar<T>(this string value, T source, DefaultSettings settings) where T : class
         {
             if (source is null)
             {
@@ -318,76 +319,13 @@ namespace System
                 throw new ArgumentNullException(nameof(settings));
             }
 
-            return Pattern.Replace(value, match =>
-            {
-                var nameGrp = match.Groups["name"];
+            var stringSugar = SingletonPools.Singleton<IStringSugar, DefaultStringSugar>();
 
-                var tokenGrp = match.Groups["token"];
+            var sugar = stringSugar.CreateSugar(source, settings);
 
-                if (!tokenGrp.Success)
-                {
-                    if (settings.IgnoreCase)
-                    {
-                        return Nested<T>.IgnoreCaseConvert(source, nameGrp.Value, settings);
-                    }
-
-                    return Nested<T>.Convert(source, nameGrp.Value, settings);
-                }
-
-                var nameCaptures = nameGrp.Captures;
-
-                if (nameCaptures.Count == 0)
-                {
-                    return settings.NullValue;
-                }
-
-                var tokenCaptures = tokenGrp.Captures;
-
-                object result = PropertyValueGetter(nameCaptures[0].Value);
-
-                for (int i = 0, length = tokenCaptures.Count; i < length; i++)
-                {
-                    string token = tokenCaptures[i].Value;
-
-                    if (result is null)
-                    {
-                        if (token == "?+")
-                        {
-                            break;
-                        }
-                    }
-                    else if (token == "?" || token == "??")
-                    {
-                        break;
-                    }
-
-                    result = settings.Add(result, PropertyValueGetter(nameCaptures[i + 1].Value));
-                }
-
-                object PropertyValueGetter(string propertyName)
-                {
-                    if (Regexs.IsNumber.IsMatch(propertyName))
-                    {
-                        if (propertyName.IndexOf(".") > -1)
-                        {
-                            return double.Parse(propertyName);
-                        }
-
-                        if (propertyName.Length > 9)
-                        {
-                            return long.Parse(propertyName);
-                        }
-
-                        return int.Parse(propertyName);
-                    }
-
-                    return settings.IgnoreCase
-                        ? Nested<T>.IgnoreCasePropertyValueGetter(source, propertyName, settings)
-                        : Nested<T>.PropertyValueGetter(source, propertyName, settings);
-                }
-
-                return settings.Convert(result);
-            });
+            return stringSugar
+                    .RegularExpression
+                    .Replace(value, sugar.Format);
         }
     }
 }

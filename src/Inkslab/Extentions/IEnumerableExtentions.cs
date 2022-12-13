@@ -67,27 +67,6 @@ namespace System.Collections
                 eachIterator.Invoke(item);
             }
         }
-
-        /// <summary>
-        /// 对数据中的每个元素执行指定操作。
-        /// </summary>
-        /// <typeparam name="TSource">元素类型。</typeparam>
-        /// <param name="source">数据源。</param>
-        /// <param name="eachIterator">要对数据源的每个元素执行的委托。</param>
-        public static void ForEach<TSource>(this IEnumerable source, Action<TSource, int> eachIterator)
-        {
-            if (eachIterator is null)
-            {
-                throw new ArgumentNullException(nameof(eachIterator));
-            }
-
-            int index = -1;
-
-            foreach (TSource item in source)
-            {
-                eachIterator.Invoke(item, ++index);
-            }
-        }
     }
 }
 
@@ -123,51 +102,19 @@ namespace System.Collections.Generic
                 throw new ArgumentNullException(nameof(eachIterator));
             }
 
-            foreach (TSource item in source)
+            if (source is List<TSource> results)
             {
-                eachIterator.Invoke(item);
+                results.ForEach(eachIterator);
             }
-        }
-
-        /// <summary>
-        /// 对数据中的每个元素执行指定操作。
-        /// </summary>
-        /// <typeparam name="TSource">元素类型。</typeparam>
-        /// <param name="source">数据源。</param>
-        /// <param name="eachIterator">要对数据源的每个元素执行的委托。</param>
-        public static void ForEach<TSource>(this IEnumerable<TSource> source, Action<TSource, int> eachIterator)
-        {
-            if (eachIterator is null)
+            else if (source is TSource[] arrays)
             {
-                throw new ArgumentNullException(nameof(eachIterator));
+                Array.ForEach(arrays, eachIterator);
             }
-
-            int index = -1;
-
-            foreach (TSource item in source)
+            else
             {
-                eachIterator.Invoke(item, ++index);
-            }
-        }
-
-        /// <summary>
-        /// 将指定的函数应用于两个序列的相应元素，进行迭代。
-        /// </summary>
-        /// <typeparam name="TFirst">第一个输入序列的元素的类型。</typeparam>
-        /// <typeparam name="TSecond">第二个输入序列的元素的类型。</typeparam>
-        /// <param name="first">第一个要迭代的序列。</param>
-        /// <param name="second">第二个要迭代的序列。</param>
-        /// <param name="eachIterator">迭代器。</param>
-        public static void ZipEach<TFirst, TSecond>(this IEnumerable<TFirst> first, IEnumerable<TSecond> second, Action<TFirst, TSecond> eachIterator)
-        {
-            using (IEnumerator<TFirst> e1 = first.GetEnumerator())
-            {
-                using (IEnumerator<TSecond> e2 = second.GetEnumerator())
+                foreach (TSource item in source)
                 {
-                    while (e1.MoveNext() && e2.MoveNext())
-                    {
-                        eachIterator.Invoke(e1.Current, e2.Current);
-                    }
+                    eachIterator.Invoke(item);
                 }
             }
         }
@@ -180,7 +127,7 @@ namespace System.Collections.Generic
         /// <param name="source">要去重的序列。</param>
         /// <param name="keySelector">从序列的每个元素中提取连接键的函数。</param>
         /// <exception cref="ArgumentNullException"></exception>
-        public static IEnumerable<TSource> Distinct<TSource, TKey>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector) 
+        public static IEnumerable<TSource> Distinct<TSource, TKey>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector)
             => source.Distinct(keySelector, null);
 
         /// <summary>
@@ -214,13 +161,14 @@ namespace System.Collections.Generic
         }
 
         /// <summary>
-        /// 将<paramref name="outer"/>序列，根据匹配的键，按照<paramref name="inner"/>序列的顺序对齐。
+        /// 将 <paramref name="outer"/> 序列，根据匹配的键，按照 <paramref name="inner"/> 序列的顺序对齐。
         /// </summary>
         /// <typeparam name="TKey">第一个序列元素的类型。</typeparam>
         /// <param name="outer">第一个要连接的序列。</param>
         /// <param name="inner">要连接到第一个序列的序列。</param>
+        /// <remarks>笛卡尔积：内连数，如：<see cref="Enumerable.Join{TOuter, TInner, TKey, TResult}(IEnumerable{TOuter}, IEnumerable{TInner}, Func{TOuter, TKey}, Func{TInner, TKey}, Func{TOuter, TInner, TResult})"/>。</remarks>
         public static IEnumerable<TKey> AlignOverall<TKey>(this IEnumerable<TKey> outer, IEnumerable<TKey> inner)
-            => AlignOverall<TKey>(outer, inner, null);
+            => AlignOverall(outer, inner, null);
 
         /// <summary>
         /// 将<paramref name="outer"/>序列，根据匹配的键，按照<paramref name="inner"/>序列的顺序对齐。使用<see cref="IEqualityComparer{T}"/>相等比较器用于比较键。
@@ -229,6 +177,7 @@ namespace System.Collections.Generic
         /// <param name="outer">第一个要连接的序列。</param>
         /// <param name="inner">要连接到第一个序列的序列。</param>
         /// <param name="comparer">一个<see cref="IEqualityComparer{T}"/>来哈希和比较键。</param>
+        /// <remarks>笛卡尔积：内连数，如：<see cref="Enumerable.Join{TOuter, TInner, TKey, TResult}(IEnumerable{TOuter}, IEnumerable{TInner}, Func{TOuter, TKey}, Func{TInner, TKey}, Func{TOuter, TInner, TResult})"/>。</remarks>
         public static IEnumerable<TKey> AlignOverall<TKey>(this IEnumerable<TKey> outer, IEnumerable<TKey> inner, IEqualityComparer<TKey> comparer)
         {
             if (outer is null)
@@ -294,13 +243,14 @@ namespace System.Collections.Generic
         }
 
         /// <summary>
-        /// 将<paramref name="outer"/>序列，根据匹配的键，按照<paramref name="inner"/>序列的顺序对齐。
+        /// 将 <paramref name="outer"/> 序列，根据匹配的键，按照 <paramref name="inner"/> 序列的顺序对齐。
         /// </summary>
         /// <typeparam name="TOuter">第一个序列元素的类型。</typeparam>
         /// <typeparam name="TKey">键选择器函数返回的键的类型。</typeparam>
         /// <param name="outer">第一个要连接的序列。</param>
         /// <param name="inner">要连接到第一个序列的序列。</param>
         /// <param name="outerKeySelector">从第一个序列的每个元素中提取连接键的函数。</param>
+        /// <remarks>笛卡尔积：内连数，如：<see cref="Enumerable.Join{TOuter, TInner, TKey, TResult}(IEnumerable{TOuter}, IEnumerable{TInner}, Func{TOuter, TKey}, Func{TInner, TKey}, Func{TOuter, TInner, TResult})"/>。</remarks>
         public static IEnumerable<TOuter> Align<TOuter, TKey>(this IEnumerable<TOuter> outer, IEnumerable<TKey> inner, Func<TOuter, TKey> outerKeySelector)
             => Align(outer, inner, outerKeySelector, null);
 
@@ -313,6 +263,7 @@ namespace System.Collections.Generic
         /// <param name="inner">要连接到第一个序列的序列。</param>
         /// <param name="outerKeySelector">从第一个序列的每个元素中提取连接键的函数。</param>
         /// <param name="comparer">一个<see cref="IEqualityComparer{T}"/>来哈希和比较键。</param>
+        /// <remarks>笛卡尔积：内连数，如：<see cref="Enumerable.Join{TOuter, TInner, TKey, TResult}(IEnumerable{TOuter}, IEnumerable{TInner}, Func{TOuter, TKey}, Func{TInner, TKey}, Func{TOuter, TInner, TResult})"/>。</remarks>
         public static IEnumerable<TOuter> Align<TOuter, TKey>(this IEnumerable<TOuter> outer, IEnumerable<TKey> inner, Func<TOuter, TKey> outerKeySelector, IEqualityComparer<TKey> comparer)
         {
             if (outer is null)
@@ -392,6 +343,7 @@ namespace System.Collections.Generic
         /// <param name="inner">要连接到第一个序列的序列。</param>
         /// <param name="outerKeySelector">从第一个序列的每个元素中提取连接键的函数。</param>
         /// <param name="resultSelector">从序列匹配元素创建结果元素的函数。</param>
+        /// <remarks>笛卡尔积：内连数，如：<see cref="Enumerable.Join{TOuter, TInner, TKey, TResult}(IEnumerable{TOuter}, IEnumerable{TInner}, Func{TOuter, TKey}, Func{TInner, TKey}, Func{TOuter, TInner, TResult})"/>。</remarks>
         public static IEnumerable<TResult> Align<TOuter, TKey, TResult>(this IEnumerable<TOuter> outer, IEnumerable<TKey> inner, Func<TOuter, TKey> outerKeySelector, Func<TOuter, TResult> resultSelector)
             => Align(outer, inner, outerKeySelector, resultSelector, null);
 
@@ -406,6 +358,7 @@ namespace System.Collections.Generic
         /// <param name="outerKeySelector">从第一个序列的每个元素中提取连接键的函数。</param>
         /// <param name="resultSelector">从序列匹配元素创建结果元素的函数。</param>
         /// <param name="comparer">一个<see cref="IEqualityComparer{T}"/>来哈希和比较键。</param>
+        /// <remarks>笛卡尔积：内连数，如：<see cref="Enumerable.Join{TOuter, TInner, TKey, TResult}(IEnumerable{TOuter}, IEnumerable{TInner}, Func{TOuter, TKey}, Func{TInner, TKey}, Func{TOuter, TInner, TResult})"/>。</remarks>
         public static IEnumerable<TResult> Align<TOuter, TKey, TResult>(this IEnumerable<TOuter> outer, IEnumerable<TKey> inner, Func<TOuter, TKey> outerKeySelector, Func<TOuter, TResult> resultSelector, IEqualityComparer<TKey> comparer)
         {
             if (outer is null)
@@ -477,6 +430,28 @@ namespace System.Collections.Generic
                 }
 
                 slotFlag = false;
+            }
+        }
+
+        /// <summary>
+        /// 将指定的函数应用于两个序列的相应元素，进行迭代。
+        /// </summary>
+        /// <typeparam name="TFirst">第一个输入序列的元素的类型。</typeparam>
+        /// <typeparam name="TSecond">第二个输入序列的元素的类型。</typeparam>
+        /// <param name="first">第一个要迭代的序列。</param>
+        /// <param name="second">第二个要迭代的序列。</param>
+        /// <param name="eachIterator">迭代器。</param>
+        public static void ZipEach<TFirst, TSecond>(this IEnumerable<TFirst> first, IEnumerable<TSecond> second, Action<TFirst, TSecond> eachIterator)
+        {
+            using (IEnumerator<TFirst> e1 = first.GetEnumerator())
+            {
+                using (IEnumerator<TSecond> e2 = second.GetEnumerator())
+                {
+                    while (e1.MoveNext() && e2.MoveNext())
+                    {
+                        eachIterator.Invoke(e1.Current, e2.Current);
+                    }
+                }
             }
         }
 

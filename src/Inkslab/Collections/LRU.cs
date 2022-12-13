@@ -1,7 +1,5 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Threading;
 
 namespace Inkslab.Collections
 {
@@ -11,12 +9,10 @@ namespace Inkslab.Collections
     /// <typeparam name="T">元素类型。</typeparam>
     public class LRU<T>
     {
-        private int refCount = -1;
-
         private readonly int capacity;
-        private readonly IEqualityComparer<T> comparer;
-        private readonly T[] arrays;
-        private readonly ConcurrentDictionary<T, int> keys;
+        private readonly object lockObject = new object();
+        private readonly Dictionary<T, LinkedListNode<T>> keys;
+        private readonly LinkedList<T> queue;
 
         /// <summary>
         /// 指定容器大小。
@@ -31,17 +27,12 @@ namespace Inkslab.Collections
             }
 
             this.capacity = capacity;
-            this.comparer = comparer ?? EqualityComparer<T>.Default;
-
-            arrays = new T[capacity];
-
-            int concurrencyLevel = capacity;
 
             for (int i = 0; i < 3; i++)
             {
-                if (concurrencyLevel > 100 && (concurrencyLevel & 1) == 0)
+                if (capacity > 100 && (capacity & 1) == 0)
                 {
-                    concurrencyLevel /= 2;
+                    capacity /= 2;
 
                     continue;
                 }
@@ -49,7 +40,9 @@ namespace Inkslab.Collections
                 break;
             }
 
-            keys = new ConcurrentDictionary<T, int>(concurrencyLevel, capacity, comparer);
+            queue = new LinkedList<T>();
+
+            keys = new Dictionary<T, LinkedListNode<T>>(capacity, comparer ?? EqualityComparer<T>.Default);
         }
 
         /// <summary>
@@ -65,47 +58,38 @@ namespace Inkslab.Collections
         /// <returns>元素是否溢出。</returns>
         public bool Overflow(T addItem, out T removeItem)
         {
-            int index = Interlocked.Increment(ref refCount);
-
-            int offset = index % capacity;
-
-            bool flag = false;
-
-            removeItem = arrays[offset];
-
-            if (index >= capacity)
+            lock (lockObject)
             {
-                if (comparer.Equals(addItem, removeItem))
+                bool removeFlag = false;
+
+                if (keys.TryGetValue(addItem, out LinkedListNode<T> node))
                 {
-                    goto label_core;
+                    removeItem = default(T);
+
+                    queue.Remove(node);
                 }
-
-                if (keys.Count == capacity || keys.TryGetValue(removeItem, out int local) && local == offset)
+                else if (keys.Count == capacity)
                 {
-                    flag = true;
+                    removeFlag = true;
 
-                    do
+                    var last = queue.Last;
+
+                    removeItem = last.Value;
+
+                    if (keys.Remove(last.Value))
                     {
-                        if (keys.TryRemove(removeItem, out _))
-                        {
-                            break;
-                        }
-
-                    } while (keys.ContainsKey(removeItem));
+                        queue.Remove(last);
+                    }
                 }
-                else //? 字典不存在，但被移除成功，代表值出现过，并被销毁了。
+                else
                 {
-                    flag = true;
+                    removeItem = default(T);
                 }
+
+                keys[addItem] = queue.AddFirst(addItem);
+
+                return removeFlag;
             }
-
-label_core:
-
-            keys[addItem] = offset;
-
-            arrays[offset] = addItem;
-
-            return flag;
         }
     }
 
@@ -117,6 +101,7 @@ label_core:
     public class LRU<TKey, TValue>
     {
         private readonly LRU<TKey> lru;
+        private readonly int capacity;
         private readonly Func<TKey, TValue> factory;
 
         private readonly Dictionary<TKey, TValue> cachings;
@@ -164,6 +149,7 @@ label_core:
                 comparer = EqualityComparer<TKey>.Default;
             }
 
+            this.capacity = capacity;
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
             lru = new LRU<TKey>(capacity, comparer);
@@ -200,24 +186,34 @@ label_core:
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (lru.Overflow(key, out TKey removeKey))
+            if (cachings.TryGetValue(key, out TValue value))
             {
-                lock (lockObj)
+                if (lru.Overflow(key, out TKey removeKey))
+                {
+                    lock (lockObj)
+                    {
+                        cachings.Remove(removeKey);
+                    }
+                }
+
+                return value;
+            }
+label_ref:
+            lock (lockObj)
+            {
+                if (lru.Overflow(key, out TKey removeKey))
                 {
                     cachings.Remove(removeKey);
                 }
-            }
 
-            if (cachings.TryGetValue(key, out TValue value))
-            {
-                return value;
-            }
-
-            lock (lockObj)
-            {
                 if (cachings.TryGetValue(key, out value))
                 {
                     return value;
+                }
+
+                if (cachings.Count == capacity)
+                {
+                    goto label_ref; //? 释放锁，让移除方法得到锁。
                 }
 
                 value = factory.Invoke(key);
