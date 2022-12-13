@@ -32,11 +32,11 @@ deploy:
     secure: oy2dforbgey7zfmghfza5icim3ahsuie7js7j7riiqwunu
   skip_symbols: false
   on:
-    branch: master
+    branch: main
 notifications:
 - provider: Email
   to:
-  - m.hyl@foxmail.com
+  - m.hyl@hotmail.com
   subject: inkslab
   on_build_success: true
   on_build_failure: true
