@@ -308,9 +308,9 @@ namespace System
 
             var sb = new StringBuilder();
 
-            foreach (var item in buffer)
+            for (int i = 0, length = buffer.Length; i < length; i++)
             {
-                sb.Append(item.ToString(toUpperCase ? "X2" : "x2"));
+                sb.Append(buffer[i].ToString(toUpperCase ? "X2" : "x2"));
             }
 
             return sb.ToString();

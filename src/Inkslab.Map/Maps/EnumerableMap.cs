@@ -112,32 +112,36 @@ namespace Inkslab.Map.Maps
 
             var elementType = destinationType.GetElementType();
 
-            var variableExp = Variable(destinationType);
+            var destinationListType = typeof(List<>).MakeGenericType(elementType);
+
+            var addElementMtd = destinationListType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null);
+
+            var variableExp = Variable(destinationListType);
 
             LabelTarget break_label = Label(MapConstants.VoidType);
             LabelTarget continue_label = Label(MapConstants.VoidType);
 
-            return Block(new ParameterExpression[3]
+            return Block(new ParameterExpression[]
               {
                 indexExp,
-                lengthExp,
-                variableExp
-              }, new Expression[5]
+                lengthExp
+              }, new Expression[]
               {
                 Assign(indexExp, Constant(0)),
                 Assign(lengthExp, ArrayLength(sourceExpression)),
-                Assign(variableExp, NewArrayBounds(elementType, lengthExp)),
+                Assign(variableExp, New(destinationListType.GetConstructor(new Type[]{ typeof(int) }), lengthExp)),
                 Loop(
                     IfThenElse(
                         GreaterThan(lengthExp, indexExp),
                         Block(
-                            Assign(ArrayIndex(variableExp, indexExp), configuration.Map(ArrayIndex(sourceExpression, indexExp), elementType)),
+                            Call(variableExp, addElementMtd, configuration.Map(ArrayIndex(sourceExpression, indexExp), elementType)),
                             AddAssign(indexExp, Constant(1)),
                             Continue(continue_label)
                         ),
-                        Break(break_label)),
-                    break_label, continue_label),
-                variableExp
+                        Break(break_label)), // push to eax/rax --> return value
+                    break_label, continue_label
+                ),
+                Call(MapConstants.ToArrayMtd.MakeGenericMethod(elementType), variableExp)
               });
         }
 

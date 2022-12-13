@@ -286,7 +286,7 @@ namespace Inkslab.Map.Expressions
                 }
             }
 
-            private static readonly LFU<Type, Func<object, TDestination>> cachings = new LFU<Type, Func<object, TDestination>>();
+            private static readonly ConcurrentDictionary<Type, Func<object, TDestination>> cachings = new ConcurrentDictionary<Type, Func<object, TDestination>>();
 
             public static TDestination Map(TConfiguration mapper, object source)
             {
@@ -324,7 +324,7 @@ namespace Inkslab.Map.Expressions
                     throw new InvalidCastException();
                 }
 
-                var factory = cachings.GetOrCreate(sourceType, type =>
+                var factory = cachings.GetOrAdd(sourceType, type =>
                 {
                     var sourceExp = Variable(type);
 

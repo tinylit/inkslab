@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reflection;
 using System.Reflection.Metadata;
 using Xunit;
 
@@ -274,7 +275,7 @@ namespace Inkslab.Map.Tests
     /// <summary>
     /// 四个泛型的 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/>.
     /// </summary>
-    public class NewInstanceGenericOfFull<TSource, TSourceItem, TDestination, TDestinationItem> : INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : IEnumerable<TSourceItem> where TDestination : ICollection<TDestinationItem>, new()
+    public class NewInstanceGenericOfFull<TSource, TSourceItem, TDestination, TDestinationItem> : INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : class, IEnumerable<TSourceItem> where TDestination : class, ICollection<TDestinationItem>, new()
     {
         /// <summary>
         /// <inheritdoc/>.
@@ -303,6 +304,8 @@ namespace Inkslab.Map.Tests
         public void SimpleMapTest()
         {
             var constant = DateTimeKind.Utc;
+
+            var x = typeof(int).GetMethod("op_Addition", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { typeof(int), typeof(int) }, null);
 
             using var instance = new MapperInstance();
 
