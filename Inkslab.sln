@@ -26,6 +26,8 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{2A387FA8-C3E2-4A76-B1C7-5143D5542B4B}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		appveyor.yml = appveyor.yml
+		build.ps1 = build.ps1
 		Directory.Build.props = Directory.Build.props
 		inkslab-mini.jpg = inkslab-mini.jpg
 		inkslab.jpg = inkslab.jpg

@@ -20,7 +20,7 @@ namespace Microsoft.Extensions.DependencyInjection
         /// 调用所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(XServiceCollection)"/> 注入约定。
         /// </summary>
         /// <param name="services">服务集合。</param>
-        public static IServiceCollection ConfigureServicesAll(this IServiceCollection services)
+        public static IServiceCollection ConfigureByDefined(this IServiceCollection services)
         {
             if (services is null)
             {
@@ -44,7 +44,7 @@ namespace Microsoft.Extensions.DependencyInjection
         /// </summary>
         /// <param name="services">服务集合。</param>
         /// <param name="options">依赖注入配置。</param>
-        public static void ConfigureServices(this IServiceCollection services, DependencyInjectionOptions options)
+        public static void ConfigureByAuto(this IServiceCollection services, DependencyInjectionOptions options)
         {
             if (services is null)
             {

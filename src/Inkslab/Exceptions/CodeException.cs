@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Hys.Exceptions
+namespace Insklab.Exceptions
 {
     /// <summary>
     /// 异常。
