@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Data;
 
-namespace Hys.Exceptions
+namespace Insklab.Exceptions
 {
     /// <summary>
     /// 语法异常（<see cref="CodeException.ErrorCode"/>：100001 ~ 999999）。

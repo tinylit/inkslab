@@ -1,5 +1,5 @@
 ﻿using System;
-using Hys.Exceptions;
+using Insklab.Exceptions;
 #if NET_Traditional
 using System.Configuration;
 using System.Web.Configuration;
