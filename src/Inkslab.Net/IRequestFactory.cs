@@ -12,6 +12,6 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="requestUri">请求地址。</param>
         /// <returns>请求能力。</returns>
-        IRequestable Create(string requestUri);
+        IRequestable CreateRequestable(string requestUri);
     }
 }

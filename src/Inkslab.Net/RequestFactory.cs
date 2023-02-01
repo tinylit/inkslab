@@ -1332,7 +1332,7 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="requestUri">请求地址。</param>
         /// <returns>请求能力。</returns>
-        public IRequestable Create(string requestUri)
+        public IRequestable CreateRequestable(string requestUri)
         {
             var requestable = new Requestable(this, requestUri);
 
