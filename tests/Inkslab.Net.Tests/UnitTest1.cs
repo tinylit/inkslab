@@ -62,7 +62,7 @@ namespace Inkslab.Net.Tests
             //.DataVerify(x => x.Count > 0) //? 结果数据校验。
             //.Fail(r => new Exception())
             //.Success(r => DateTime.Now)
-            .GetAsync();
+            .GetAsync(5000D);
         }
 
         /// <summary>

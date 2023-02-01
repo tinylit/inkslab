@@ -13,7 +13,8 @@ $projectsToBuild =
     'Inkslab.Config',
     'Inkslab.Json',
     'Inkslab.Map',
-    'Inkslab.DI'
+    'Inkslab.DI',
+    'Inkslab.Net'
 
 mkdir -Force $packageOutputFolder | Out-Null
 Write-Host "Clearing existing $packageOutputFolder..." -NoNewline
