@@ -25,7 +25,7 @@ namespace Inkslab.Net.Tests
         [Fact]
         public async Task Get()
         {
-            var requestable = requestFactory.Create("http://www.baidu.com/");
+            var requestable = requestFactory.CreateRequestable("http://www.baidu.com/");
 
             var value = await requestable.AppendQueryString(new
             {
@@ -72,7 +72,7 @@ namespace Inkslab.Net.Tests
         [Fact]
         public async Task Download()
         {
-            var requestable = requestFactory.Create("https://download.visualstudio.microsoft.com/download/pr/53f250a1-318f-4350-8bda-3c6e49f40e76/e8cbbd98b08edd6222125268166cfc43/dotnet-sdk-3.0.100-win-x64.exe");
+            var requestable = requestFactory.CreateRequestable("https://download.visualstudio.microsoft.com/download/pr/53f250a1-318f-4350-8bda-3c6e49f40e76/e8cbbd98b08edd6222125268166cfc43/dotnet-sdk-3.0.100-win-x64.exe");
 
             using var stream = await requestable.TryThenAsync(r =>
                {
