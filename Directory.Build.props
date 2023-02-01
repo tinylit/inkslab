@@ -113,4 +113,16 @@
 			</PropertyGroup>
 		</When>
 	</Choose>
+
+	<Choose>
+		<When Condition="$(MSBuildProjectName)=='Inkslab.Net' ">
+			<PropertyGroup>
+				<Description>A network communications assistant.</Description>
+			</PropertyGroup>
+			
+			<ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+				<Reference Include="System.Net.Http" />
+			</ItemGroup>
+		</When>
+	</Choose>
 </Project>
