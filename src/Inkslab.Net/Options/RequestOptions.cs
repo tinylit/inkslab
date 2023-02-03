@@ -23,7 +23,7 @@ namespace Inkslab.Net.Options
         /// <summary>
         /// 请求地址。
         /// </summary>
-        public string RequestUri { get; }
+        public string RequestUri { internal set; get; }
 
         /// <summary>
         /// 请求头。

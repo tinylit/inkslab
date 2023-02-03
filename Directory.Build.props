@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.0.1</Version>
+		<Version>1.0.2</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 		
@@ -121,6 +121,7 @@
 			</PropertyGroup>
 			
 			<ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+				<Reference Include="System.Web" />
 				<Reference Include="System.Net.Http" />
 			</ItemGroup>
 		</When>

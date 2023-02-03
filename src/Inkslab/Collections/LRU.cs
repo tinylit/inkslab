@@ -192,7 +192,25 @@ namespace Inkslab.Collections
                 {
                     lock (lockObj)
                     {
-                        cachings.Remove(removeKey);
+#if NET_Traditional
+                        if (cachings.TryGetValue(removeKey, out TValue removeValue))
+                        {
+                            if (removeValue is IDisposable disposable)
+                            {
+                                disposable.Dispose();
+                            }
+
+                            cachings.Remove(removeKey);
+                        }
+#else
+                        if (cachings.Remove(removeKey, out TValue removeValue))
+                        {
+                            if (removeValue is IDisposable disposable)
+                            {
+                                disposable.Dispose();
+                            }
+                        }
+#endif
                     }
                 }
 
@@ -203,7 +221,25 @@ label_ref:
             {
                 if (lru.Overflow(key, out TKey removeKey))
                 {
-                    cachings.Remove(removeKey);
+#if NET_Traditional
+                        if (cachings.TryGetValue(removeKey, out TValue removeValue))
+                        {
+                            if (removeValue is IDisposable disposable)
+                            {
+                                disposable.Dispose();
+                            }
+
+                            cachings.Remove(removeKey);
+                        }
+#else
+                    if (cachings.Remove(removeKey, out TValue removeValue))
+                    {
+                        if (removeValue is IDisposable disposable)
+                        {
+                            disposable.Dispose();
+                        }
+                    }
+#endif
                 }
 
                 if (cachings.TryGetValue(key, out value))

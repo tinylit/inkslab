@@ -15,7 +15,9 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using System.Xml;
+using System.Collections.Concurrent;
 
 namespace Inkslab.Net
 {
@@ -38,82 +40,7 @@ namespace Inkslab.Net
 
         private static readonly LRU<double, HttpClient> clients = new LRU<double, HttpClient>(timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
 
-        private static readonly LRU<Type, Func<object, string, List<KeyValuePair<string, object>>>> lru = new LRU<Type, Func<object, string, List<KeyValuePair<string, object>>>>(type =>
-        {
-            var objectType = typeof(object);
-
-            var objectExp = Parameter(objectType, "param");
-            var dateFormatStringExp = Parameter(typeof(string), "dateFormatString");
-            var variableExp = Variable(type, "variable");
-            var dictionaryExp = Variable(listKVType, "dictionary");
-
-            var propertyInfos = Array.FindAll(type.GetProperties(), x => x.CanRead);
-
-            var expressions = new List<Expression>
-            {
-                Assign(variableExp, Convert(objectExp, type)),
-                Assign(dictionaryExp, New(listKVCtor, Constant(propertyInfos.Length)))
-            };
-
-            foreach (var propertyInfo in propertyInfos)
-            {
-                Expression valueExp;
-
-                Expression propertyExp = Property(variableExp, propertyInfo);
-
-                var propertyType = propertyInfo.PropertyType;
-
-                bool isNullable = propertyType.IsNullable();
-
-                if (isNullable)
-                {
-                    valueExp = Property(propertyExp, "Value");
-
-                    propertyType = Nullable.GetUnderlyingType(propertyType);
-                }
-                else
-                {
-                    valueExp = propertyExp;
-                }
-
-                if (propertyType == dateType)
-                {
-                    valueExp = Call(valueExp, dateToStringFn, dateFormatStringExp);
-                }
-                else if (propertyType.IsValueType)
-                {
-                    if (propertyType.IsEnum)
-                    {
-                        propertyType = Enum.GetUnderlyingType(propertyType);
-
-                        valueExp = Convert(valueExp, propertyType);
-                    }
-
-                    var toStringFn = propertyType.GetMethod("ToString", Type.EmptyTypes);
-
-                    valueExp = Call(valueExp, toStringFn);
-                }
-
-                var bodyCallExp = Call(dictionaryExp, listKVAddFn, New(kvCtor, Constant(propertyInfo.Name), valueExp));
-
-                if (isNullable)
-                {
-                    expressions.Add(IfThen(Property(propertyExp, "HasValue"), bodyCallExp));
-                }
-                else
-                {
-                    expressions.Add(bodyCallExp);
-                }
-            }
-
-            expressions.Add(dictionaryExp);
-
-            var bodyExp = Block(new ParameterExpression[] { variableExp, dictionaryExp }, expressions);
-
-            var lambdaExp = Lambda<Func<object, string, List<KeyValuePair<string, object>>>>(bodyExp, objectExp, dateFormatStringExp);
-
-            return lambdaExp.Compile();
-        });
+        private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> lru = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
 
         private static readonly Dictionary<string, MediaTypeHeaderValue> mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
         {
@@ -203,6 +130,83 @@ namespace Inkslab.Net
             [".yml"] = new MediaTypeHeaderValue("text/yaml"),
             [".zip"] = new MediaTypeHeaderValue("application/zip")
         };
+
+        private static Func<object, string, List<KeyValuePair<string, object>>> MakeTypeResults(Type type)
+        {
+            var objectType = typeof(object);
+
+            var objectExp = Parameter(objectType, "param");
+            var dateFormatStringExp = Parameter(typeof(string), "dateFormatString");
+            var variableExp = Variable(type, "variable");
+            var dictionaryExp = Variable(listKVType, "dictionary");
+
+            var propertyInfos = Array.FindAll(type.GetProperties(), x => x.CanRead);
+
+            var expressions = new List<Expression>
+            {
+                Assign(variableExp, Convert(objectExp, type)),
+                Assign(dictionaryExp, New(listKVCtor, Constant(propertyInfos.Length)))
+            };
+
+            foreach (var propertyInfo in propertyInfos)
+            {
+                Expression valueExp;
+
+                Expression propertyExp = Property(variableExp, propertyInfo);
+
+                var propertyType = propertyInfo.PropertyType;
+
+                bool isNullable = propertyType.IsNullable();
+
+                if (isNullable)
+                {
+                    valueExp = Property(propertyExp, "Value");
+
+                    propertyType = Nullable.GetUnderlyingType(propertyType);
+                }
+                else
+                {
+                    valueExp = propertyExp;
+                }
+
+                if (propertyType == dateType)
+                {
+                    valueExp = Call(valueExp, dateToStringFn, dateFormatStringExp);
+                }
+                else if (propertyType.IsValueType)
+                {
+                    if (propertyType.IsEnum)
+                    {
+                        propertyType = Enum.GetUnderlyingType(propertyType);
+
+                        valueExp = Convert(valueExp, propertyType);
+                    }
+
+                    var toStringFn = propertyType.GetMethod("ToString", Type.EmptyTypes);
+
+                    valueExp = Call(valueExp, toStringFn);
+                }
+
+                var bodyCallExp = Call(dictionaryExp, listKVAddFn, New(kvCtor, Constant(propertyInfo.Name), valueExp));
+
+                if (isNullable)
+                {
+                    expressions.Add(IfThen(Property(propertyExp, "HasValue"), bodyCallExp));
+                }
+                else
+                {
+                    expressions.Add(bodyCallExp);
+                }
+            }
+
+            expressions.Add(dictionaryExp);
+
+            var bodyExp = Block(new ParameterExpression[] { variableExp, dictionaryExp }, expressions);
+
+            var lambdaExp = Lambda<Func<object, string, List<KeyValuePair<string, object>>>>(bodyExp, objectExp, dateFormatStringExp);
+
+            return lambdaExp.Compile();
+        }
 
         private abstract class Requestable<T> : IRequestable<T>
         {
@@ -336,14 +340,19 @@ namespace Inkslab.Net
                     throw new ArgumentException($"“{nameof(name)}”不能为 null 或空。", nameof(name));
                 }
 
-                return AppendQueryString(string.Concat(name, "=", value ?? string.Empty));
+                if (value.IsEmpty())
+                {
+                    return this;
+                }
+
+                return AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
             }
 
-            public IRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString));
+            public IRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK"));
 
             public IRequestable AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
             {
-                AppendTo(name, value, dateFormatString, false);
+                AppendTo(name, value, dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK", false);
 
                 return this;
             }
@@ -412,7 +421,7 @@ namespace Inkslab.Net
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                var results = lru.Get(typeof(TParam))
+                var results = lru.GetOrAdd(typeof(TParam), MakeTypeResults)
                      .Invoke(param, dateFormatString);
 
                 if (namingType == NamingType.Normal)
@@ -588,6 +597,8 @@ namespace Inkslab.Net
                     return this;
                 }
 
+                dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
+
                 if (body.Any(x => x.Value is FileInfo || x.Value is IEnumerable<FileInfo>))
                 {
                     var content = new MultipartFormDataContent(string.Concat("--", DateTime.Now.Ticks.ToString("x")));
@@ -741,7 +752,7 @@ namespace Inkslab.Net
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                var results = lru.Get(typeof(TBody))
+                var results = lru.GetOrAdd(typeof(TBody), MakeTypeResults)
                      .Invoke(body, dateFormatString);
 
                 if (namingType == NamingType.Normal)
@@ -869,11 +880,13 @@ namespace Inkslab.Net
                 {
                     if (thenCondition.Conditions.Exists(x => x.Invoke(statusCode)))
                     {
-                        var requestable = new RequestableBase(options.RequestUri, options.Headers);
+                        var requestable = new RequestableBase(options);
 
                         await thenCondition.InitializeAsync(requestable);
 
-                        httpMsg = await base.SendAsync(requestable.GetOptions(options), cancellationToken);
+                        requestable.OptionsRef();
+
+                        httpMsg = await base.SendAsync(options, cancellationToken);
 
                         if (httpMsg.IsSuccessStatusCode)
                         {
@@ -887,17 +900,12 @@ namespace Inkslab.Net
 
             private class RequestableBase : IRequestableBase
             {
-                private bool hasQueryString;
-                private readonly StringBuilder sb;
-                private readonly Dictionary<string, string> headers;
+                private readonly StringBuilder querySb = new StringBuilder();
+                private readonly RequestOptions options;
 
-                public RequestableBase(string requestUri, Dictionary<string, string> headers)
+                public RequestableBase(RequestOptions options)
                 {
-                    hasQueryString = requestUri.IndexOf('?') >= 0;
-
-                    this.headers = headers;
-
-                    sb = new StringBuilder(requestUri);
+                    this.options = options;
                 }
 
                 public IRequestableBase AppendQueryString(string param)
@@ -927,10 +935,12 @@ namespace Inkslab.Net
                         return this;
                     }
 
-                    sb.Append(hasQueryString ? '&' : '?')
-                        .Append(param, startIndex, length - startIndex);
+                    if (querySb.Length > 0)
+                    {
+                        querySb.Append("&");
+                    }
 
-                    hasQueryString = true;
+                    querySb.Append(param, startIndex, length - startIndex);
 
                     return this;
                 }
@@ -942,14 +952,19 @@ namespace Inkslab.Net
                         throw new ArgumentException($"“{nameof(name)}”不能为 null 或空。", nameof(name));
                     }
 
-                    return AppendQueryString(string.Concat(name, "=", value ?? string.Empty));
+                    if (value.IsEmpty())
+                    {
+                        return AppendQueryString(string.Concat(name, "="));
+                    }
+
+                    return AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
                 }
 
-                public IRequestableBase AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString));
+                public IRequestableBase AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK"));
 
                 public IRequestableBase AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
                 {
-                    AppendTo(name, value, dateFormatString, false);
+                    AppendTo(name, value, dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK", false);
 
                     return this;
                 }
@@ -1018,7 +1033,7 @@ namespace Inkslab.Net
 
                     dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                    var results = lru.Get(typeof(TParam))
+                    var results = lru.GetOrAdd(typeof(TParam), MakeTypeResults)
                          .Invoke(param, dateFormatString);
 
                     if (namingType == NamingType.Normal)
@@ -1036,7 +1051,7 @@ namespace Inkslab.Net
                         throw new ArgumentNullException(nameof(header));
                     }
 
-                    headers[header] = value;
+                    options.Headers[header] = value;
 
                     return this;
                 }
@@ -1056,14 +1071,53 @@ namespace Inkslab.Net
                     return this;
                 }
 
-                public RequestOptions GetOptions(RequestOptions options)
+                public void OptionsRef()
                 {
-                    return new RequestOptions(sb.ToString(), headers)
+                    if (querySb.Length == 0)
                     {
-                        Method = options.Method,
-                        Content = options.Content,
-                        Timeout = options.Timeout
-                    };
+                        return;
+                    }
+
+                    var requestUri = options.RequestUri;
+
+                    int indexOf = requestUri.IndexOf('?');
+
+                    var queryStrings = querySb.ToString();
+
+                    if (indexOf == -1)
+                    {
+                        options.RequestUri = string.Concat(requestUri, "?", queryStrings);
+                    }
+                    else
+                    {
+                        var sb = new StringBuilder(requestUri.Length + queryStrings.Length);
+
+                        sb.Append(requestUri, 0, indexOf + 1)
+                            .Append(queryStrings);
+
+                        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                        foreach (var param in queryStrings
+                            .Split('&'))
+                        {
+                            keys.Add(param.Split('=')[0]);
+                        }
+
+                        foreach (var param in requestUri
+                            .Substring(indexOf + 1)
+                            .Split('&'))
+                        {
+                            if (keys.Contains(param.Split('=')[0]))
+                            {
+                                continue;
+                            }
+
+                            sb.Append('&')
+                                .Append(param);
+                        }
+
+                        options.RequestUri = sb.ToString();
+                    }
                 }
             }
         }
@@ -1140,6 +1194,16 @@ namespace Inkslab.Net
 
                 return new RequestableDataVerifyFail<T>(requestable, predicates, throwError);
             }
+
+            public IRequestableDataVerifyFail<T, TResult> Fail<TResult>(Func<T, TResult> dataVerifyFail)
+            {
+                if (dataVerifyFail is null)
+                {
+                    throw new ArgumentNullException(nameof(dataVerifyFail));
+                }
+
+                return new RequestableDataVerifyFail<T, TResult>(requestable, predicates, dataVerifyFail);
+            }
         }
 
         private class RequestableDataVerifyFail<T> : Requestable<T>, IRequestableDataVerifyFail<T>
@@ -1155,14 +1219,14 @@ namespace Inkslab.Net
                 this.throwError = throwError;
             }
 
-            public IRequestableDataVerifySuccess<T, TResult> Success<TResult>(Func<T, TResult> dataSuccess)
+            public IRequestableDataVerifySuccess<T, TResult> Success<TResult>(Func<T, TResult> dataVerifySuccess)
             {
-                if (dataSuccess is null)
+                if (dataVerifySuccess is null)
                 {
-                    throw new ArgumentNullException(nameof(dataSuccess));
+                    throw new ArgumentNullException(nameof(dataVerifySuccess));
                 }
 
-                return new RequestableDataVerifySuccess<T, TResult>(requestable, predicates, dataSuccess, throwError);
+                return new RequestableDataVerifySuccess<T, TResult>(requestable, predicates, dataVerifySuccess, throwError);
             }
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
@@ -1178,18 +1242,42 @@ namespace Inkslab.Net
             }
         }
 
+        private class RequestableDataVerifyFail<T, TResult> : IRequestableDataVerifyFail<T, TResult>
+        {
+            private readonly Requestable<T> requestable;
+            private readonly List<Predicate<T>> predicates;
+            private readonly Func<T, TResult> dataVerifyFail;
+
+            public RequestableDataVerifyFail(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataVerifyFail)
+            {
+                this.requestable = requestable;
+                this.predicates = predicates;
+                this.dataVerifyFail = dataVerifyFail;
+            }
+
+            public IRequestableDataVerifySuccess<T, TResult> Success(Func<T, TResult> dataVerifySuccess)
+            {
+                if (dataVerifySuccess is null)
+                {
+                    throw new ArgumentNullException(nameof(dataVerifySuccess));
+                }
+
+                return new RequestableDataVerifySuccessV2<T, TResult>(requestable, predicates, dataVerifySuccess, dataVerifyFail);
+            }
+        }
+
         private class RequestableDataVerifySuccess<T, TResult> : Requestable<TResult>, IRequestableDataVerifySuccess<T, TResult>
         {
             private readonly Requestable<T> requestable;
             private readonly List<Predicate<T>> predicates;
-            private readonly Func<T, TResult> dataSuccess;
+            private readonly Func<T, TResult> dataVerifySuccess;
             private readonly Func<T, Exception> throwError;
 
-            public RequestableDataVerifySuccess(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataSuccess, Func<T, Exception> throwError)
+            public RequestableDataVerifySuccess(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataVerifySuccess, Func<T, Exception> throwError)
             {
                 this.requestable = requestable;
                 this.predicates = predicates;
-                this.dataSuccess = dataSuccess;
+                this.dataVerifySuccess = dataVerifySuccess;
                 this.throwError = throwError;
             }
 
@@ -1199,10 +1287,38 @@ namespace Inkslab.Net
 
                 if (predicates.TrueForAll(x => x.Invoke(data)))
                 {
-                    return dataSuccess.Invoke(data);
+                    return dataVerifySuccess.Invoke(data);
                 }
 
                 throw throwError.Invoke(data);
+            }
+        }
+
+        private class RequestableDataVerifySuccessV2<T, TResult> : Requestable<TResult>, IRequestableDataVerifySuccess<T, TResult>
+        {
+            private readonly Requestable<T> requestable;
+            private readonly List<Predicate<T>> predicates;
+            private readonly Func<T, TResult> dataVerifySuccess;
+            private readonly Func<T, TResult> dataVerifyFail;
+
+            public RequestableDataVerifySuccessV2(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataVerifySuccess, Func<T, TResult> dataVerifyFail)
+            {
+                this.requestable = requestable;
+                this.predicates = predicates;
+                this.dataVerifySuccess = dataVerifySuccess;
+                this.dataVerifyFail = dataVerifyFail;
+            }
+
+            public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            {
+                var data = await requestable.SendAsync(method, timeout, cancellationToken);
+
+                if (predicates.TrueForAll(x => x.Invoke(data)))
+                {
+                    return dataVerifySuccess.Invoke(data);
+                }
+
+                return dataVerifyFail.Invoke(data);
             }
         }
 
