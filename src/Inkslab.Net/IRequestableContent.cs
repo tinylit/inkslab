@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.Net;
 
 namespace Inkslab.Net
 {
@@ -10,11 +10,11 @@ namespace Inkslab.Net
     public interface IRequestableContent : IRequestable<string>, IDeserializeRequestable, IStreamRequestable
     {
         /// <summary>
-        /// 如果请求异常，会调用【<paramref name="thenAsync"/>】，并重试一次请求。
+        /// 条件都满足时，重试一次请求。
         /// </summary>
-        /// <param name="thenAsync">异常处理事件。</param>
-        /// <returns></returns>
-        IThenRequestable TryThenAsync(Func<IRequestableBase, Task> thenAsync);
+        /// <param name="whenStatus">条件。</param>
+        /// <returns>状态验证的请求能力。</returns>
+        IWhenRequestable When(Predicate<HttpStatusCode> whenStatus);
     }
 
     /// <summary>

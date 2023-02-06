@@ -37,7 +37,9 @@ namespace Inkslab.DI.Tests
 
             services.AddMvc(options => options.EnableEndpointRouting = false);
 
-            services.ConfigureByDefined() //? 注入 IConfigureServices 实现。
+            services.DependencyInjection() //? 注入 IConfigureServices 实现。
+                .SeekAssemblies()
+                .ConfigureByDefined()
                 .ConfigureByAuto(new Options.DependencyInjectionOptions()); //? 默认注入。
 
             services.AddCors(options =>

@@ -244,6 +244,10 @@ namespace Inkslab.Net
         {
             private readonly RequestFactory factory;
 
+            public RequestableString()
+            {
+            }
+
             public RequestableString(RequestFactory factory)
             {
                 this.factory = factory;
@@ -271,9 +275,9 @@ namespace Inkslab.Net
                 return await httpMsg.Content.ReadAsStringAsync();
             }
 
-            protected abstract RequestOptions GetOptions(HttpMethod method, double timeout);
+            public abstract RequestOptions GetOptions(HttpMethod method, double timeout);
 
-            protected virtual Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => factory.SendAsync(options, cancellationToken);
+            public virtual Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => factory.SendAsync(options, cancellationToken);
         }
 
         private class Requestable : RequestableString, IRequestable, IRequestableBase
@@ -458,23 +462,11 @@ namespace Inkslab.Net
                 return this;
             }
 
-            protected override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(sb.ToString(), headers)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(sb.ToString(), headers)
             {
                 Method = method,
                 Timeout = timeout,
             };
-
-            public IThenRequestable TryThenAsync(Func<IRequestableBase, Task> thenAsync)
-            {
-                if (thenAsync is null)
-                {
-                    throw new ArgumentNullException(nameof(thenAsync));
-                }
-
-                var options = new RequestOptions(sb.ToString(), headers);
-
-                return new ThenRequestable(factory, encoding, options, thenAsync);
-            }
 
             public IRequestableEncoding UseEncoding(Encoding encoding)
             {
@@ -608,8 +600,6 @@ namespace Inkslab.Net
                         AppendToForm(content, kv.Key, kv.Value, dateFormatString, false);
                     }
 
-                    content.Headers.ContentType = new MediaTypeHeaderValue("multipart/form-data");
-
                     AssignHeader("Content-Type", "multipart/form-data");
 
                     return new RequestableContent(factory, encoding, new RequestOptions(sb.ToString(), headers)
@@ -621,20 +611,14 @@ namespace Inkslab.Net
                 {
                     var content = new FormUrlEncodedContent(body.Select(x =>
                     {
-                        switch (x.Value)
+                        return x.Value switch
                         {
-                            case string text:
-                                return new KeyValuePair<string, string>(x.Key, text);
-                            case DateTime date:
-                                return new KeyValuePair<string, string>(x.Key, date.ToString(dateFormatString));
-                            case byte[] buffer:
-                                return new KeyValuePair<string, string>(x.Key, System.Convert.ToBase64String(buffer));
-                            default:
-                                return new KeyValuePair<string, string>(x.Key, x.Value?.ToString());
-                        }
+                            string text => new KeyValuePair<string, string>(x.Key, text),
+                            DateTime date => new KeyValuePair<string, string>(x.Key, date.ToString(dateFormatString)),
+                            byte[] buffer => new KeyValuePair<string, string>(x.Key, System.Convert.ToBase64String(buffer)),
+                            _ => new KeyValuePair<string, string>(x.Key, x.Value?.ToString())
+                        };
                     }));
-
-                    content.Headers.ContentType = new MediaTypeHeaderValue("x-www-form-urlencoded");
 
                     AssignHeader("Content-Type", "x-www-form-urlencoded");
 
@@ -762,6 +746,11 @@ namespace Inkslab.Net
 
                 return Form(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
             }
+
+            public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
+            {
+                throw new NotImplementedException();
+            }
         }
 
         private class ThenCondition
@@ -780,72 +769,17 @@ namespace Inkslab.Net
             public Task InitializeAsync(IRequestableBase requestable) => initialize.Invoke(requestable);
         }
 
-        private class ThenRequestable : IThenRequestable
+        private class WhenRequestable : IWhenRequestable
         {
-            private readonly RequestFactory factory;
-            private readonly RequestOptions options;
-            private readonly ThenCondition thenCondition;
-            private readonly List<ThenCondition> thenConditions;
+            private readonly RequestableString requestable;
             private readonly Encoding encoding;
+            private readonly Predicate<HttpStatusCode> whenStatus;
 
-            public ThenRequestable(RequestFactory factory, Encoding encoding, RequestOptions options, Func<IRequestableBase, Task> thenAsync) : this(factory, encoding, options, thenAsync, new List<ThenCondition>())
+            public WhenRequestable(RequestableString requestable, Encoding encoding, Predicate<HttpStatusCode> whenStatus)
             {
-            }
-
-            public ThenRequestable(RequestFactory factory, Encoding encoding, RequestOptions options, Func<IRequestableBase, Task> thenAsync, List<ThenCondition> thenConditions)
-            {
-                this.factory = factory;
+                this.requestable = requestable;
                 this.encoding = encoding;
-                this.options = options;
-                this.thenConditions = thenConditions;
-
-                thenConditions.Add(thenCondition = new ThenCondition(thenAsync));
-            }
-
-            public IThenConditionRequestable If(Predicate<HttpStatusCode> predicate)
-            {
-                if (predicate is null)
-                {
-                    throw new ArgumentNullException(nameof(predicate));
-                }
-
-                thenCondition.Conditions.Add(predicate);
-
-                return new ThenConditionRequestable(factory, encoding, options, thenCondition, thenConditions);
-            }
-        }
-
-        private class ThenConditionRequestable : RequestableString, IThenConditionRequestable
-        {
-            private readonly RequestFactory factory;
-            private readonly Encoding encoding;
-            private readonly RequestOptions options;
-            private readonly ThenCondition thenCondition;
-            private readonly List<ThenCondition> thenConditions;
-
-            public ThenConditionRequestable(RequestFactory factory, Encoding encoding, RequestOptions options, ThenCondition thenCondition, List<ThenCondition> thenConditions) : base(factory)
-            {
-                this.factory = factory;
-                this.encoding = encoding;
-                this.options = options;
-                this.thenCondition = thenCondition;
-                this.thenConditions = thenConditions;
-            }
-
-            public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
-
-            public IJsonDeserializeRequestable<T> JsonCast<T>(T anonymousTypeObject, NamingType namingType = NamingType.Normal) where T : class => JsonCast<T>(namingType);
-
-            public IThenConditionRequestable Or(Predicate<HttpStatusCode> predicate)
-            {
-                if (predicate is null)
-                {
-                    throw new ArgumentNullException(nameof(predicate));
-                }
-
-                thenCondition.Conditions.Add(predicate);
-
-                return this;
+                this.whenStatus = whenStatus;
             }
 
             public IThenRequestable ThenAsync(Func<IRequestableBase, Task> thenAsync)
@@ -855,44 +789,66 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(thenAsync));
                 }
 
-                return new ThenRequestable(factory, encoding, options, thenAsync, thenConditions);
+                return new ThenRequestable(requestable, encoding, whenStatus, thenAsync);
+            }
+        }
+
+        private class ThenRequestable : RequestableString, IThenRequestable
+        {
+            private volatile bool initializedStatusCode = false;
+            private readonly RequestableString requestable;
+            private readonly Encoding encoding;
+            private readonly Predicate<HttpStatusCode> whenStatus;
+            private readonly Func<IRequestableBase, Task> thenAsync;
+
+            public ThenRequestable(RequestableString requestable, Encoding encoding, Predicate<HttpStatusCode> whenStatus, Func<IRequestableBase, Task> thenAsync)
+            {
+                this.requestable = requestable;
+                this.encoding = encoding;
+                this.whenStatus = whenStatus;
+                this.thenAsync = thenAsync;
+            }
+
+            public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
+
+            public IJsonDeserializeRequestable<T> JsonCast<T>(T anonymousTypeObject, NamingType namingType = NamingType.Normal) where T : class => JsonCast<T>(namingType);
+
+            public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
+            {
+                if (whenStatus is null)
+                {
+                    throw new ArgumentNullException(nameof(whenStatus));
+                }
+
+                return new WhenRequestable(this, encoding, whenStatus);
             }
 
             public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, encoding);
 
             public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => XmlCast<T>();
 
-            protected override RequestOptions GetOptions(HttpMethod method, double timeout)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => requestable.GetOptions(method, timeout);
+
+            public override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
             {
-                options.Method = method;
-                options.Timeout = timeout;
+                var httpMsg = await requestable.SendAsync(options, cancellationToken);
 
-                return options;
-            }
-
-            protected override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
-            {
-                var httpMsg = await base.SendAsync(options, cancellationToken);
-
-                var statusCode = httpMsg.StatusCode;
-
-                foreach (var thenCondition in thenConditions)
+                if (initializedStatusCode)
                 {
-                    if (thenCondition.Conditions.Exists(x => x.Invoke(statusCode)))
-                    {
-                        var requestable = new RequestableBase(options);
+                    return httpMsg;
+                }
 
-                        await thenCondition.InitializeAsync(requestable);
+                if (whenStatus(httpMsg.StatusCode))
+                {
+                    initializedStatusCode = true;
 
-                        requestable.OptionsRef();
+                    var requestableBase = new RequestableBase(options);
 
-                        httpMsg = await base.SendAsync(options, cancellationToken);
+                    await thenAsync(requestableBase);
 
-                        if (httpMsg.IsSuccessStatusCode)
-                        {
-                            break;
-                        }
-                    }
+                    requestableBase.OptionsRef();
+
+                    httpMsg = await requestable.SendAsync(options, cancellationToken);
                 }
 
                 return httpMsg;
@@ -1124,25 +1080,13 @@ namespace Inkslab.Net
 
         private class RequestableContent : RequestableString, IRequestableContent
         {
-            private readonly RequestFactory factory;
             private readonly Encoding encoding;
             private readonly RequestOptions options;
 
             public RequestableContent(RequestFactory factory, Encoding encoding, RequestOptions options) : base(factory)
             {
-                this.factory = factory;
                 this.encoding = encoding;
                 this.options = options;
-            }
-
-            public IThenRequestable TryThenAsync(Func<IRequestableBase, Task> thenAsync)
-            {
-                if (thenAsync is null)
-                {
-                    throw new ArgumentNullException(nameof(thenAsync));
-                }
-
-                return new ThenRequestable(factory, encoding, options, thenAsync);
             }
 
             public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
@@ -1153,36 +1097,34 @@ namespace Inkslab.Net
 
             public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => XmlCast<T>();
 
-            protected override RequestOptions GetOptions(HttpMethod method, double timeout)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout)
             {
                 options.Method = method;
                 options.Timeout = timeout;
 
                 return options;
             }
+
+            public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
+            {
+                if (whenStatus is null)
+                {
+                    throw new ArgumentNullException(nameof(whenStatus));
+                }
+
+                return new WhenRequestable(this, encoding, whenStatus);
+            }
         }
 
         private class RequestableDataVerify<T> : IRequestableDataVerify<T>
         {
             private readonly Requestable<T> requestable;
-            private readonly List<Predicate<T>> predicates;
+            private readonly Predicate<T> dataVerify;
 
-            public RequestableDataVerify(Requestable<T> requestable, Predicate<T> predicate)
+            public RequestableDataVerify(Requestable<T> requestable, Predicate<T> dataVerify)
             {
                 this.requestable = requestable;
-                predicates = new List<Predicate<T>> { predicate };
-            }
-
-            public IRequestableDataVerify<T> And(Predicate<T> predicate)
-            {
-                if (predicate is null)
-                {
-                    throw new ArgumentNullException(nameof(predicate));
-                }
-
-                predicates.Add(predicate);
-
-                return this;
+                this.dataVerify = dataVerify;
             }
 
             public IRequestableDataVerifyFail<T> Fail(Func<T, Exception> throwError)
@@ -1192,7 +1134,7 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(throwError));
                 }
 
-                return new RequestableDataVerifyFail<T>(requestable, predicates, throwError);
+                return new RequestableDataVerifyFail<T>(requestable, dataVerify, throwError);
             }
 
             public IRequestableDataVerifyFail<T, TResult> Fail<TResult>(Func<T, TResult> dataVerifyFail)
@@ -1202,20 +1144,20 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(dataVerifyFail));
                 }
 
-                return new RequestableDataVerifyFail<T, TResult>(requestable, predicates, dataVerifyFail);
+                return new RequestableDataVerifyFail<T, TResult>(requestable, dataVerify, dataVerifyFail);
             }
         }
 
         private class RequestableDataVerifyFail<T> : Requestable<T>, IRequestableDataVerifyFail<T>
         {
             private readonly Requestable<T> requestable;
-            private readonly List<Predicate<T>> predicates;
+            private readonly Predicate<T> dataVerify;
             private readonly Func<T, Exception> throwError;
 
-            public RequestableDataVerifyFail(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, Exception> throwError)
+            public RequestableDataVerifyFail(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, Exception> throwError)
             {
                 this.requestable = requestable;
-                this.predicates = predicates;
+                this.dataVerify = dataVerify;
                 this.throwError = throwError;
             }
 
@@ -1226,32 +1168,32 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(dataVerifySuccess));
                 }
 
-                return new RequestableDataVerifySuccess<T, TResult>(requestable, predicates, dataVerifySuccess, throwError);
+                return new RequestableDataVerifySuccess<T, TResult>(requestable, dataVerify, dataVerifySuccess, throwError);
             }
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var data = await requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (predicates.TrueForAll(x => x.Invoke(data)))
+                if (dataVerify(msgData))
                 {
-                    return data;
+                    return msgData;
                 }
 
-                throw throwError.Invoke(data);
+                throw throwError.Invoke(msgData);
             }
         }
 
         private class RequestableDataVerifyFail<T, TResult> : IRequestableDataVerifyFail<T, TResult>
         {
             private readonly Requestable<T> requestable;
-            private readonly List<Predicate<T>> predicates;
+            private readonly Predicate<T> dataVerify;
             private readonly Func<T, TResult> dataVerifyFail;
 
-            public RequestableDataVerifyFail(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataVerifyFail)
+            public RequestableDataVerifyFail(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifyFail)
             {
                 this.requestable = requestable;
-                this.predicates = predicates;
+                this.dataVerify = dataVerify;
                 this.dataVerifyFail = dataVerifyFail;
             }
 
@@ -1262,63 +1204,63 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(dataVerifySuccess));
                 }
 
-                return new RequestableDataVerifySuccessV2<T, TResult>(requestable, predicates, dataVerifySuccess, dataVerifyFail);
+                return new RequestableDataVerifySuccessV2<T, TResult>(requestable, dataVerify, dataVerifySuccess, dataVerifyFail);
             }
         }
 
         private class RequestableDataVerifySuccess<T, TResult> : Requestable<TResult>, IRequestableDataVerifySuccess<T, TResult>
         {
             private readonly Requestable<T> requestable;
-            private readonly List<Predicate<T>> predicates;
+            private readonly Predicate<T> dataVerify;
             private readonly Func<T, TResult> dataVerifySuccess;
             private readonly Func<T, Exception> throwError;
 
-            public RequestableDataVerifySuccess(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataVerifySuccess, Func<T, Exception> throwError)
+            public RequestableDataVerifySuccess(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, Exception> throwError)
             {
                 this.requestable = requestable;
-                this.predicates = predicates;
+                this.dataVerify = dataVerify;
                 this.dataVerifySuccess = dataVerifySuccess;
                 this.throwError = throwError;
             }
 
             public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var data = await requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (predicates.TrueForAll(x => x.Invoke(data)))
+                if (dataVerify(msgData))
                 {
-                    return dataVerifySuccess.Invoke(data);
+                    return dataVerifySuccess.Invoke(msgData);
                 }
 
-                throw throwError.Invoke(data);
+                throw throwError.Invoke(msgData);
             }
         }
 
         private class RequestableDataVerifySuccessV2<T, TResult> : Requestable<TResult>, IRequestableDataVerifySuccess<T, TResult>
         {
             private readonly Requestable<T> requestable;
-            private readonly List<Predicate<T>> predicates;
+            private readonly Predicate<T> dataVerify;
             private readonly Func<T, TResult> dataVerifySuccess;
             private readonly Func<T, TResult> dataVerifyFail;
 
-            public RequestableDataVerifySuccessV2(Requestable<T> requestable, List<Predicate<T>> predicates, Func<T, TResult> dataVerifySuccess, Func<T, TResult> dataVerifyFail)
+            public RequestableDataVerifySuccessV2(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, TResult> dataVerifyFail)
             {
                 this.requestable = requestable;
-                this.predicates = predicates;
+                this.dataVerify = dataVerify;
                 this.dataVerifySuccess = dataVerifySuccess;
                 this.dataVerifyFail = dataVerifyFail;
             }
 
             public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var data = await requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (predicates.TrueForAll(x => x.Invoke(data)))
+                if (dataVerify(msgData))
                 {
-                    return dataVerifySuccess.Invoke(data);
+                    return dataVerifySuccess.Invoke(msgData);
                 }
 
-                return dataVerifyFail.Invoke(data);
+                return dataVerifyFail.Invoke(msgData);
             }
         }
 

@@ -7,15 +7,27 @@ namespace Inkslab.Net
     /// <summary>
     /// 带有条件的异步延续能力请求。
     /// </summary>
-    public interface IThenRequestable
+    public interface IWhenRequestable
     {
         /// <summary>
-        /// 所有条件都满足时，重试一次请求。
-        /// 多个条件之间是且的关系。
+        /// 新开一个重试机制，如果请求异常，会调用【<paramref name="thenAsync"/>】，并重试一次请求。
         /// </summary>
-        /// <param name="predicate">条件。</param>
+        /// <param name="thenAsync">异常处理事件。</param>
+        /// <returns>带有条件的异步延续能力请求。</returns>
+        IThenRequestable ThenAsync(Func<IRequestableBase, Task> thenAsync);
+    }
+
+    /// <summary>
+    /// 带有条件的异步延续能力请求。
+    /// </summary>
+    public interface IThenRequestable : IRequestable<string>, IDeserializeRequestable, IStreamRequestable
+    {
+        /// <summary>
+        /// 条件都满足时，重试一次请求。
+        /// </summary>
+        /// <param name="whenStatus">条件。</param>
         /// <returns>状态验证的请求能力。</returns>
-        IThenConditionRequestable If(Predicate<HttpStatusCode> predicate);
+        IWhenRequestable When(Predicate<HttpStatusCode> whenStatus);
     }
 
     /// <summary>

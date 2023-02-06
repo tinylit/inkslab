@@ -9,14 +9,6 @@ namespace Inkslab.Net
     public interface IRequestableDataVerify<T>
     {
         /// <summary>
-        /// 结果请求结果不满足<paramref name="predicate"/>时，会重复请求。
-        /// 多个条件之间是且的关系。
-        /// </summary>
-        /// <param name="predicate">判断是否重试请求。</param>
-        /// <returns></returns>
-        IRequestableDataVerify<T> And(Predicate<T> predicate);
-
-        /// <summary>
         /// 数据验证失败。
         /// </summary>
         /// <param name="throwError">验证失败的异常。</param>

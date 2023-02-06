@@ -88,10 +88,10 @@ namespace Inkslab.Net
     public interface IRequestableExtend<T> : IRequestable<T>
     {
         /// <summary>
-        /// 结果请求结果不满足<paramref name="predicate"/>时，会重复请求。
+        /// 结果请求结果不满足<paramref name="dataVerify"/>时，会重复请求。
         /// </summary>
-        /// <param name="predicate">结果验证函数。</param>
+        /// <param name="dataVerify">结果验证函数。</param>
         /// <returns>数据验证请求能力。</returns>
-        IRequestableDataVerify<T> DataVerify(Predicate<T> predicate);
+        IRequestableDataVerify<T> DataVerify(Predicate<T> dataVerify);
     }
 }
