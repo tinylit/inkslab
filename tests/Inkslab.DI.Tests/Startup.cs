@@ -38,7 +38,7 @@ namespace Inkslab.DI.Tests
             services.AddMvc(options => options.EnableEndpointRouting = false);
 
             services.DependencyInjection() //? 注入 IConfigureServices 实现。
-                .SeekAssemblies()
+                .SeekAssemblies("Inkslab.DI.*")
                 .ConfigureByDefined()
                 .ConfigureByAuto(new Options.DependencyInjectionOptions()); //? 默认注入。
 

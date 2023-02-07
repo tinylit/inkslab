@@ -42,23 +42,17 @@ namespace Inkslab.DI
         /// <summary>
         /// 移除程序集。
         /// </summary>
-        /// <returns>依赖注入。</returns>
-        IDependencyInjectionServices RemoveAll();
-
-        /// <summary>
-        /// 移除程序集。
-        /// </summary>
         /// <param name="match">匹配规则。</param>
         /// <returns>依赖注入。</returns>
         IDependencyInjectionServices RemoveAssemblies(Predicate<Assembly> match);
 
         /// <summary>
-        /// 调用所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(XServiceCollection)"/> 注入约定。
+        /// 查找并调用限定程序集中，所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(XServiceCollection)"/> 注入约定。
         /// </summary>
         IDependencyInjectionServices ConfigureByDefined();
 
         /// <summary>
-        /// 配置自动注入。
+        /// 自动检查接口参数（属性 <see cref="DependencyInjectionOptions.DiControllerActionIsFromServicesParameters"/> 为 true 时，方法参数也会注入）自动注入，并检查是否所有参数都成功注入。
         /// </summary>
         /// <param name="options">注入配置。</param>
         IServiceCollection ConfigureByAuto(DependencyInjectionOptions options);

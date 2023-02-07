@@ -749,7 +749,12 @@ namespace Inkslab.Net
 
             public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
             {
-                throw new NotImplementedException();
+                if (whenStatus is null)
+                {
+                    throw new ArgumentNullException(nameof(whenStatus));
+                }
+
+                return new WhenRequestable(this, encoding, whenStatus);
             }
         }
 
