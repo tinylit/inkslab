@@ -38,7 +38,7 @@ NuGet 包
 | Inkslab.Map | [![Inkslab.Map](https://img.shields.io/nuget/v/inkslab.map.svg)](https://www.nuget.org/packages/inkslab.map/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Map) | [Type conversion, cloning, mapping.](./Inkslab.Map.md) |
 | Inkslab.Config | [![Inkslab.Config](https://img.shields.io/nuget/v/inkslab.config.svg)](https://www.nuget.org/packages/inkslab.config/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Config) | [Read configuration file.](./Inkslab.Config.md) |
 | Inkslab.Json | [![Inkslab.Json](https://img.shields.io/nuget/v/inkslab.json.svg)](https://www.nuget.org/packages/inkslab.json/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Json) | [JSON read and write processing.](./Inkslab.Json.md) |
-| Inkslab.Net | [![Inkslab.Net](https://img.shields.io/nuget/v/inkslab.net.svg)](https://www.nuget.org/packages/inkslab.net/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Net) | [Request component of HTTP/HTTPS.](./inkslab.net.md) |
+| Inkslab.Net | [![Inkslab.Net](https://img.shields.io/nuget/v/inkslab.net.svg)](https://www.nuget.org/packages/inkslab.net/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Net) | [Request component of HTTP/HTTPS.](./Inkslab.Net.md) |
 
 ### 内置功能。
   * Xml 系列化和反序列化助手。
