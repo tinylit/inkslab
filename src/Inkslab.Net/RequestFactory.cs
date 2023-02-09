@@ -38,7 +38,7 @@ namespace Inkslab.Net
         private static readonly Type dateType = typeof(DateTime);
         private static readonly MethodInfo dateToStringFn = dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
-        private static readonly LRU<double, HttpClient> clients = new LRU<double, HttpClient>(timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
+        private static readonly LRU<double, HttpClient> clients = new LRU<double, HttpClient>(100, timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
 
         private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> lru = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
 
@@ -1132,40 +1132,6 @@ namespace Inkslab.Net
                 this.dataVerify = dataVerify;
             }
 
-            public IRequestableDataVerifyFail<T> Fail(Func<T, Exception> throwError)
-            {
-                if (throwError is null)
-                {
-                    throw new ArgumentNullException(nameof(throwError));
-                }
-
-                return new RequestableDataVerifyFail<T>(requestable, dataVerify, throwError);
-            }
-
-            public IRequestableDataVerifyFail<T, TResult> Fail<TResult>(Func<T, TResult> dataVerifyFail)
-            {
-                if (dataVerifyFail is null)
-                {
-                    throw new ArgumentNullException(nameof(dataVerifyFail));
-                }
-
-                return new RequestableDataVerifyFail<T, TResult>(requestable, dataVerify, dataVerifyFail);
-            }
-        }
-
-        private class RequestableDataVerifyFail<T> : Requestable<T>, IRequestableDataVerifyFail<T>
-        {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
-            private readonly Func<T, Exception> throwError;
-
-            public RequestableDataVerifyFail(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, Exception> throwError)
-            {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
-                this.throwError = throwError;
-            }
-
             public IRequestableDataVerifySuccess<T, TResult> Success<TResult>(Func<T, TResult> dataVerifySuccess)
             {
                 if (dataVerifySuccess is null)
@@ -1173,7 +1139,31 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(dataVerifySuccess));
                 }
 
-                return new RequestableDataVerifySuccess<T, TResult>(requestable, dataVerify, dataVerifySuccess, throwError);
+                return new RequestableDataVerifySuccess<T, TResult>(requestable, dataVerify, dataVerifySuccess);
+            }
+
+            public IRequestableDataVerifyFail<T> Fail<TError>(Func<T, TError> throwError) where TError : Exception
+            {
+                if (throwError is null)
+                {
+                    throw new ArgumentNullException(nameof(throwError));
+                }
+
+                return new RequestableDataVerifyError<T, TError>(requestable, dataVerify, throwError);
+            }
+        }
+
+        private class RequestableDataVerifyError<T, TError> : Requestable<T>, IRequestableDataVerifyFail<T> where TError : Exception
+        {
+            private readonly Requestable<T> requestable;
+            private readonly Predicate<T> dataVerify;
+            private readonly Func<T, TError> throwError;
+
+            public RequestableDataVerifyError(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TError> throwError)
+            {
+                this.requestable = requestable;
+                this.dataVerify = dataVerify;
+                this.throwError = throwError;
             }
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
@@ -1188,39 +1178,14 @@ namespace Inkslab.Net
                 throw throwError.Invoke(msgData);
             }
         }
-
-        private class RequestableDataVerifyFail<T, TResult> : IRequestableDataVerifyFail<T, TResult>
-        {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
-            private readonly Func<T, TResult> dataVerifyFail;
-
-            public RequestableDataVerifyFail(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifyFail)
-            {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
-                this.dataVerifyFail = dataVerifyFail;
-            }
-
-            public IRequestableDataVerifySuccess<T, TResult> Success(Func<T, TResult> dataVerifySuccess)
-            {
-                if (dataVerifySuccess is null)
-                {
-                    throw new ArgumentNullException(nameof(dataVerifySuccess));
-                }
-
-                return new RequestableDataVerifySuccessV2<T, TResult>(requestable, dataVerify, dataVerifySuccess, dataVerifyFail);
-            }
-        }
-
-        private class RequestableDataVerifySuccess<T, TResult> : Requestable<TResult>, IRequestableDataVerifySuccess<T, TResult>
+        private class RequestableDataVerifyError<T, TResult, TError> : Requestable<TResult>, IRequestableDataVerifyFail<T, TResult> where TError : Exception
         {
             private readonly Requestable<T> requestable;
             private readonly Predicate<T> dataVerify;
             private readonly Func<T, TResult> dataVerifySuccess;
-            private readonly Func<T, Exception> throwError;
+            private readonly Func<T, TError> throwError;
 
-            public RequestableDataVerifySuccess(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, Exception> throwError)
+            public RequestableDataVerifyError(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, TError> throwError)
             {
                 this.requestable = requestable;
                 this.dataVerify = dataVerify;
@@ -1240,15 +1205,14 @@ namespace Inkslab.Net
                 throw throwError.Invoke(msgData);
             }
         }
-
-        private class RequestableDataVerifySuccessV2<T, TResult> : Requestable<TResult>, IRequestableDataVerifySuccess<T, TResult>
+        private class RequestableDataVerifyFail<T, TResult> : Requestable<TResult>, IRequestableDataVerifyFail<T, TResult>
         {
             private readonly Requestable<T> requestable;
             private readonly Predicate<T> dataVerify;
             private readonly Func<T, TResult> dataVerifySuccess;
             private readonly Func<T, TResult> dataVerifyFail;
 
-            public RequestableDataVerifySuccessV2(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, TResult> dataVerifyFail)
+            public RequestableDataVerifyFail(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, TResult> dataVerifyFail)
             {
                 this.requestable = requestable;
                 this.dataVerify = dataVerify;
@@ -1269,9 +1233,44 @@ namespace Inkslab.Net
             }
         }
 
+        private class RequestableDataVerifySuccess<T, TResult> : IRequestableDataVerifySuccess<T, TResult>
+        {
+            private readonly Requestable<T> requestable;
+            private readonly Predicate<T> dataVerify;
+            private readonly Func<T, TResult> dataVerifySuccess;
+
+            public RequestableDataVerifySuccess(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess)
+            {
+                this.requestable = requestable;
+                this.dataVerify = dataVerify;
+                this.dataVerifySuccess = dataVerifySuccess;
+            }
+
+            public IRequestableDataVerifyFail<T, TResult> Fail(Func<T, TResult> dataVerifyFail)
+            {
+                if (dataVerifyFail is null)
+                {
+                    throw new ArgumentNullException(nameof(dataVerifyFail));
+                }
+
+                return new RequestableDataVerifyFail<T, TResult>(requestable, dataVerify, dataVerifySuccess, dataVerifyFail);
+            }
+
+            public IRequestableDataVerifyFail<T, TResult> Fail<TError>(Func<T, TError> throwError) where TError : Exception
+            {
+                if (throwError is null)
+                {
+                    throw new ArgumentNullException(nameof(throwError));
+                }
+
+                return new RequestableDataVerifyError<T, TResult, TError>(requestable, dataVerify, dataVerifySuccess, throwError);
+            }
+        }
+
+
         private class JsonDeserializeRequestable<T> : Requestable<T>, IRequestableExtend<T>, IJsonDeserializeRequestable<T>
         {
-            private Func<string, Exception, T> returnValue;
+            private Func<string, Exception, T> abnormalResultAnalysis;
             private readonly RequestableString requestable;
             private readonly NamingType namingType;
 
@@ -1291,14 +1290,14 @@ namespace Inkslab.Net
                 return new RequestableDataVerify<T>(this, predicate);
             }
 
-            public IRequestableExtend<T> JsonCatch(Func<string, Exception, T> returnValue)
+            public IRequestableExtend<T> JsonCatch(Func<string, Exception, T> abnormalResultAnalysis)
             {
-                if (returnValue is null)
+                if (abnormalResultAnalysis is null)
                 {
-                    throw new ArgumentNullException(nameof(returnValue));
+                    throw new ArgumentNullException(nameof(abnormalResultAnalysis));
                 }
 
-                this.returnValue = returnValue;
+                this.abnormalResultAnalysis = abnormalResultAnalysis;
 
                 return this;
             }
@@ -1320,7 +1319,7 @@ namespace Inkslab.Net
             {
                 var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (returnValue is null)
+                if (abnormalResultAnalysis is null)
                 {
                     return JsonHelper.Json<T>(stringMsg, namingType);
                 }
@@ -1331,14 +1330,14 @@ namespace Inkslab.Net
                 }
                 catch (Exception ex) when (IsJsonError(ex))
                 {
-                    return returnValue.Invoke(stringMsg, ex);
+                    return abnormalResultAnalysis.Invoke(stringMsg, ex);
                 }
             }
         }
 
         private class XmlDeserializeRequestable<T> : Requestable<T>, IRequestableExtend<T>, IXmlDeserializeRequestable<T>
         {
-            private Func<string, XmlException, T> returnValue;
+            private Func<string, XmlException, T> abnormalResultAnalysis;
             private readonly RequestableString requestable;
             private readonly Encoding encoding;
 
@@ -1362,7 +1361,7 @@ namespace Inkslab.Net
             {
                 var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (returnValue is null)
+                if (abnormalResultAnalysis is null)
                 {
                     return XmlHelper.XmlDeserialize<T>(stringMsg, encoding);
                 }
@@ -1373,18 +1372,18 @@ namespace Inkslab.Net
                 }
                 catch (XmlException ex)
                 {
-                    return returnValue.Invoke(stringMsg, ex);
+                    return abnormalResultAnalysis.Invoke(stringMsg, ex);
                 }
             }
 
-            public IRequestableExtend<T> XmlCatch(Func<string, XmlException, T> returnValue)
+            public IRequestableExtend<T> XmlCatch(Func<string, XmlException, T> abnormalResultAnalysis)
             {
-                if (returnValue is null)
+                if (abnormalResultAnalysis is null)
                 {
-                    throw new ArgumentNullException(nameof(returnValue));
+                    throw new ArgumentNullException(nameof(abnormalResultAnalysis));
                 }
 
-                this.returnValue = returnValue;
+                this.abnormalResultAnalysis = abnormalResultAnalysis;
 
                 return this;
             }

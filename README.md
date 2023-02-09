@@ -3,6 +3,8 @@
 ![GitHub](https://img.shields.io/github/license/tinylit/inkslab.svg)
 ![language](https://img.shields.io/github/languages/top/tinylit/inkslab.svg)
 ![codeSize](https://img.shields.io/github/languages/code-size/tinylit/inkslab.svg)
+![AppVeyor](https://img.shields.io/appveyor/build/tinylit/inkslab)
+![AppVeyor tests](https://img.shields.io/appveyor/tests/tinylit/inkslab)
 [![GitHub issues](https://img.shields.io/github/issues-raw/tinylit/inkslab)](../../issues)
 
 
@@ -26,6 +28,17 @@ using (var startup = new XStartup())
     startup.DoStartup();
 }
 ```
+
+NuGet 包
+--------
+
+| Package | NuGet | Downloads | Jane Says <kbd>Markdown</kbd> |
+| ------- | ----- | --------- | --------- |
+| Inkslab | [![Inkslab](https://img.shields.io/nuget/v/inkslab.svg)](https://www.nuget.org/packages/inkslab/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab) | Core universal design. |
+| Inkslab.Map | [![Inkslab.Map](https://img.shields.io/nuget/v/inkslab.map.svg)](https://www.nuget.org/packages/inkslab.map/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Map) | [Type conversion, cloning, mapping.](./Inkslab.Map.md) |
+| Inkslab.Config | [![Inkslab.Config](https://img.shields.io/nuget/v/inkslab.config.svg)](https://www.nuget.org/packages/inkslab.config/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Config) | [Read configuration file.](./Inkslab.Config.md) |
+| Inkslab.Json | [![Inkslab.Json](https://img.shields.io/nuget/v/inkslab.json.svg)](https://www.nuget.org/packages/inkslab.json/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Json) | [JSON read and write processing.](./Inkslab.Json.md) |
+| Inkslab.Net | [![Inkslab.Net](https://img.shields.io/nuget/v/inkslab.net.svg)](https://www.nuget.org/packages/inkslab.net/) | ![Nuget](https://img.shields.io/nuget/dt/Inkslab.Net) | [Request component of HTTP/HTTPS.](./inkslab.net.md) |
 
 ### 内置功能。
   * Xml 系列化和反序列化助手。
@@ -391,3 +404,7 @@ string value = "{a + b}".PropSugar(new { A = 1, B = 2 }, NamingType.CamelCase); 
     当A为`null`时，返回B，否则按照【合并运算符】计算A+B的结果。
 
   - 可支持任意组合，从左到右依次计算（不支持小括号）。
+
+标星历程图。
+
+[![Stargazers over time](https://starchart.cc/tinylit/inkslab.svg)](https://starchart.cc/tinylit/inkslab)

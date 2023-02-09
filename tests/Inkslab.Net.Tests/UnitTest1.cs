@@ -58,9 +58,9 @@ namespace Inkslab.Net.Tests
             {
                 return new Dictionary<string, string>();
             })
-            //.DataVerify(x => x.Count > 0) //? 结果数据校验。
-            //.Fail(r => new Exception())
-            //.Success(r => DateTime.Now)
+            //.DataVerify(r => r.Count > 0) //? 结果数据校验。
+            //.Success(r => r.Count)
+            //.Fail(r => new NotSupportedException())
             .GetAsync(5000D);
         }
 
