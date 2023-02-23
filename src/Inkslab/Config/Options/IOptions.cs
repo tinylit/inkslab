@@ -1,4 +1,5 @@
-﻿namespace Inkslab.Config.Options
+﻿#if !NET_Traditional
+namespace Inkslab.Config.Options
 {
     /// <summary>
     /// 用于检索已配置的 <typeparamref name="TOptions"/> 实例。
@@ -12,3 +13,4 @@
         TOptions Value { get; }
     }
 }
+#endif

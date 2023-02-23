@@ -28,6 +28,8 @@ namespace Inkslab.Net
     /// </summary>
     public class RequestFactory : IRequestFactory
     {
+        private static readonly RequestFactory factory = new RequestFactory();
+
         private static readonly Type kvType = typeof(KeyValuePair<string, object>);
         private static readonly ConstructorInfo kvCtor = kvType.GetConstructor(new Type[] { typeof(string), typeof(object) });
 
@@ -1468,5 +1470,12 @@ namespace Inkslab.Net
                 return await client.SendAsync(httpMsg, cancellationToken);
             }
         }
+
+        /// <summary>
+        /// 创建请求能力。
+        /// </summary>
+        /// <param name="requestUri">请求地址。</param>
+        /// <returns>请求能力。</returns>
+        public static IRequestable Create(string requestUri) => factory.CreateRequestable(requestUri);
     }
 }

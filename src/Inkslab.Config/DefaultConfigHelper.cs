@@ -1,12 +1,11 @@
 ﻿using System;
-using Insklab.Exceptions;
 #if NET_Traditional
+using Insklab.Exceptions;
 using System.Configuration;
 using System.Web.Configuration;
 using System.Collections.Generic;
 using Inkslab.Map;
 #else
-using Inkslab.Config.Settings;
 using System.IO;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Configuration;

@@ -1,4 +1,7 @@
 ﻿using Inkslab.Annotations;
+#if !NET_Traditional
+using System;
+#endif
 
 namespace Inkslab.Config
 {
@@ -8,6 +11,11 @@ namespace Inkslab.Config
     [Ignore]
     public interface IConfigHelper
     {
+#if !NET_Traditional
+        /// <summary> 配置文件变更事件。 </summary>
+        event Action<object> OnConfigChanged;
+#endif
+
         /// <summary>
         /// 配置读取。
         /// </summary>

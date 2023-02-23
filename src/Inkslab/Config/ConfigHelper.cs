@@ -1,4 +1,5 @@
 ﻿using Inkslab.Config.Options;
+using System;
 
 namespace Inkslab.Config
 {
@@ -14,6 +15,7 @@ namespace Inkslab.Config
         /// </summary>
         static ConfigHelper() => _configHelper = SingletonPools.Singleton<IConfigHelper, DefaultConfigHelper>();
 
+#if !NET_Traditional
         /// <summary>
         /// 配置。
         /// </summary>
@@ -33,14 +35,25 @@ namespace Inkslab.Config
 
             public T Value => config.Get(key, defaultValue);
         }
+#endif
 
         /// <summary>
         /// 默认配置助手。
         /// </summary>
         private class DefaultConfigHelper : IConfigHelper
         {
+#if !NET_Traditional
+            /// <summary> 配置文件变更事件。 </summary>
+            public event Action<object> OnConfigChanged { add { } remove { } }
+#endif
+
             public T Get<T>(string key, T defaultValue = default) => defaultValue;
         }
+
+#if !NET_Traditional
+        /// <summary> 配置文件变更事件。 </summary>
+        public static event Action<object> OnConfigChanged { add { _configHelper.OnConfigChanged += value; } remove { _configHelper.OnConfigChanged -= value; } }
+#endif
 
         /// <summary>
         /// 配置读取。
@@ -51,6 +64,7 @@ namespace Inkslab.Config
         /// <returns></returns>
         public static T Get<T>(string key, T defaultValue = default) => _configHelper.Get(key, defaultValue);
 
+#if !NET_Traditional
         /// <summary>
         /// 获取配置。
         /// </summary>
@@ -59,5 +73,6 @@ namespace Inkslab.Config
         /// <param name="defaultValue">默认值。</param>
         /// <returns></returns>
         public static IOptions<T> Options<T>(string key, T defaultValue = default) where T : class => new DefaultOptions<T>(_configHelper, key, defaultValue);
+#endif
     }
 }
