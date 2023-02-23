@@ -263,7 +263,11 @@ namespace Inkslab.Net
 
                 httpMsg.EnsureSuccessStatusCode();
 
+#if NET6_0_OR_GREATER
+                return await httpMsg.Content.ReadAsStreamAsync(cancellationToken);
+#else
                 return await httpMsg.Content.ReadAsStreamAsync();
+#endif
             }
 
             public override async Task<string> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
@@ -274,7 +278,11 @@ namespace Inkslab.Net
 
                 httpMsg.EnsureSuccessStatusCode();
 
+#if NET6_0_OR_GREATER
+                return await httpMsg.Content.ReadAsStringAsync(cancellationToken);
+#else
                 return await httpMsg.Content.ReadAsStringAsync();
+#endif
             }
 
             public abstract RequestOptions GetOptions(HttpMethod method, double timeout);
@@ -299,7 +307,7 @@ namespace Inkslab.Net
 
                 this.factory = factory;
 
-                hasQueryString = requestUri.IndexOf('?') >= 0;
+                hasQueryString = requestUri.Contains('?');
 
                 sb = new StringBuilder(requestUri);
             }
@@ -631,7 +639,7 @@ namespace Inkslab.Net
                 }
             }
 
-            private void AppendToForm(MultipartFormDataContent content, string name, FileInfo fileInfo)
+            private static void AppendToForm(MultipartFormDataContent content, string name, FileInfo fileInfo)
             {
                 if (fileInfo is null)
                 {
@@ -698,7 +706,7 @@ namespace Inkslab.Net
                         break;
                     case FileInfo fileInfo:
 
-                        AppendToForm(content, name, fileInfo);
+                        Requestable.AppendToForm(content, name, fileInfo);
 
                         break;
                     case byte[] buffer:
@@ -713,7 +721,7 @@ namespace Inkslab.Net
 
                         foreach (var fileInfo in enumerable)
                         {
-                            AppendToForm(content, name, fileInfo);
+                            Requestable.AppendToForm(content, name, fileInfo);
                         }
 
                         break;
@@ -900,7 +908,7 @@ namespace Inkslab.Net
 
                     if (querySb.Length > 0)
                     {
-                        querySb.Append("&");
+                        querySb.Append('&');
                     }
 
                     querySb.Append(param, startIndex, length - startIndex);
