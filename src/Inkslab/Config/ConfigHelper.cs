@@ -1,4 +1,6 @@
-﻿using Inkslab.Config.Options;
+﻿#if !NET_Traditional
+using Inkslab.Config.Options;
+#endif
 using System;
 
 namespace Inkslab.Config
