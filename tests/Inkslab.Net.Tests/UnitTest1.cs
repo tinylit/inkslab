@@ -81,5 +81,33 @@ namespace Inkslab.Net.Tests
                })
                .DownloadAsync(360000D);
         }
+
+        /// <summary>
+        /// 测试 HttpContent 重试释放问题和认证问题。
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task Post()
+        {
+            //var requestable = requestFactory.CreateRequestable("http://localhost:5000/api/di-test");
+
+            //var value = await requestable
+            //    .AssignHeader("Authorization", "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ4NjdGNzEwMEM1OENDRDFBNUUzMzVFNEEzN0RGNTUwIiwidHlwIjoiSldUIn0.eyJuYmYiOjE2NzgwNjU2MjAsImV4cCI6MTY3ODQyNTYyMCwiaXNzIjoiaHR0cHM6Ly93d3cuaHlzemJiLmNvbSIsImF1ZCI6WyJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIiwiempzLm9zcy5hcGkiXSwiY2xpZW50X2lkIjoiSHlzTWFsbCIsInN1YiI6IjUwMjIzZjIzLTdlNzMtNDE1Yy04YzExLTlhOGJjMTcwNzQxZiIsImF1dGhfdGltZSI6MTY3ODA2NTYyMCwiaWRwIjoibG9jYWwiLCJuYW1lIjoicm9vdCIsIm5pY2tuYW1lIjoiIiwicm9sZSI6IkFkbWluaXN0cmF0b3IiLCJ0aW1lc3RhbXAiOiI2MzgxMzY5MTIyMDA1NTYxNjciLCJqdGkiOiJCQjIzNDQ4RTEyN0MwNzFFOEM0ODVDNjZFMTE4NTE2QiIsImlhdCI6MTY3ODA2NTYyMCwic2NvcGUiOiJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIG9wZW5pZCBwcm9maWxlIHpqcy5vc3MuYXBpIG9mZmxpbmVfYWNjZXNzIiwiYW1yIjpbImN1c3RvbSJdfQ.JqiZIDL-BLJXgHrhSRvwR8wmcE78zz--KqCJO4VgT7DTJTuOrphL1s8vEIFsmyXtKQkp7TsJXWfiORbE3D8Iinz-EoDLcqJefSvsmmRFJq75fRwN3C1nUdBF0aY-uTp7iIJ4ofMICGKS6vaDsWsKn5HlzowdOG5-6F8Dh1H4Ff1Nq01i2Ya_8mfJgO2cAcoTrGIeYF__PT9jgfBD9cBxUOiEuUabrMR0d7A7xu-GjzO2DQDihZ5pknUJL6O-7VlBW2XfWJfN1Lk2yCWYomZLRbzV6O9_L5jZwggENNdeNTx38lYltDGdaPwKstfLDe8oc3hrhcYIxeUoiYC8JAVoOA")
+            //    .Json(new { Id = 100, Name = "测试" })
+            //    .When(status => status == System.Net.HttpStatusCode.Unauthorized)
+            //    .ThenAsync(r =>
+            //    {
+            //        return Task.CompletedTask;
+            //    })
+            //    .When(status => status == System.Net.HttpStatusCode.Unauthorized)
+            //    .ThenAsync(r =>
+            //    {
+            //        return Task.CompletedTask;
+            //    })
+            //    .JsonCast(new { Id = 0, Name = string.Empty })
+            //    .PostAsync();
+
+            await Task.Delay(1000);
+        }
     }
 }

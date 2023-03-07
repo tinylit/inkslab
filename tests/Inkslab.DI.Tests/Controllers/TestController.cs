@@ -1,5 +1,7 @@
 ﻿using Inkslab.DI.Tests.DependencyInjections;
+using Inkslab.DI.Tests.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Inkslab.DI.Tests.Controllers
 {
@@ -13,15 +15,17 @@ namespace Inkslab.DI.Tests.Controllers
         private readonly TestControllerCtor controllerCtor;
         private readonly SingletonTest singletonTest;
         private readonly ITestImplementElectionsByOne implementElectionsByOne;
+        private readonly ILogger<TestController> logger;
 
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne)
+        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger)
         {
             this.controllerCtor = controllerCtor;
             this.singletonTest = singletonTest;
             this.implementElectionsByOne = implementElectionsByOne;
+            this.logger = logger;
         }
 
         /// <summary>
@@ -58,5 +62,13 @@ namespace Inkslab.DI.Tests.Controllers
         /// <returns></returns>
         [HttpGet("generic")]
         public bool GenericTest([FromServices] ITestGeneric<int> testGeneric) => testGeneric.CreateNew() == 0;
+
+        [HttpPost]
+        public IActionResult Post([FromBody] TestModel model)
+        {
+            logger.LogInformation(Request.Headers["Authorization"]);
+
+            return Ok(model);
+        }
     }
 }
