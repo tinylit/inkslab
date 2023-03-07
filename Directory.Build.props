@@ -117,6 +117,7 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Net' ">
 			<PropertyGroup>
+				<Version>1.0.2.6</Version>
 				<Description>A network communications assistant.</Description>
 			</PropertyGroup>
 			
