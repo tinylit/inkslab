@@ -4,6 +4,7 @@ using Inkslab.Serialize.Json;
 using Inkslab.Serialize.Xml;
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -17,7 +18,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using System.Xml;
-using System.Collections.Concurrent;
 
 namespace Inkslab.Net
 {
@@ -42,7 +42,7 @@ namespace Inkslab.Net
 
         private static readonly LRU<double, HttpClient> clients = new LRU<double, HttpClient>(100, timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
 
-        private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> lru = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
+        private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> cachings = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
 
         private static readonly Dictionary<string, MediaTypeHeaderValue> mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
         {
@@ -244,17 +244,6 @@ namespace Inkslab.Net
 
         private abstract class RequestableString : Requestable<string>, IStreamRequestable
         {
-            private readonly RequestFactory factory;
-
-            public RequestableString()
-            {
-            }
-
-            public RequestableString(RequestFactory factory)
-            {
-                this.factory = factory;
-            }
-
             public async Task<Stream> DownloadAsync(double timeout = 10000D, CancellationToken cancellationToken = default)
             {
                 var options = GetOptions(HttpMethod.Get, timeout);
@@ -287,36 +276,258 @@ namespace Inkslab.Net
 
             public abstract RequestOptions GetOptions(HttpMethod method, double timeout);
 
-            public virtual Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => factory.SendAsync(options, cancellationToken);
+            public abstract Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default);
+        }
+        private interface IToContent
+        {
+            HttpContent Content { get; }
         }
 
-        private class Requestable : RequestableString, IRequestable, IRequestableBase
+        private abstract class RequestableEncoding : RequestableString, IRequestableEncoding
         {
-            private bool hasQueryString = false;
-            private Encoding encoding = Encoding.UTF8;
-            private readonly StringBuilder sb = new StringBuilder();
-            private readonly Dictionary<string, string> headers = new Dictionary<string, string>();
-            private readonly RequestFactory factory;
+            private readonly Encoding encoding;
 
-            public Requestable(RequestFactory factory, string requestUri) : base(factory)
+            private class ToContentByBody : IToContent
             {
-                if (requestUri is null)
+                private readonly Encoding encoding;
+                private readonly string body;
+                private readonly string contentType;
+
+                public ToContentByBody(Encoding encoding, string body, string contentType)
                 {
-                    throw new ArgumentNullException(nameof(requestUri));
+                    this.encoding = encoding;
+                    this.body = body;
+                    this.contentType = contentType;
                 }
 
-                this.factory = factory;
+                public HttpContent Content => new StringContent(body, encoding, contentType);
+            }
+
+            private class ToContentByForm<TBody> : IToContent where TBody : IEnumerable<KeyValuePair<string, object>>
+            {
+                private readonly Encoding encoding;
+                private readonly TBody body;
+                private readonly string dateFormatString;
+
+                public ToContentByForm(Encoding encoding, TBody body, string dateFormatString)
+                {
+                    this.encoding = encoding;
+                    this.body = body;
+                    this.dateFormatString = dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
+                }
+
+                private static void AppendToForm(MultipartFormDataContent content, string name, FileInfo fileInfo)
+                {
+                    if (fileInfo is null)
+                    {
+                        throw new ArgumentNullException(nameof(fileInfo));
+                    }
+
+                    byte[] byteArray;
+                    long contentLength;
+
+                    using (var fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
+                    {
+                        contentLength = fileStream.Length;
+
+                        if (contentLength > int.MaxValue)
+                        {
+                            using (var ms = new MemoryStream())
+                            {
+                                fileStream.CopyTo(ms);
+
+                                byteArray = ms.ToArray();
+                            }
+                        }
+                        else
+                        {
+                            byteArray = new byte[contentLength];
+
+                            fileStream.Read(byteArray, 0, (int)contentLength);
+                        }
+                    }
+
+                    var byteContent = new ByteArrayContent(byteArray);
+
+                    var extension = Path.GetExtension(fileInfo.Name);
+
+                    if (extension.IsEmpty())
+                    {
+                        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                    }
+                    else if (mediaTypes.TryGetValue(extension.ToLower(), out MediaTypeHeaderValue mediaType))
+                    {
+                        byteContent.Headers.ContentType = mediaType;
+                    }
+
+                    byteContent.Headers.ContentLength = contentLength;
+
+                    content.Add(byteContent, name, fileInfo.Name);
+                }
+
+                private static void AppendToForm(MultipartFormDataContent content, Encoding encoding, string name, object value, string dateFormatString, bool throwErrorsIfEnumerable)
+                {
+                    switch (value)
+                    {
+                        case string text:
+
+                            content.Add(new StringContent(text, encoding), name);
+                            break;
+                        case DateTime date:
+
+                            content.Add(new StringContent(date.ToString(dateFormatString), encoding), name);
+                            break;
+                        case Stream stream:
+
+                            content.Add(new StreamContent(stream), name);
+                            break;
+                        case FileInfo fileInfo:
+
+                            AppendToForm(content, name, fileInfo);
+
+                            break;
+                        case byte[] buffer:
+
+                            content.Add(new StringContent(System.Convert.ToBase64String(buffer), encoding), name);
+                            break;
+                        case IEnumerable<FileInfo> enumerable:
+                            if (throwErrorsIfEnumerable)
+                            {
+                                throw new InvalidOperationException("不支持多维数组的参数传递!");
+                            }
+
+                            foreach (var fileInfo in enumerable)
+                            {
+                                AppendToForm(content, name, fileInfo);
+                            }
+
+                            break;
+                        default:
+                            if (value is null)
+                            {
+                                break;
+                            }
+
+                            content.Add(new StringContent(value.ToString(), encoding), name);
+
+                            break;
+                    }
+                }
+
+                public HttpContent Content
+                {
+                    get
+                    {
+                        if (body.Any(x => x.Value is FileInfo || x.Value is IEnumerable<FileInfo>))
+                        {
+                            var content = new MultipartFormDataContent(string.Concat("--", DateTime.Now.Ticks.ToString("x")));
+
+                            foreach (var kv in body)
+                            {
+                                AppendToForm(content, encoding, kv.Key, kv.Value, dateFormatString, false);
+                            }
+
+                            return content;
+                        }
+                        else
+                        {
+                            var content = new FormUrlEncodedContent(body.Select(x =>
+                            {
+                                return x.Value switch
+                                {
+                                    string text => new KeyValuePair<string, string>(x.Key, text),
+                                    DateTime date => new KeyValuePair<string, string>(x.Key, date.ToString(dateFormatString)),
+                                    byte[] buffer => new KeyValuePair<string, string>(x.Key, System.Convert.ToBase64String(buffer)),
+                                    _ => new KeyValuePair<string, string>(x.Key, x.Value?.ToString())
+                                };
+                            }));
+
+                            return content;
+                        }
+                    }
+                }
+            }
+
+            public RequestableEncoding(Encoding encoding)
+            {
+                this.encoding = encoding;
+            }
+
+            public IRequestableContent Body(string body, string contentType) => new RequestableContent(this, encoding, new ToContentByBody(encoding, body, contentType));
+
+            public IRequestableContent Form<TBody>(TBody body) where TBody : IEnumerable<KeyValuePair<string, object>> => Form(body, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
+
+            public IRequestableContent Form<TBody>(TBody body, string dateFormatString) where TBody : IEnumerable<KeyValuePair<string, object>> => new RequestableContent(this, encoding, new ToContentByForm<TBody>(encoding, body, dateFormatString));
+
+            public IRequestableContent Form<TBody>(TBody body, NamingType namingType = NamingType.Normal, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TBody : class
+            {
+                if (body is null)
+                {
+                    return this;
+                }
+
+                dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
+
+                var results = cachings.GetOrAdd(typeof(TBody), MakeTypeResults)
+                     .Invoke(body, dateFormatString);
+
+                if (namingType == NamingType.Normal)
+                {
+                    return Form(results, dateFormatString);
+                }
+
+                return Form(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
+            }
+
+            public IRequestableContent Json(string json) => Body(json, "application/json");
+
+            public IRequestableContent Json<T>(T param, NamingType namingType = NamingType.Normal) where T : class => Json(JsonHelper.ToJson(param, namingType));
+
+            public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
+
+            public IJsonDeserializeRequestable<T> JsonCast<T>(T anonymousTypeObject, NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
+
+            public IRequestableContent Xml(string xml) => Body(xml, "application/xml");
+
+            public IRequestableContent Xml<T>(T param) where T : class => Xml(XmlHelper.XmlSerialize(param, encoding));
+
+            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, encoding);
+
+            public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => new XmlDeserializeRequestable<T>(this, encoding);
+
+            public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
+            {
+                if (whenStatus is null)
+                {
+                    throw new ArgumentNullException(nameof(whenStatus));
+                }
+
+                return new WhenRequestable(this, encoding, whenStatus);
+            }
+        }
+
+        private class QueryString<TRequestable> where TRequestable : IRequestableBase
+        {
+            private bool hasQueryString = false;
+            private readonly StringBuilder sb;
+            private readonly TRequestable requestable;
+
+            public QueryString(TRequestable requestable, string requestUri)
+            {
+                this.requestable = requestable;
 
                 hasQueryString = requestUri.Contains('?');
 
                 sb = new StringBuilder(requestUri);
             }
 
-            public IRequestable AppendQueryString(string param)
+            public int Length => sb.Length;
+
+            public TRequestable AppendQueryString(string param)
             {
                 if (param is null)
                 {
-                    return this;
+                    return requestable;
                 }
 
                 int startIndex = 0;
@@ -336,7 +547,7 @@ namespace Inkslab.Net
 
                 if (startIndex >= length)
                 {
-                    return this;
+                    return requestable;
                 }
 
                 sb.Append(hasQueryString ? '&' : '?')
@@ -344,10 +555,10 @@ namespace Inkslab.Net
 
                 hasQueryString = true;
 
-                return this;
+                return requestable;
             }
 
-            public IRequestable AppendQueryString(string name, string value)
+            public TRequestable AppendQueryString(string name, string value)
             {
                 if (string.IsNullOrEmpty(name))
                 {
@@ -356,19 +567,19 @@ namespace Inkslab.Net
 
                 if (value.IsEmpty())
                 {
-                    return this;
+                    return requestable;
                 }
 
                 return AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
             }
 
-            public IRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK"));
+            public TRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK"));
 
-            public IRequestable AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
+            public TRequestable AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
             {
                 AppendTo(name, value, dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK", false);
 
-                return this;
+                return requestable;
             }
 
             private void AppendTo(string name, object value, string dateFormatString, bool throwErrorsIfEnumerable)
@@ -407,13 +618,13 @@ namespace Inkslab.Net
                 }
             }
 
-            public IRequestable AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => AppendQueryString(param, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
+            public TRequestable AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => AppendQueryString(param, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
 
-            public IRequestable AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>>
+            public TRequestable AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>>
             {
                 if (param is null)
                 {
-                    return this;
+                    return requestable;
                 }
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
@@ -423,28 +634,73 @@ namespace Inkslab.Net
                     AppendTo(kv.Key, kv.Value, dateFormatString, false);
                 }
 
-                return this;
+                return requestable;
             }
 
-            public IRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
+            public TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
             {
                 if (param is null)
                 {
-                    return this;
+                    return requestable;
                 }
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                var results = lru.GetOrAdd(typeof(TParam), MakeTypeResults)
+                var results = cachings.GetOrAdd(typeof(TParam), MakeTypeResults)
                      .Invoke(param, dateFormatString);
 
                 if (namingType == NamingType.Normal)
                 {
                     return AppendQueryString(results, dateFormatString);
                 }
-
-                return AppendQueryString(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
+                else
+                {
+                    return AppendQueryString(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
+                }
             }
+
+            public override string ToString()
+            {
+                return sb.ToString();
+            }
+        }
+
+        private class Requestable : RequestableEncoding, IRequestable, IRequestableBase
+        {
+            private readonly RequestFactory factory;
+            private readonly Dictionary<string, string> headers;
+            private readonly QueryString<Requestable> queryString;
+            private static readonly Encoding encodingDefault = Encoding.UTF8;
+
+            public Requestable(RequestFactory factory, string requestUri) : base(encodingDefault)
+            {
+                this.factory = factory;
+
+                headers = new Dictionary<string, string>();
+                queryString = new QueryString<Requestable>(this, requestUri);
+            }
+
+            private Requestable(RequestFactory factory, Encoding encoding, QueryString<Requestable> queryString, Dictionary<string, string> headers) : base(encoding)
+            {
+                this.factory = factory;
+                this.headers = headers;
+
+                this.queryString = queryString;
+            }
+
+            public IRequestable AppendQueryString(string param) => queryString.AppendQueryString(param);
+
+            public IRequestable AppendQueryString(string name, string value) => queryString.AppendQueryString(name, value);
+
+            public IRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
+
+            public IRequestable AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
+
+            public IRequestable AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param);
+
+            public IRequestable AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param, dateFormatString);
+
+            public IRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
 
             public IRequestable AssignHeader(string header, string value)
             {
@@ -454,6 +710,7 @@ namespace Inkslab.Net
                 }
 
                 headers[header] = value;
+
                 return this;
             }
 
@@ -472,7 +729,7 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(sb.ToString(), headers)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(queryString.ToString(), headers)
             {
                 Method = method,
                 Timeout = timeout,
@@ -480,50 +737,13 @@ namespace Inkslab.Net
 
             public IRequestableEncoding UseEncoding(Encoding encoding)
             {
-                if (encoding is null)
+                if (encoding is null || encodingDefault == encoding)
                 {
                     return this;
                 }
 
-                this.encoding = encoding;
-
-                return this;
+                return new Requestable(factory, encoding, queryString, headers);
             }
-
-            public IRequestableContent Body(string body, string contentType)
-            {
-                if (body is null)
-                {
-                    throw new ArgumentNullException(nameof(body));
-                }
-
-                AssignHeader("Content-Type", contentType);
-
-                var content = new StringContent(body, encoding, contentType);
-
-                var options = new RequestOptions(sb.ToString(), headers)
-                {
-                    Content = content
-                };
-
-                return new RequestableContent(factory, encoding, options);
-            }
-
-            public IRequestableContent Xml(string xml) => Body(xml, "application/xml");
-
-            public IRequestableContent Xml<T>(T param) where T : class => Xml(XmlHelper.XmlSerialize(param, encoding));
-
-            public IRequestableContent Json(string json) => Body(json, "application/json");
-
-            public IRequestableContent Json<T>(T param, NamingType namingType = NamingType.Normal) where T : class => Json(JsonHelper.ToJson(param, namingType));
-
-            public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
-
-            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, encoding);
-
-            public IJsonDeserializeRequestable<T> JsonCast<T>(T anonymousTypeObject, NamingType namingType = NamingType.Normal) where T : class => JsonCast<T>(namingType);
-
-            public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => XmlCast<T>();
 
             IRequestableBase IRequestableBase<IRequestableBase>.AssignHeader(string header, string value)
             {
@@ -544,7 +764,6 @@ namespace Inkslab.Net
                 AppendQueryString(param);
 
                 return this;
-
             }
 
             IRequestableBase IRequestableBase<IRequestableBase>.AppendQueryString(string name, string value)
@@ -590,182 +809,7 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public IRequestableContent Form<TBody>(TBody body) where TBody : IEnumerable<KeyValuePair<string, object>> => Form(body, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
-
-            public IRequestableContent Form<TBody>(TBody body, string dateFormatString) where TBody : IEnumerable<KeyValuePair<string, object>>
-            {
-                if (body is null)
-                {
-                    return this;
-                }
-
-                dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
-
-                if (body.Any(x => x.Value is FileInfo || x.Value is IEnumerable<FileInfo>))
-                {
-                    var content = new MultipartFormDataContent(string.Concat("--", DateTime.Now.Ticks.ToString("x")));
-
-                    foreach (var kv in body)
-                    {
-                        AppendToForm(content, kv.Key, kv.Value, dateFormatString, false);
-                    }
-
-                    AssignHeader("Content-Type", "multipart/form-data");
-
-                    return new RequestableContent(factory, encoding, new RequestOptions(sb.ToString(), headers)
-                    {
-                        Content = content
-                    });
-                }
-                else
-                {
-                    var content = new FormUrlEncodedContent(body.Select(x =>
-                    {
-                        return x.Value switch
-                        {
-                            string text => new KeyValuePair<string, string>(x.Key, text),
-                            DateTime date => new KeyValuePair<string, string>(x.Key, date.ToString(dateFormatString)),
-                            byte[] buffer => new KeyValuePair<string, string>(x.Key, System.Convert.ToBase64String(buffer)),
-                            _ => new KeyValuePair<string, string>(x.Key, x.Value?.ToString())
-                        };
-                    }));
-
-                    AssignHeader("Content-Type", "x-www-form-urlencoded");
-
-                    return new RequestableContent(factory, encoding, new RequestOptions(sb.ToString(), headers)
-                    {
-                        Content = content
-                    });
-                }
-            }
-
-            private static void AppendToForm(MultipartFormDataContent content, string name, FileInfo fileInfo)
-            {
-                if (fileInfo is null)
-                {
-                    throw new ArgumentNullException(nameof(fileInfo));
-                }
-
-                byte[] byteArray;
-                long contentLength;
-
-                using (var fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
-                {
-                    contentLength = fileStream.Length;
-
-                    if (contentLength > int.MaxValue)
-                    {
-                        using (var ms = new MemoryStream())
-                        {
-                            fileStream.CopyTo(ms);
-
-                            byteArray = ms.ToArray();
-                        }
-                    }
-                    else
-                    {
-                        byteArray = new byte[contentLength];
-
-                        fileStream.Read(byteArray, 0, (int)contentLength);
-                    }
-                }
-
-                var byteContent = new ByteArrayContent(byteArray);
-
-                var extension = Path.GetExtension(fileInfo.Name);
-
-                if (extension.IsEmpty())
-                {
-                    byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                }
-                else if (mediaTypes.TryGetValue(extension.ToLower(), out MediaTypeHeaderValue mediaType))
-                {
-                    byteContent.Headers.ContentType = mediaType;
-                }
-
-                byteContent.Headers.ContentLength = contentLength;
-
-                content.Add(byteContent, name, fileInfo.Name);
-            }
-
-            private void AppendToForm(MultipartFormDataContent content, string name, object value, string dateFormatString, bool throwErrorsIfEnumerable)
-            {
-                switch (value)
-                {
-                    case string text:
-
-                        content.Add(new StringContent(text, encoding), name);
-                        break;
-                    case DateTime date:
-
-                        content.Add(new StringContent(date.ToString(dateFormatString), encoding), name);
-                        break;
-                    case Stream stream:
-
-                        content.Add(new StreamContent(stream), name);
-                        break;
-                    case FileInfo fileInfo:
-
-                        Requestable.AppendToForm(content, name, fileInfo);
-
-                        break;
-                    case byte[] buffer:
-
-                        content.Add(new StringContent(System.Convert.ToBase64String(buffer), encoding), name);
-                        break;
-                    case IEnumerable<FileInfo> enumerable:
-                        if (throwErrorsIfEnumerable)
-                        {
-                            throw new InvalidOperationException("不支持多维数组的参数传递!");
-                        }
-
-                        foreach (var fileInfo in enumerable)
-                        {
-                            Requestable.AppendToForm(content, name, fileInfo);
-                        }
-
-                        break;
-                    default:
-                        if (value is null)
-                        {
-                            break;
-                        }
-
-                        content.Add(new StringContent(value.ToString(), encoding), name);
-
-                        break;
-                }
-            }
-
-            public IRequestableContent Form<TBody>(TBody body, NamingType namingType = NamingType.Normal, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TBody : class
-            {
-                if (body is null)
-                {
-                    return this;
-                }
-
-                dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
-
-                var results = lru.GetOrAdd(typeof(TBody), MakeTypeResults)
-                     .Invoke(body, dateFormatString);
-
-                if (namingType == NamingType.Normal)
-                {
-                    return AppendQueryString(results, dateFormatString);
-                }
-
-                return Form(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
-            }
-
-            public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
-            {
-                if (whenStatus is null)
-                {
-                    throw new ArgumentNullException(nameof(whenStatus));
-                }
-
-                return new WhenRequestable(this, encoding, whenStatus);
-            }
+            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => factory.SendAsync(options, cancellationToken);
         }
 
         private class ThenCondition
@@ -808,40 +852,19 @@ namespace Inkslab.Net
             }
         }
 
-        private class ThenRequestable : RequestableString, IThenRequestable
+        private class ThenRequestable : RequestableEncoding, IThenRequestable
         {
             private volatile bool initializedStatusCode = false;
             private readonly RequestableString requestable;
-            private readonly Encoding encoding;
             private readonly Predicate<HttpStatusCode> whenStatus;
             private readonly Func<IRequestableBase, Task> thenAsync;
 
-            public ThenRequestable(RequestableString requestable, Encoding encoding, Predicate<HttpStatusCode> whenStatus, Func<IRequestableBase, Task> thenAsync)
+            public ThenRequestable(RequestableString requestable, Encoding encoding, Predicate<HttpStatusCode> whenStatus, Func<IRequestableBase, Task> thenAsync) : base(encoding)
             {
                 this.requestable = requestable;
-                this.encoding = encoding;
                 this.whenStatus = whenStatus;
                 this.thenAsync = thenAsync;
             }
-
-            public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
-
-            public IJsonDeserializeRequestable<T> JsonCast<T>(T anonymousTypeObject, NamingType namingType = NamingType.Normal) where T : class => JsonCast<T>(namingType);
-
-            public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
-            {
-                if (whenStatus is null)
-                {
-                    throw new ArgumentNullException(nameof(whenStatus));
-                }
-
-                return new WhenRequestable(this, encoding, whenStatus);
-            }
-
-            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, encoding);
-
-            public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => XmlCast<T>();
-
             public override RequestOptions GetOptions(HttpMethod method, double timeout) => requestable.GetOptions(method, timeout);
 
             public override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
@@ -857,13 +880,11 @@ namespace Inkslab.Net
                 {
                     initializedStatusCode = true;
 
-                    var requestableBase = new RequestableBase(options);
+                    var requestableRef = new RequestableBase(requestable);
 
-                    await thenAsync(requestableBase);
+                    await thenAsync(requestableRef);
 
-                    requestableBase.OptionsRef();
-
-                    httpMsg = await requestable.SendAsync(options, cancellationToken);
+                    return await requestableRef.SendAsync(options.Method, options.Timeout, cancellationToken);
                 }
 
                 return httpMsg;
@@ -871,149 +892,30 @@ namespace Inkslab.Net
 
             private class RequestableBase : IRequestableBase
             {
-                private readonly StringBuilder querySb = new StringBuilder();
-                private readonly RequestOptions options;
+                private readonly RequestableString requestable;
+                private readonly QueryString<RequestableBase> queryString;
+                private readonly Dictionary<string, string> headers = new Dictionary<string, string>();
 
-                public RequestableBase(RequestOptions options)
+                public RequestableBase(RequestableString requestable)
                 {
-                    this.options = options;
+                    this.requestable = requestable;
+
+                    queryString = new QueryString<RequestableBase>(this, string.Empty);
                 }
 
-                public IRequestableBase AppendQueryString(string param)
-                {
-                    if (param is null)
-                    {
-                        return this;
-                    }
+                public IRequestableBase AppendQueryString(string param) => queryString.AppendQueryString(param);
 
-                    int startIndex = 0;
-                    int length = param.Length;
+                public IRequestableBase AppendQueryString(string name, string value) => queryString.AppendQueryString(name, value);
 
-                    for (; startIndex < length; startIndex++)
-                    {
-                        var c = param[startIndex];
+                public IRequestableBase AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
 
-                        if (c == ' ' || c == '?' || c == '&')
-                        {
-                            continue;
-                        }
+                public IRequestableBase AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
 
-                        break;
-                    }
+                public IRequestableBase AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param);
 
-                    if (startIndex >= length)
-                    {
-                        return this;
-                    }
+                public IRequestableBase AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param, dateFormatString);
 
-                    if (querySb.Length > 0)
-                    {
-                        querySb.Append('&');
-                    }
-
-                    querySb.Append(param, startIndex, length - startIndex);
-
-                    return this;
-                }
-
-                public IRequestableBase AppendQueryString(string name, string value)
-                {
-                    if (string.IsNullOrEmpty(name))
-                    {
-                        throw new ArgumentException($"“{nameof(name)}”不能为 null 或空。", nameof(name));
-                    }
-
-                    if (value.IsEmpty())
-                    {
-                        return AppendQueryString(string.Concat(name, "="));
-                    }
-
-                    return AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
-                }
-
-                public IRequestableBase AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK"));
-
-                public IRequestableBase AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
-                {
-                    AppendTo(name, value, dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK", false);
-
-                    return this;
-                }
-
-                private void AppendTo(string name, object value, string dateFormatString, bool throwErrorsIfEnumerable)
-                {
-                    switch (value)
-                    {
-                        case string text:
-                            AppendQueryString(name, text);
-
-                            break;
-                        case DateTime date:
-                            AppendQueryString(name, date, dateFormatString);
-
-                            break;
-                        case IEnumerable enumerable:
-                            if (throwErrorsIfEnumerable)
-                            {
-                                throw new InvalidOperationException("不支持多维数组的参数传递!");
-                            }
-
-                            foreach (var data in enumerable)
-                            {
-                                AppendTo(name, data, dateFormatString, true);
-                            }
-
-                            break;
-                        default:
-                            if (value is null)
-                            {
-                                break;
-                            }
-
-                            AppendQueryString(name, value.ToString());
-
-                            break;
-                    }
-                }
-
-                public IRequestableBase AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => AppendQueryString(param, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
-
-                public IRequestableBase AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>>
-                {
-                    if (param is null)
-                    {
-                        return this;
-                    }
-
-                    dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
-
-                    foreach (var kv in param)
-                    {
-                        AppendTo(kv.Key, kv.Value, dateFormatString, false);
-                    }
-
-                    return this;
-                }
-
-                public IRequestableBase AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
-                {
-                    if (param is null)
-                    {
-                        return this;
-                    }
-
-                    dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
-
-                    var results = lru.GetOrAdd(typeof(TParam), MakeTypeResults)
-                         .Invoke(param, dateFormatString);
-
-                    if (namingType == NamingType.Normal)
-                    {
-                        return AppendQueryString(results, dateFormatString);
-                    }
-
-                    return AppendQueryString(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
-                }
+                public IRequestableBase AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
 
                 public IRequestableBase AssignHeader(string header, string value)
                 {
@@ -1022,7 +924,7 @@ namespace Inkslab.Net
                         throw new ArgumentNullException(nameof(header));
                     }
 
-                    options.Headers[header] = value;
+                    headers[header] = value;
 
                     return this;
                 }
@@ -1042,66 +944,81 @@ namespace Inkslab.Net
                     return this;
                 }
 
-                public void OptionsRef()
+                private string RequestUriRef(string requestUri)
                 {
-                    if (querySb.Length == 0)
+                    if (queryString.Length == 0)
                     {
-                        return;
+                        return requestUri;
                     }
-
-                    var requestUri = options.RequestUri;
 
                     int indexOf = requestUri.IndexOf('?');
 
-                    var queryStrings = querySb.ToString();
+                    var queryStrings = queryString.ToString();
 
                     if (indexOf == -1)
                     {
-                        options.RequestUri = string.Concat(requestUri, "?", queryStrings);
+                        return string.Concat(requestUri, "?", queryStrings);
                     }
-                    else
+
+                    var sb = new StringBuilder(requestUri.Length + queryStrings.Length);
+
+                    sb.Append(requestUri, 0, indexOf + 1)
+                        .Append(queryStrings);
+
+                    var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var param in queryStrings
+                        .Split('&'))
                     {
-                        var sb = new StringBuilder(requestUri.Length + queryStrings.Length);
-
-                        sb.Append(requestUri, 0, indexOf + 1)
-                            .Append(queryStrings);
-
-                        var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                        foreach (var param in queryStrings
-                            .Split('&'))
-                        {
-                            keys.Add(param.Split('=')[0]);
-                        }
-
-                        foreach (var param in requestUri
-                            .Substring(indexOf + 1)
-                            .Split('&'))
-                        {
-                            if (keys.Contains(param.Split('=')[0]))
-                            {
-                                continue;
-                            }
-
-                            sb.Append('&')
-                                .Append(param);
-                        }
-
-                        options.RequestUri = sb.ToString();
+                        keys.Add(param.Split('=')[0]);
                     }
+
+                    foreach (var param in requestUri
+                        .Substring(indexOf + 1)
+                        .Split('&'))
+                    {
+                        if (keys.Contains(param.Split('=')[0]))
+                        {
+                            continue;
+                        }
+
+                        sb.Append('&')
+                            .Append(param);
+                    }
+
+                    return sb.ToString();
+                }
+
+                public Task<HttpResponseMessage> SendAsync(HttpMethod method, double timeout, CancellationToken cancellationToken = default)
+                {
+                    var options = requestable.GetOptions(method, timeout);
+
+                    options.RequestUri = RequestUriRef(options.RequestUri);
+
+                    if (headers.Count > 0)
+                    {
+                        foreach (var header in headers)
+                        {
+                            options.Headers[header.Key] = header.Value;
+                        }
+                    }
+
+                    return requestable.SendAsync(options, cancellationToken);
                 }
             }
         }
 
         private class RequestableContent : RequestableString, IRequestableContent
         {
+            private readonly RequestableString requestable;
             private readonly Encoding encoding;
-            private readonly RequestOptions options;
+            private readonly IToContent content;
 
-            public RequestableContent(RequestFactory factory, Encoding encoding, RequestOptions options) : base(factory)
+            public RequestableContent(RequestableString requestable, Encoding encoding, IToContent content)
             {
+                this.requestable = requestable;
                 this.encoding = encoding;
-                this.options = options;
+                this.content = content;
             }
 
             public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
@@ -1114,11 +1031,14 @@ namespace Inkslab.Net
 
             public override RequestOptions GetOptions(HttpMethod method, double timeout)
             {
-                options.Method = method;
-                options.Timeout = timeout;
+                var options = requestable.GetOptions(method, timeout);
+
+                options.Content = content.Content;
 
                 return options;
             }
+
+            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => requestable.SendAsync(options, cancellationToken);
 
             public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
             {
