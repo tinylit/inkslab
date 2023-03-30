@@ -37,7 +37,10 @@ namespace Inkslab.Map
                     continue;
                 }
 
-
+                if (assemblyType.IsAssignableFrom(papperInstanceType)) // 默认不添加全局配置。
+                {
+                    continue;
+                }
 
                 MapConfiguration.Instance.AddProfile(assemblyType);
             }
