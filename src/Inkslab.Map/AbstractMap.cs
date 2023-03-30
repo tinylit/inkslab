@@ -61,12 +61,7 @@ namespace Inkslab.Map
 
             var ctorWithOptionalArgs = destinationType
                 .GetConstructors(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
-                .FirstOrDefault(c => c.GetParameters().All(p => p.IsOptional));
-
-            if (ctorWithOptionalArgs is null)
-            {
-                throw new InvalidCastException($"目标【{destinationType}】必须包含一个无参构造函数或者只有可选参数的构造函数!");
-            }
+                .FirstOrDefault(c => c.GetParameters().All(p => p.IsOptional)) ?? throw new InvalidCastException($"目标【{destinationType}】必须包含一个无参构造函数或者只有可选参数的构造函数!");
 
             return New(ctorWithOptionalArgs, ctorWithOptionalArgs.GetParameters().Select(DefaultValue));
         }

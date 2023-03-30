@@ -54,7 +54,7 @@ namespace Inkslab.Net.Tests
                 return Task.CompletedTask;
             })
             .JsonCast<Dictionary<string, string>>()
-            .JsonCatch((s, e) =>
+            .JsonCatch(e =>
             {
                 return new Dictionary<string, string>();
             })
