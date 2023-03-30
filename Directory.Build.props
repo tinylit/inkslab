@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.0.2.5</Version>
+		<Version>1.0.2.7</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 		
@@ -117,7 +117,6 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Net' ">
 			<PropertyGroup>
-				<Version>1.0.2.6</Version>
 				<Description>A network communications assistant.</Description>
 			</PropertyGroup>
 			

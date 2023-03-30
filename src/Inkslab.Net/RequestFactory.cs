@@ -1198,9 +1198,8 @@ namespace Inkslab.Net
         }
 
 
-        private class JsonDeserializeRequestable<T> : Requestable<T>, IRequestableExtend<T>, IJsonDeserializeRequestable<T>
+        private class JsonDeserializeRequestable<T> : Requestable<T>, IJsonDeserializeRequestable<T>, IRequestableExtend<T>
         {
-            private Func<string, Exception, T> abnormalResultAnalysis;
             private readonly RequestableString requestable;
             private readonly NamingType namingType;
 
@@ -1220,16 +1219,31 @@ namespace Inkslab.Net
                 return new RequestableDataVerify<T>(this, predicate);
             }
 
-            public IRequestableExtend<T> JsonCatch(Func<string, Exception, T> abnormalResultAnalysis)
+            public IRequestableExtend<T> JsonCatch(Func<Exception, T> abnormalResultAnalysis)
             {
                 if (abnormalResultAnalysis is null)
                 {
                     throw new ArgumentNullException(nameof(abnormalResultAnalysis));
                 }
 
-                this.abnormalResultAnalysis = abnormalResultAnalysis;
+                return new JsonDeserializeRequestableCatch<T>(requestable, namingType, abnormalResultAnalysis);
+            }
 
-                return this;
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            {
+                var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
+
+                return JsonHelper.Json<T>(stringMsg, namingType);
+            }
+        }
+
+        private class JsonDeserializeRequestableCatch<T> : JsonDeserializeRequestable<T>, IRequestableExtend<T>
+        {
+            private readonly Func<Exception, T> abnormalResultAnalysis;
+
+            public JsonDeserializeRequestableCatch(RequestableString requestable, NamingType namingType, Func<Exception, T> abnormalResultAnalysis) : base(requestable, namingType)
+            {
+                this.abnormalResultAnalysis = abnormalResultAnalysis;
             }
 
             private static bool IsJsonError(Exception e)
@@ -1245,29 +1259,21 @@ namespace Inkslab.Net
                 return false;
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
-
-                if (abnormalResultAnalysis is null)
-                {
-                    return JsonHelper.Json<T>(stringMsg, namingType);
-                }
-
                 try
                 {
-                    return JsonHelper.Json<T>(stringMsg, namingType);
+                    return await base.SendAsync(method, timeout, cancellationToken);
                 }
                 catch (Exception ex) when (IsJsonError(ex))
                 {
-                    return abnormalResultAnalysis.Invoke(stringMsg, ex);
+                    return abnormalResultAnalysis.Invoke(ex);
                 }
             }
         }
 
-        private class XmlDeserializeRequestable<T> : Requestable<T>, IRequestableExtend<T>, IXmlDeserializeRequestable<T>
+        private class XmlDeserializeRequestable<T> : Requestable<T>, IXmlDeserializeRequestable<T>, IRequestableExtend<T>
         {
-            private Func<string, XmlException, T> abnormalResultAnalysis;
             private readonly RequestableString requestable;
             private readonly Encoding encoding;
 
@@ -1291,31 +1297,39 @@ namespace Inkslab.Net
             {
                 var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (abnormalResultAnalysis is null)
-                {
-                    return XmlHelper.XmlDeserialize<T>(stringMsg, encoding);
-                }
-
-                try
-                {
-                    return XmlHelper.XmlDeserialize<T>(stringMsg, encoding);
-                }
-                catch (XmlException ex)
-                {
-                    return abnormalResultAnalysis.Invoke(stringMsg, ex);
-                }
+                return XmlHelper.XmlDeserialize<T>(stringMsg, encoding);
             }
 
-            public IRequestableExtend<T> XmlCatch(Func<string, XmlException, T> abnormalResultAnalysis)
+            public IRequestableExtend<T> XmlCatch(Func<XmlException, T> abnormalResultAnalysis)
             {
                 if (abnormalResultAnalysis is null)
                 {
                     throw new ArgumentNullException(nameof(abnormalResultAnalysis));
                 }
 
-                this.abnormalResultAnalysis = abnormalResultAnalysis;
+                return new XmlDeserializeRequestableCatch<T>(requestable, encoding, abnormalResultAnalysis);
+            }
+        }
 
-                return this;
+        private class XmlDeserializeRequestableCatch<T> : XmlDeserializeRequestable<T>, IRequestableExtend<T>
+        {
+            private readonly Func<XmlException, T> abnormalResultAnalysis;
+
+            public XmlDeserializeRequestableCatch(RequestableString requestable, Encoding encoding, Func<XmlException, T> abnormalResultAnalysis) : base(requestable, encoding)
+            {
+                this.abnormalResultAnalysis = abnormalResultAnalysis;
+            }
+
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            {
+                try
+                {
+                    return await base.SendAsync(method, timeout, cancellationToken);
+                }
+                catch (XmlException ex)
+                {
+                    return abnormalResultAnalysis.Invoke(ex);
+                }
             }
         }
 

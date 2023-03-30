@@ -13,7 +13,7 @@ namespace Inkslab.Json
         public int Code => 300;
 
         /// <summary>
-        /// 权重。
+        /// 权重（1）。
         /// </summary>
         public int Weight => 1;
 

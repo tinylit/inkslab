@@ -52,7 +52,7 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="abnormalResultAnalysis">异常捕获,并返回异常情况下的结果。</param>
         /// <returns></returns>
-        IRequestableExtend<T> JsonCatch(Func<string, Exception, T> abnormalResultAnalysis);
+        IRequestableExtend<T> JsonCatch(Func<Exception, T> abnormalResultAnalysis);
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="abnormalResultAnalysis">异常捕获,并返回异常情况下的结果。</param>
         /// <returns></returns>
-        IRequestableExtend<T> XmlCatch(Func<string, XmlException, T> abnormalResultAnalysis);
+        IRequestableExtend<T> XmlCatch(Func<XmlException, T> abnormalResultAnalysis);
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="abnormalResultAnalysis">异常捕获,并返回异常情况下的结果。</param>
         /// <returns></returns>
-        IRequestableExtend<T> JsonCatch(Func<string, Exception, T> abnormalResultAnalysis);
+        IRequestableExtend<T> JsonCatch(Func<Exception, T> abnormalResultAnalysis);
     }
 
     /// <summary>
@@ -92,6 +92,6 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="abnormalResultAnalysis">异常捕获,并返回异常情况下的结果。</param>
         /// <returns></returns>
-        IRequestableExtend<T> XmlCatch(Func<string, XmlException, T> abnormalResultAnalysis);
+        IRequestableExtend<T> XmlCatch(Func<XmlException, T> abnormalResultAnalysis);
     }
 }

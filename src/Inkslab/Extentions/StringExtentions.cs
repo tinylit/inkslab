@@ -1,5 +1,8 @@
 ﻿using Inkslab;
 using Inkslab.Config;
+#if !NET_Traditional
+using Inkslab.Config.Options;
+#endif
 using Inkslab.Settings;
 using Inkslab.Sugars;
 using System.Linq;
@@ -159,6 +162,17 @@ namespace System
         /// <param name="defaultValue">默认值。</param>
         /// <returns></returns>
         public static T Config<T>(this string configName, T defaultValue = default) => ConfigHelper.Get(configName, defaultValue);
+
+#if !NET_Traditional
+        /// <summary>
+        /// 配置文件读取（通过<see cref="IOptions{TOptions}.Value"/> 获取最新值）。
+        /// </summary>
+        /// <typeparam name="T">类型。</typeparam>
+        /// <param name="configName">键。</param>
+        /// <param name="defaultValue">默认值。</param>
+        /// <returns></returns>
+        public static IOptions<T> Options<T>(this string configName, T defaultValue = default) where T : class => ConfigHelper.Options(configName, defaultValue);
+#endif
 
         private static MethodInfo GetMethodInfo(Func<string, string, string, string> func) => func.Method;
 

@@ -51,6 +51,7 @@ namespace Inkslab.DI
 
             return this;
         }
+        
         public IDependencyInjectionServices AddAssembly(Assembly assembly)
         {
             if (assembly is null)
@@ -120,12 +121,9 @@ namespace Inkslab.DI
 
             var configureServicesType = typeof(IConfigureServices);
 
-            foreach (var type in assembliyTypes)
+            foreach (var type in assembliyTypes.Where(x => x.IsClass && !x.IsAbstract && configureServicesType.IsAssignableFrom(x)))
             {
-                if (configureServicesType.IsAssignableFrom(type))
-                {
-                    configureServices.Add((IConfigureServices)Activator.CreateInstance(type, true));
-                }
+                configureServices.Add((IConfigureServices)Activator.CreateInstance(type));
             }
 
             foreach (var configure in configureServices)
@@ -311,6 +309,21 @@ namespace Inkslab.DI
                 return true;
             }
 
+            if (serviceType.IsGenericType)
+            {
+                var typeDefinition = serviceType.GetGenericTypeDefinition();
+
+                if (services.Any(x => x.ServiceType == typeDefinition)) //? 已有注入时，不再自动注入。
+                {
+                    return true;
+                }
+            }
+
+            if (serviceType.IsIgnore())
+            {
+                return false;
+            }
+
             var interfaceTypes = serviceType.IsInterface
                 ? serviceType.GetInterfaces()
                 : Type.EmptyTypes;
@@ -327,17 +340,12 @@ namespace Inkslab.DI
                 return DiServiceLifetime(services, options, serviceType, implementationTypes, assemblyTypes, depth, dependencies, isMulti);
             }
 
-            if (!serviceType.IsGenericType)
-            {
-                return false;
-            }
+            return serviceType.IsGenericType && DiGeneric(services, options, serviceType, interfaceTypes, assemblyTypes, depth, dependencies, isMulti);
+        }
 
+        private static bool DiGeneric(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, List<Type> assemblyTypes, int depth, List<Type> dependencies, bool isMulti)
+        {
             var typeDefinition = serviceType.GetGenericTypeDefinition();
-
-            if (services.Any(x => x.ServiceType == typeDefinition)) //? 已有注入时，不再自动注入。
-            {
-                return true;
-            }
 
             var typeDefinitionTypes = assemblyTypes
                               .Where(typeDefinition.IsLike)

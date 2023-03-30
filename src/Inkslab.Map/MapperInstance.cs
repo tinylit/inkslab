@@ -1,11 +1,13 @@
-﻿using Inkslab.Map.Expressions;
+﻿using Inkslab.Annotations;
+using Inkslab.Map.Expressions;
 
 namespace Inkslab.Map
 {
     /// <summary>
     /// 映射实例。
     /// </summary>
-    public class MapperInstance : ProfileExpression<MapperInstance, MapConfiguration>, IMapConfiguration, IConfiguration, IProfile
+    [Ignore]
+    public class MapperInstance : ProfileExpression<MapperInstance, MapConfiguration>, IMapper, IMapConfiguration, IConfiguration, IProfile
     {
         /// <summary>
         /// 构造函数。

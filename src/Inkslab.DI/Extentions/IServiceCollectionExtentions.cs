@@ -20,7 +20,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentNullException(nameof(services));
             }
 
-            return new Inkslab.DI.DependencyInjectionServices(services);
+            return new DependencyInjectionServices(services);
         }
     }
 }

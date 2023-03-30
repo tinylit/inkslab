@@ -51,7 +51,7 @@ namespace Inkslab.Map
         /// <summary>
         /// 映射配置。
         /// </summary>
-        private MapConfiguration(IConfiguration configuration) : this(DefaultMaps, configuration)
+        public MapConfiguration(IConfiguration configuration) : this(DefaultMaps, configuration)
         {
         }
 
@@ -119,6 +119,59 @@ namespace Inkslab.Map
             }
 
             profiles.Add(profile);
+        }
+
+        /// <summary>
+        /// 添加配置。
+        /// </summary>
+        /// <param name="profileType">配置类。</param>
+        public void AddProfile(Type profileType)
+        {
+            if (profileType is null)
+            {
+                throw new ArgumentNullException(nameof(profileType));
+            }
+
+            if (profileType.IsAbstract)
+            {
+                throw new NotSupportedException($"不支持“{profileType}”抽象类！");
+            }
+
+            if (!profileType.IsSubclassOf(typeof(Profile)))
+            {
+                throw new NotSupportedException($"“{profileType}”不是“{typeof(Profile)}”的子类！");
+            }
+
+            bool throwError = true;
+
+            var constructorInfos = profileType.GetConstructors();
+
+            foreach (var constructorInfo in constructorInfos)
+            {
+                var parameterInfos = constructorInfo.GetParameters();
+
+                if (parameterInfos.Length == 0 || parameterInfos.All(x => x.IsOptional || x.ParameterType == typeof(IMapConfiguration) || x.ParameterType == typeof(IConfiguration)))
+                {
+                    AddProfile((Profile)constructorInfo.Invoke(Array.ConvertAll(parameterInfos, x =>
+                    {
+                        if (x.ParameterType == typeof(IConfiguration) || x.ParameterType == typeof(IMapConfiguration))
+                        {
+                            return this;
+                        }
+
+                        return x.DefaultValue;
+                    })));
+
+                    throwError = false;
+
+                    break;
+                }
+            }
+
+            if (throwError)
+            {
+                throw new NotSupportedException($"未找到“{profileType}”类型的有效构造函数！");
+            }
         }
 
         /// <summary>
