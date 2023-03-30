@@ -15,9 +15,9 @@ namespace Inkslab.Map
         public int Code => 100;
 
         /// <summary>
-        /// 权重（10）。
+        /// 权重（1）。
         /// </summary>
-        public int Weight => 10;
+        public int Weight => 1;
 
         /// <summary>
         /// 启动。
@@ -53,9 +53,9 @@ namespace Inkslab.Map
     public class MStartup : IStartup
     {
         /// <summary>
-        /// 功能码（100）。
+        /// 功能码（150）。
         /// </summary>
-        public int Code => 100;
+        public int Code => 150;
 
         /// <summary>
         /// 权重（1）。
