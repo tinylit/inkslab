@@ -11,7 +11,7 @@
         public int Code => 200;
 
         /// <summary>
-        /// 权重。
+        /// 权重（1）。
         /// </summary>
         public int Weight => 1;
 

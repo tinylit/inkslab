@@ -131,17 +131,15 @@ namespace Inkslab.Map.Expressions
         {
             if (disposing)
             {
+                foreach (var kv in routerCachings)
+                {
+                    kv.Value.Dispose();
+                }
 
+                routerCachings.Clear();
+
+                matchCachings.Clear();
             }
-
-            foreach (var kv in routerCachings)
-            {
-                kv.Value.Dispose();
-            }
-
-            routerCachings.Clear();
-
-            matchCachings.Clear();
 
             base.Dispose(disposing);
         }

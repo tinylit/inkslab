@@ -7,8 +7,8 @@ namespace Inkslab.Map
     /// <summary>
     /// 基础表达式。
     /// </summary>
-    /// <typeparam name="TSource"></typeparam>
-    /// <typeparam name="TDestination"></typeparam>
+    /// <typeparam name="TSource">源。</typeparam>
+    /// <typeparam name="TDestination">目标。</typeparam>
     public interface IMappingExpressionBase<TSource, TDestination>
     {
         /// <summary>

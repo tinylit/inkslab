@@ -92,8 +92,7 @@ namespace Inkslab.Json
                 resolvers.Add(namingType, new JsonContractResolver(namingType));
             }
         }
-
-        private const string DateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
+        
         private readonly JsonSerializerSettings settings;
 
         /// <summary>
@@ -101,8 +100,6 @@ namespace Inkslab.Json
         /// </summary>
         public DefaultJsonHelper() : this(new JsonSerializerSettings
         {
-            DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-            DateFormatString = DateFormatString,
             NullValueHandling = NullValueHandling.Ignore
         })
         {

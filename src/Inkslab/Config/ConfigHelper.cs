@@ -68,7 +68,7 @@ namespace Inkslab.Config
 
 #if !NET_Traditional
         /// <summary>
-        /// 获取配置。
+        /// 配置读取（通过<see cref="IOptions{TOptions}.Value"/> 获取最新值）。
         /// </summary>
         /// <typeparam name="T">类型。</typeparam>
         /// <param name="key">键。</param>
