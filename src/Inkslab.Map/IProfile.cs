@@ -26,7 +26,7 @@ namespace Inkslab.Map
         /// <typeparam name="TDestination">目标类型。</typeparam>
         /// <param name="createInstanceExpression">创建实例的表达式。</param>
         /// <returns>映射表达式。</returns>
-        IMappingExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> createInstanceExpression)
+        IIncludeConstraintsMappingExpression<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> createInstanceExpression)
             where TSource : class
             where TDestination : class;
 

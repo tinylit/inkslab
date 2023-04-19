@@ -1,9 +1,12 @@
 ﻿using Inkslab.Map.Visitors;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Security.AccessControl;
 
 namespace Inkslab.Map
 {
@@ -84,19 +87,385 @@ namespace Inkslab.Map
             public Expression ValueExpression { get; }
         }
 
+        private enum EsConstraints
+        {
+            None,
+            ValueType,
+            Enum,
+            Nullable,
+            NullableEnum,
+            Inherit
+        }
+
+        private readonly struct ConstraintsSlot
+        {
+            private readonly Type typeConstraints;
+            private readonly EsConstraints constraints;
+
+            public ConstraintsSlot(Type typeConstraints, EsConstraints constraints)
+            {
+                this.typeConstraints = typeConstraints;
+                this.constraints = constraints;
+            }
+
+            public bool IsMatch(Type argumentType)
+            {
+                switch (constraints)
+                {
+                    case EsConstraints.None:
+                        return typeConstraints.IsLikeTemplate(argumentType);
+                    case EsConstraints.ValueType:
+                        return argumentType.IsValueType;
+                    case EsConstraints.Enum:
+                        return argumentType.IsEnum;
+                    case EsConstraints.Nullable:
+                        return argumentType.IsNullable();
+                    case EsConstraints.NullableEnum:
+                        if (argumentType.IsNullable())
+                        {
+                            var underlyingType = Nullable.GetUnderlyingType(argumentType);
+
+                            return underlyingType.IsEnum;
+                        }
+                        return false;
+                    case EsConstraints.Inherit:
+                        return typeConstraints.IsAssignableFrom(argumentType);
+                    default:
+                        return false;
+                }
+            }
+        }
+
+        private class MapConstraints
+        {
+            private readonly Type typeDefinition;
+            private readonly ConstraintsSlot[] constraintSlots;
+
+            public MapConstraints(Type originalType, Type typeDefinition, ConstraintsSlot[] constraintSlots)
+            {
+                OriginalType = originalType;
+                this.typeDefinition = typeDefinition;
+                this.constraintSlots = constraintSlots;
+            }
+
+            public Type OriginalType { get; }
+
+            public bool IsMatch(Type destinationType)
+            {
+                if (!destinationType.IsGenericType)
+                {
+                    return false;
+                }
+
+                var typeDefinition = destinationType.GetGenericTypeDefinition();
+
+                if (typeDefinition != this.typeDefinition)
+                {
+                    return false;
+                }
+
+                var typeArguments = destinationType.GetGenericArguments();
+
+                for (int i = 0; i < typeArguments.Length; i++)
+                {
+                    if (constraintSlots[i].IsMatch(typeArguments[i]))
+                    {
+                        continue;
+                    }
+
+                    return false;
+                }
+
+                return true;
+            }
+        }
+
+        private const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+
+        private class MapExpressionVisitor : ExpressionVisitor
+        {
+            private readonly Type originalSourceType;
+            private readonly Type originalDestinationType;
+            private readonly Type sourceType;
+            private readonly Type destinationType;
+            private readonly ParameterExpression[] originalParameters;
+            private readonly ParameterExpression[] parameters;
+
+            public MapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, ParameterExpression[] originalParameters, ParameterExpression[] parameters)
+            {
+                this.originalSourceType = originalSourceType;
+                this.originalDestinationType = originalDestinationType;
+                this.sourceType = sourceType;
+                this.destinationType = destinationType;
+                this.originalParameters = originalParameters;
+                this.parameters = parameters;
+            }
+
+            public override Expression Visit(Expression node)
+            {
+                for (int i = 0; i < originalParameters.Length; i++)
+                {
+                    if (originalParameters[i] == node)
+                    {
+                        return parameters[i];
+                    }
+                }
+
+                return base.Visit(node);
+            }
+
+            private bool MemberIsRef(ref MemberInfo memberInfo)
+            {
+                var declaringType = memberInfo.DeclaringType;
+
+                if (declaringType.IsGenericType)
+                {
+                    var reflectedType = memberInfo.ReflectedType;
+
+                    if (originalSourceType.IsGenericType && (reflectedType == originalSourceType || declaringType == originalSourceType))
+                    {
+                        switch (memberInfo.MemberType)
+                        {
+                            case MemberTypes.Property:
+                                memberInfo = sourceType.GetProperty(memberInfo.Name, bindingFlags);
+                                return true;
+                            case MemberTypes.Field:
+                                memberInfo = sourceType.GetField(memberInfo.Name, bindingFlags);
+                                return true;
+                            case MemberTypes.Method when memberInfo is MethodInfo methodInfo:
+                                memberInfo = MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, sourceType.TypeHandle);
+                                return true;
+                            default:
+                                return false;
+                        }
+                    }
+                    else if (originalDestinationType.IsGenericType && (reflectedType == originalDestinationType || declaringType == originalDestinationType))
+                    {
+                        switch (memberInfo.MemberType)
+                        {
+                            case MemberTypes.Property:
+                                memberInfo = destinationType.GetProperty(memberInfo.Name, bindingFlags);
+                                return true;
+                            case MemberTypes.Field:
+                                memberInfo = destinationType.GetField(memberInfo.Name, bindingFlags);
+                                return true;
+                            case MemberTypes.Method when memberInfo is MethodInfo methodInfo:
+                                memberInfo = MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, destinationType.TypeHandle);
+                                return true;
+                            default:
+                                return false;
+                        }
+                    }
+                }
+
+                return false;
+            }
+
+            private static MemberInfo GetMemberInfo(Type destinationType, MemberInfo memberInfo)
+            {
+                var declaringType = memberInfo.DeclaringType;
+
+                if (declaringType.IsGenericType && destinationType.IsGenericType)
+                {
+                    return memberInfo.MemberType switch
+                    {
+                        MemberTypes.Property => destinationType.GetProperty(memberInfo.Name, bindingFlags),
+                        MemberTypes.Field => destinationType.GetField(memberInfo.Name, bindingFlags),
+                        MemberTypes.Method when memberInfo is MethodInfo methodInfo => MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, destinationType.TypeHandle),
+                        _ => memberInfo,
+                    };
+                }
+
+                return memberInfo;
+            }
+
+            protected override Expression VisitNew(NewExpression node)
+            {
+                if (node.Type == originalDestinationType && destinationType.IsGenericType)
+                {
+                    var arguments = new List<Expression>(node.Arguments.Count);
+
+                    foreach (var arg in node.Arguments)
+                    {
+                        arguments.Add(Visit(arg));
+                    }
+
+                    var constructorInfo = (ConstructorInfo)MethodBase.GetMethodFromHandle(node.Constructor.MethodHandle, destinationType.TypeHandle);
+
+                    if (node.Members is null)
+                    {
+                        return Expression.New(constructorInfo, arguments);
+                    }
+
+                    var memberInfos = new List<MemberInfo>(node.Members.Count);
+
+                    foreach (var memberInfo in node.Members)
+                    {
+                        memberInfos.Add(GetMemberInfo(destinationType, memberInfo));
+                    }
+
+
+                    return Expression.New(constructorInfo, arguments, memberInfos);
+                }
+
+                return base.VisitNew(node);
+            }
+
+            protected override Expression VisitMember(MemberExpression node)
+            {
+                var memberInfo = node.Member;
+
+                var instanceExpression = Visit(node.Expression);
+
+                if (MemberIsRef(ref memberInfo))
+                {
+                    return memberInfo switch
+                    {
+                        PropertyInfo propertyInfo => Property(instanceExpression, propertyInfo),
+                        FieldInfo fieldInfo => Field(instanceExpression, fieldInfo),
+                        MethodInfo methodInfo => Property(instanceExpression, methodInfo),
+                        _ => node,
+                    };
+                }
+
+                return node.Update(instanceExpression);
+            }
+
+            protected override MemberAssignment VisitMemberAssignment(MemberAssignment node)
+            {
+                var memberInfo = node.Member;
+
+                var valueExpression = Visit(node.Expression);
+
+                if (MemberIsRef(ref memberInfo))
+                {
+                    return Bind(memberInfo, valueExpression);
+                }
+
+                return node.Update(valueExpression);
+            }
+        }
+
         private class MapSlot
         {
             private readonly Type sourceType;
             private readonly List<Type> destinationTypes;
             private readonly Dictionary<string, Slot> memberExpressions = new Dictionary<string, Slot>();
 
+
+            private bool isSourceConstraints;
+            private bool isDestinationConstraints;
+
+            private bool hasMatchConstraints = false;
+            private int destinationConstraintsCount = 0;
+            private MatchConstraints matchConstraints;
+            private MapConstraints sourceConstraints;
+            private List<MapConstraints> destinationConstraints;
+
             public MapSlot(Type sourceType, Type destinationType)
             {
                 this.sourceType = sourceType;
+
+                KeyCode = new TypeCode(sourceType, destinationType);
+
                 destinationTypes = new List<Type>(1) { destinationType };
             }
 
+            public TypeCode KeyCode { get; }
+
+            public bool HasMemberSetting => memberExpressions.Count > 0;
+
             public void Include(Type destinationType) => destinationTypes.Add(destinationType);
+
+            public void IncludeConstraints(MatchConstraints matchConstraints)
+            {
+                hasMatchConstraints = true;
+
+                this.matchConstraints = matchConstraints;
+
+                foreach (var destinationType in destinationTypes.Skip(destinationConstraintsCount))
+                {
+                    if (TryMapConstraints(destinationType, out MapConstraints mapConstraints))
+                    {
+                        if (isDestinationConstraints)
+                        {
+                            destinationConstraints.Add(mapConstraints);
+                        }
+                        else
+                        {
+                            isDestinationConstraints = true;
+
+                            destinationConstraints = new List<MapConstraints> { mapConstraints };
+                        }
+                    }
+                }
+
+                if (isDestinationConstraints)
+                {
+                    if (TryMapConstraints(sourceType, out MapConstraints mapConstraints))
+                    {
+                        sourceConstraints = mapConstraints;
+
+                        isSourceConstraints = true;
+                    }
+                }
+
+                destinationConstraintsCount = destinationTypes.Count;
+            }
+
+            private static bool TryMapConstraints(Type type, out MapConstraints mapConstraints)
+            {
+                mapConstraints = null;
+
+                if (!type.IsGenericType)
+                {
+                    return false;
+                }
+
+                var genericArguments = type.GetGenericArguments();
+                var typeDefinition = type.GetGenericTypeDefinition();
+                var typeArguments = typeDefinition.GetGenericArguments();
+
+                var constraintSlots = new ConstraintsSlot[genericArguments.Length];
+
+                for (var i = 0; i < genericArguments.Length; i++)
+                {
+                    var typeConstraints = genericArguments[i];
+
+                    EsConstraints constraints = EsConstraints.None;
+
+                    if (typeConstraints.IsNullable()) //? 可空类型。
+                    {
+                        var underlyingType = Nullable.GetUnderlyingType(typeConstraints);
+
+                        constraints = underlyingType.IsEnum
+                            ? EsConstraints.NullableEnum
+                            : EsConstraints.Nullable;
+                    }
+                    else if (typeConstraints.IsEnum)
+                    {
+                        constraints = EsConstraints.Enum;
+                    }
+                    else if (typeConstraints.IsValueType)
+                    {
+                        constraints = EsConstraints.ValueType;
+                    }
+                    else if (typeConstraints == typeof(object))
+                    {
+                        typeConstraints = typeArguments[i];
+                    }
+                    else
+                    {
+                        constraints = EsConstraints.Inherit;
+                    }
+
+                    constraintSlots[i] = new ConstraintsSlot(typeConstraints, constraints);
+                }
+
+                mapConstraints = new MapConstraints(type, typeDefinition, constraintSlots);
+
+                return true;
+            }
 
             public void Add(string memberName, Expression valueExpression) => memberExpressions[memberName] = new Slot(valueExpression);
 
@@ -111,12 +480,74 @@ namespace Inkslab.Map
                     return destinationTypes.Contains(destinationType);
                 }
 
+                if (isDestinationConstraints)
+                {
+                    if (isSourceConstraints ? sourceConstraints.IsMatch(sourceType) : this.sourceType.IsAssignableFrom(sourceType))
+                    {
+                        if (destinationConstraints.Exists(x => x.IsMatch(destinationType)))
+                        {
+                            if (hasMatchConstraints)
+                            {
+                                return matchConstraints(sourceType, isSourceConstraints ? sourceType.GetGenericArguments() : Type.EmptyTypes, destinationType.GetGenericArguments());
+                            }
+
+                            return true;
+                        }
+                    }
+                }
+
                 if (definitionOnly || sourceType == MapConstants.ObjectType)
                 {
                     return false;
                 }
 
-                return destinationTypes.Contains(destinationType) && sourceType.IsSubclassOf(this.sourceType);
+                return destinationTypes.Contains(destinationType) && this.sourceType.IsAssignableFrom(sourceType);
+            }
+        }
+
+        private class InstanceSlot
+        {
+            private readonly Type sourceType;
+            private readonly Type destinationType;
+            private readonly Expression body;
+            private readonly ParameterExpression parameter;
+
+            public InstanceSlot(Type sourceType, Type destinationType, Expression body, ParameterExpression parameter)
+            {
+                this.sourceType = sourceType;
+                this.destinationType = destinationType;
+                this.body = body;
+                this.parameter = parameter;
+            }
+
+            public Expression NewInstance(Expression parameter)
+            {
+                var visitor = new ReplaceExpressionVisitor(this.parameter, parameter);
+
+                return visitor.Visit(body);
+            }
+
+            public InstanceSlot CreateInstance(Type sourceType, Type destinationType)
+            {
+                if (this.sourceType == sourceType && this.destinationType == destinationType)
+                {
+                    return this;
+                }
+
+                try
+                {
+                    var parameter = Parameter(sourceType);
+
+                    var visitor = new MapExpressionVisitor(this.sourceType, this.destinationType, sourceType, destinationType, new[] { this.parameter }, new[] { parameter });
+
+                    var body = visitor.Visit(this.body);
+
+                    return new InstanceSlot(sourceType, destinationType, body, parameter);
+                }
+                catch (Exception ex)
+                {
+                    throw new NotSupportedException($"无法从源({this.sourceType}=>{this.destinationType})的表达式，分析出目标({sourceType}=>{destinationType})的表达式！", ex);
+                }
             }
         }
 
@@ -285,6 +716,20 @@ namespace Inkslab.Map
             }
         }
 
+        private static bool TryAnalysisInstanceExpression(Expression node, out Expression validExpression)
+        {
+            validExpression = node;
+
+            return node switch
+            {
+                NewExpression => true,
+                MemberInitExpression => true,
+                GotoExpression gotoExpression when gotoExpression.Kind == GotoExpressionKind.Return => TryAnalysisInstanceExpression(gotoExpression.Value, out validExpression),
+                BlockExpression blockExpression when blockExpression.Variables.Count == 0 && blockExpression.Expressions.Count == 1 => TryAnalysisInstanceExpression(blockExpression.Expressions[0], out validExpression),
+                _ => false,
+            };
+        }
+
         private class MemberMappingExpression<TSource, TMember> : IMemberMappingExpression<TSource, TMember>
         {
             private readonly string memberName;
@@ -347,7 +792,7 @@ namespace Inkslab.Map
                 this.mapSlot = mapSlot;
             }
 
-            public IMappingExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination
+            public IIncludeMappingExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination
             {
                 mapSlot.Include(typeof(TAssignableToDestination));
 
@@ -385,13 +830,32 @@ namespace Inkslab.Map
 
                 return this;
             }
+
+            public IMappingExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSource, List<TDestination>, TDestinationEnumerable>> destinationOptions)
+                where TSourceEnumerable : IEnumerable<TSource>
+                where TDestinationEnumerable : IEnumerable<TDestination>
+            {
+                throw new NotImplementedException();
+            }
+
+            public IMappingExpressionBase<TSource, TDestination> IncludeConstraints(MatchConstraints matchConstraints)
+            {
+                if (matchConstraints is null)
+                {
+                    throw new ArgumentNullException(nameof(matchConstraints));
+                }
+
+                mapSlot.IncludeConstraints(matchConstraints);
+
+                return this;
+            }
         }
 
         private bool disposedValue;
 
         private readonly List<MapSlot> mapSlots = new List<MapSlot>();
         private readonly List<CreateInstanceSlot> instanceSlots = new List<CreateInstanceSlot>();
-        private readonly Dictionary<TypeCode, LambdaExpression> instanceCachings = new Dictionary<TypeCode, LambdaExpression>(TypeCode.InstanceComparer);
+        private readonly Dictionary<TypeCode, InstanceSlot> instanceCachings = new Dictionary<TypeCode, InstanceSlot>(TypeCode.InstanceComparer);
 
         /// <summary>
         /// 解决映射关系。
@@ -430,7 +894,7 @@ namespace Inkslab.Map
                         {
                             var mapSlot = mapSlots[i];
 
-                            if (mapSlot.IsMatch(currentType, destinationType))
+                            if (mapSlot.HasMemberSetting && mapSlot.IsMatch(currentType, destinationType))
                             {
                                 validSlots.Add(mapSlot);
                             }
@@ -506,33 +970,29 @@ label_skip:
         /// <returns>是否匹配。</returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
         {
-            if (mapSlots.Exists(x => x.IsMatch(sourceType, destinationType, false)))
+            if (sourceType.IsValueType || destinationType.IsValueType)
+            {
+                return false;
+            }
+
+            var typeCode = new TypeCode(sourceType, destinationType);
+
+            if (instanceCachings.ContainsKey(typeCode))
             {
                 return true;
             }
 
-            if (instanceCachings.ContainsKey(new TypeCode(sourceType, destinationType)))
+            foreach (var mapSlot in mapSlots)
             {
-                return true;
-            }
-
-            if (instanceSlots.Count > 0)
-            {
-                //? 防递归。
-                if (destinationType.IsGenericType && destinationType.GetGenericTypeDefinition() == typeof(List<>))
+                if (mapSlot.IsMatch(sourceType, destinationType, false))
                 {
-                    return false;
-                }
-
-                if (TryGetDestinationItemType(destinationType, out Type destinationItemType) && TryGetDestinationItemType(sourceType, out Type sourceItemType))
-                {
-                    foreach (var instanceSlot in instanceSlots)
+                    if (destinationType.IsGenericType
+                        && instanceCachings.TryGetValue(mapSlot.KeyCode, out InstanceSlot instanceSlot))
                     {
-                        if (instanceSlot.IsMatch(sourceType, sourceItemType, destinationType, destinationItemType))
-                        {
-                            return true;
-                        }
+                        instanceCachings[typeCode] = instanceSlot.CreateInstance(sourceType, destinationType);
                     }
+
+                    return true;
                 }
             }
 
@@ -550,9 +1010,9 @@ label_skip:
         {
             var sourceType = sourceExpression.Type;
 
-            if (instanceCachings.TryGetValue(new TypeCode(sourceType, destinationType), out LambdaExpression lambdaExp))
+            if (instanceCachings.TryGetValue(new TypeCode(sourceType, destinationType), out InstanceSlot instanceSlot))
             {
-                var instanceExpression = Invoke(lambdaExp, sourceExpression);
+                var instanceExpression = instanceSlot.NewInstance(sourceExpression);
 
                 var destinationExpression = Variable(destinationType);
 
@@ -561,44 +1021,7 @@ label_skip:
                 return Block(destinationType, new ParameterExpression[] { destinationExpression }, new Expression[] { Assign(destinationExpression, instanceExpression), bodyExp, destinationExpression });
             }
 
-            if (TryGetDestinationItemType(destinationType, out Type destinationItemType) && TryGetDestinationItemType(sourceType, out Type sourceItemType))
-            {
-                foreach (var instanceSlot in instanceSlots)
-                {
-                    if (instanceSlot.IsMatch(sourceType, sourceItemType, destinationType, destinationItemType))
-                    {
-                        return instanceSlot.NewInstance(sourceExpression, sourceType, sourceItemType, destinationType, destinationItemType, configuration);
-                    }
-                }
-            }
-
             return base.ToSolve(sourceExpression, sourceExpression.Type, destinationType, configuration);
-        }
-
-        private static bool TryGetDestinationItemType(Type destinationType, out Type destinationItemType)
-        {
-            foreach (var interfaceType in destinationType.GetInterfaces())
-            {
-                if (interfaceType.IsGenericType)
-                {
-                    var typeDefinition = interfaceType.GetGenericTypeDefinition();
-
-                    if (typeDefinition == typeof(IList<>)
-                        || typeDefinition == typeof(IReadOnlyList<>)
-                        || typeDefinition == typeof(ICollection<>)
-                        || typeDefinition == typeof(IReadOnlyCollection<>)
-                        || typeDefinition == typeof(IEnumerable<>))
-                    {
-                        destinationItemType = interfaceType.GetGenericArguments()[0];
-
-                        return true;
-                    }
-                }
-            }
-
-            destinationItemType = null;
-
-            return false;
         }
 
         /// <summary>
@@ -631,19 +1054,24 @@ label_skip:
         }
 
         /// <summary>
-        /// 映射。
+        /// 新建实例映射。
         /// </summary>
         /// <typeparam name="TSource">源。</typeparam>
         /// <typeparam name="TDestination">目标。</typeparam>
-        /// <param name="createInstanceExpression">创建实例表达式。</param>
+        /// <param name="newInstanceExpression">创建实例表达式(<see cref="Expression.New(ConstructorInfo, Expression[])"/> 或 <seealso cref="MemberInit(NewExpression, MemberBinding[])"/>)。</param>
         /// <returns>映射关系表达式。</returns>
-        public IMappingExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> createInstanceExpression)
+        public IIncludeConstraintsMappingExpression<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> newInstanceExpression)
             where TSource : class
             where TDestination : class
         {
-            if (createInstanceExpression is null)
+            if (newInstanceExpression is null)
             {
-                throw new ArgumentNullException(nameof(createInstanceExpression));
+                throw new ArgumentNullException(nameof(newInstanceExpression));
+            }
+
+            if (!TryAnalysisInstanceExpression(newInstanceExpression.Body, out Expression body))
+            {
+                throw new ArgumentException("仅支持形如：x => new A(x.Id, ...) 或 x => new B() { A = 1, B = x.C ... } 的表达式！", nameof(newInstanceExpression));
             }
 
             var sourceType = typeof(TSource);
@@ -653,7 +1081,7 @@ label_skip:
 
             mapSlots.Add(mapSlot);
 
-            instanceCachings[new TypeCode(sourceType, destinationType)] = createInstanceExpression;
+            instanceCachings[new TypeCode(sourceType, destinationType)] = new InstanceSlot(sourceType, destinationType, body, newInstanceExpression.Parameters[0]);
 
             return new MappingExpression<TSource, TDestination>(mapSlot);
         }

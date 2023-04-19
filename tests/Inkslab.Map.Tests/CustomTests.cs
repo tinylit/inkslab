@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Metadata;
 using Xunit;
@@ -111,6 +112,26 @@ namespace Inkslab.Map.Tests
         /// <inheritdoc/>.
         /// </summary>
         public long I5 { get; set; } = long.MaxValue;
+    }
+
+    /// <summary>
+    /// 无约束。
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class G1<T>
+    {
+        public G1(T value)
+        {
+            Value = value;
+        }
+
+        public T Value { get; }
+
+        public int Version { get; set; }
+
+        public DateTime P3 { get; set; }
+
+        public DateTime Time { get; set; }
     }
 
     /// <summary>
@@ -399,6 +420,44 @@ namespace Inkslab.Map.Tests
             Assert.True(sourceC2.R1 == destinationC3.P1); //? 继承 C1 的映射关系。
             Assert.True(sourceC2.P2 == destinationC3.P2); //? 继承 C1 的映射关系。
             Assert.True(sourceC2.T3 == destinationC3.P3.ToString()); //? 继承 C1 的映射关系。
+        }
+
+        /// <summary>
+        /// 泛型约束测试。
+        /// </summary>
+        [Fact]
+        public void IncludeConstraintsSimpleToGTest()
+        {
+            using var instance = new MapperInstance();
+
+            instance.New<C1, G1<C1>>(x => new G1<C1>(x)
+            {
+                Version = 1,
+                Time = x.P3
+            })
+            .IncludeConstraints((x/* 源类型 */, y/* 原类型泛型参数，不是泛型时为空数组 */, z/* 目标类型泛型参数类型数组 */) => x == z[0] || x.IsSubclassOf(z[0])) //! 目标类型必须是泛型。;
+            .Map(x => x.P3, x => x.From(y => y.P3));
+
+            var sourceC2 = new C3
+            {
+                P1 = 100,
+                P2 = "Test",
+                D4 = DateTimeKind.Local,
+                I5 = 10000,
+                P3 = DateTime.UtcNow
+            };
+
+            var destinationG1 = instance.Map<G1<C3>>(sourceC2);
+
+            Assert.True(destinationG1.Version == 1);
+            Assert.True(destinationG1.P3 == sourceC2.P3);
+            Assert.True(destinationG1.Time == sourceC2.P3);
+
+            var destinationC3 = destinationG1.Value;
+
+            Assert.True(sourceC2.P1 == destinationC3.P1);
+            Assert.True(sourceC2.P2 == destinationC3.P2);
+            Assert.True(sourceC2.P3 == destinationC3.P3);
         }
 
         /// <summary>
