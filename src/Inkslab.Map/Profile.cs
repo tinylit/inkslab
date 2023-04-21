@@ -1062,23 +1062,6 @@ label_skip:
                 return Block(destinationType, new ParameterExpression[] { destinationVariable }, new Expression[] { Assign(destinationVariable, instanceExpression), bodyExp, destinationVariable });
             }
 
-            //if (enumerableInstanceCachings.TryGetValue(typeCode, out EnumerableInstanceSlot enumerableInstanceSlot))
-            //{
-            //    var destinationSetType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
-
-            //    var destinationSetVariable = Variable(destinationSetType);
-
-            //    var instanceExpression = enumerableInstanceSlot.NewInstance(sourceExpression, destinationSetVariable);
-
-            //    var destinationSetExpression = configuration.Map(sourceExpression, destinationSetType);
-
-            //    var destinationVariable = Variable(destinationType);
-
-            //    var bodyExp = ToSolve(sourceExpression, sourceType, destinationVariable, destinationType, configuration);
-
-            //    return Block(destinationType, new ParameterExpression[] { destinationSetVariable, destinationVariable }, new Expression[] { Assign(destinationSetVariable, destinationSetExpression), Assign(destinationVariable, instanceExpression), bodyExp, destinationVariable });
-            //}
-
             return base.ToSolve(sourceExpression, sourceExpression.Type, destinationType, configuration);
         }
 

@@ -233,7 +233,17 @@ namespace Inkslab.Map
             {
                 if (AllowPropagationNullValues)
                 {
+                    if (IsDepthMapping)
+                    {
+                        return IfThenElse(Equal(sourceExpression, Constant(null, MapConstants.ObjectType)), Default(destinationType), Map(Convert(sourceExpression, conversionType), sourceType, destinationType, conversionType));
+                    }
+
                     return Convert(sourceExpression, conversionType);
+                }
+
+                if (IsDepthMapping)
+                {
+                    return Map(Convert(IgnoreIfNull(sourceExpression), conversionType), sourceType, conversionType, conversionType);
                 }
 
                 return Convert(IgnoreIfNull(sourceExpression), conversionType);
