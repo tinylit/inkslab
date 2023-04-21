@@ -535,7 +535,7 @@ namespace Inkslab.Map
                 return instanceFactory.CreateInstance(sourceType, destinationType);
             }
 
-            public void NewEnumerable(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+            public void NewEnumerable(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
             {
                 if (!sourceTypeEnumerable.IsGenericType)
                 {
@@ -574,7 +574,7 @@ namespace Inkslab.Map
                 var sourceTypeDefinition = sourceTypeEnumerable.GetGenericTypeDefinition();
                 var destinationTypeDefinition = destinationTypeEnumerable.GetGenericTypeDefinition();
 
-                var instanceFactory = new EnumerableInstanceFactory(sourceTypeEnumerable, destinationTypeEnumerable, destinationType, body, parameter, parameterOfSet);
+                var instanceFactory = new EnumerableInstanceFactory(sourceTypeEnumerable, destinationTypeEnumerable, destinationSetType, body, parameter, parameterOfSet);
 
                 var typeCode = new TypeCode(sourceTypeDefinition, destinationTypeDefinition);
 
@@ -876,7 +876,7 @@ namespace Inkslab.Map
                     throw new ArgumentException("仅支持形如：(x, y) => new A(y, x.Id, ...) 或 (x, y) => new B(y) { A = 1, B = x.C ... } 的表达式！", nameof(destinationOptions));
                 }
 
-                mapSlot.NewEnumerable(typeof(TSourceEnumerable), typeof(TDestinationEnumerable), body, destinationOptions.Parameters[0], destinationOptions.Parameters[1]);
+                mapSlot.NewEnumerable(typeof(TSourceEnumerable), typeof(TDestinationEnumerable), typeof(List<TDestination>), body, destinationOptions.Parameters[0], destinationOptions.Parameters[1]);
 
                 return this;
             }
