@@ -231,22 +231,32 @@ namespace Inkslab.Map
 
             if (sourceType == MapConstants.ObjectType)
             {
-                if (AllowPropagationNullValues)
+                if (destinationType.IsValueType)
                 {
-                    if (IsDepthMapping)
+                    if (AllowPropagationNullValues)
                     {
-                        return IfThenElse(Equal(sourceExpression, Constant(null, MapConstants.ObjectType)), Default(destinationType), Map(Convert(sourceExpression, conversionType), sourceType, destinationType, conversionType));
+                        return Convert(sourceExpression, destinationType);
                     }
 
-                    return Convert(sourceExpression, conversionType);
+                    return Convert(IgnoreIfNull(sourceExpression), destinationType);
                 }
 
                 if (IsDepthMapping)
                 {
-                    return Map(Convert(IgnoreIfNull(sourceExpression), conversionType), sourceType, conversionType, conversionType);
+                    if (AllowPropagationNullValues)
+                    {
+                        return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, conversionType));
+                    }
+
+                    return Map(Convert(IgnoreIfNull(sourceExpression), destinationType), destinationType, destinationType, conversionType);
                 }
 
-                return Convert(IgnoreIfNull(sourceExpression), conversionType);
+                if (AllowPropagationNullValues)
+                {
+                    return Convert(sourceExpression, destinationType);
+                }
+
+                return Convert(IgnoreIfNull(sourceExpression), destinationType);
             }
 
             if (sourceType.IsValueType || conversionType.IsValueType)
