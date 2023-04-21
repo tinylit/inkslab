@@ -39,6 +39,11 @@ namespace Inkslab
             }
         }
 
+        private class DirectoryDefault : IDirectory
+        {
+            public string[] GetFiles(string path, string searchPattern) => Directory.GetFiles(path, searchPattern);
+        }
+
         /// <summary>
         /// 所有程序集。
         /// </summary>
@@ -83,7 +88,9 @@ namespace Inkslab
                 break;
             }
 
-            var files = Directory.GetFiles(assemblyPath, pattern);
+            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
+
+            var files = directory.GetFiles(assemblyPath, pattern);
 
             if (files.Length == 0)
             {
