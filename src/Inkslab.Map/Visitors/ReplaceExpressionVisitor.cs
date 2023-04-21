@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using System;
+using System.Linq.Expressions;
 
 namespace Inkslab.Map.Visitors
 {
@@ -7,18 +8,44 @@ namespace Inkslab.Map.Visitors
     /// </summary>
     public class ReplaceExpressionVisitor : ExpressionVisitor
     {
-        private readonly Expression _oldExpression;
-        private readonly Expression _newExpression;
+        private readonly Expression[] originals;
+        private readonly Expression[] nodes;
 
         /// <summary>
-        /// 将 <paramref name="oldExpression"/> 替换为 <paramref name="newExpression"/> 。 
+        /// 将 <paramref name="original"/> 替换为 <paramref name="node"/> 。 
         /// </summary>
-        /// <param name="oldExpression">被替换的表达式。</param>
-        /// <param name="newExpression">用作替换的表达式。</param>
-        public ReplaceExpressionVisitor(Expression oldExpression, Expression newExpression)
+        /// <param name="original">被替换的表达式。</param>
+        /// <param name="node">用作替换的表达式。</param>
+        public ReplaceExpressionVisitor(Expression original, Expression node)
         {
-            _oldExpression = oldExpression;
-            _newExpression = newExpression;
+            if (original is null)
+            {
+                throw new ArgumentNullException(nameof(original));
+            }
+
+            if (node is null)
+            {
+                throw new ArgumentNullException(nameof(node));
+            }
+
+            this.originals = new Expression[] { original };
+            this.nodes = new Expression[] { node };
+        }
+
+        /// <summary>
+        /// 将 <paramref name="originals"/> 替换为 <paramref name="nodes"/>，按照索引下标一对一替换。 
+        /// </summary>
+        /// <param name="originals">被替换的表达式。</param>
+        /// <param name="nodes">用作替换的表达式。</param>
+        public ReplaceExpressionVisitor(Expression[] originals, Expression[] nodes)
+        {
+            this.originals = originals ?? throw new ArgumentNullException(nameof(originals));
+            this.nodes = nodes ?? throw new ArgumentNullException(nameof(nodes));
+
+            if (originals.Length != nodes.Length)
+            {
+                throw new ArgumentException("源表达式和新表达式数组长度不相等！");
+            }
         }
 
         /// <summary>
@@ -28,9 +55,12 @@ namespace Inkslab.Map.Visitors
         /// <returns><inheritdoc/></returns>
         public override Expression Visit(Expression node)
         {
-            if (_oldExpression == node)
+            for (int i = 0; i < originals.Length; i++)
             {
-                return base.Visit(_newExpression);
+                if (node == originals[i])
+                {
+                    return nodes[i];
+                }
             }
 
             return base.Visit(node);

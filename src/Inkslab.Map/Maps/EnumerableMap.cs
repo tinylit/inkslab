@@ -44,7 +44,7 @@ namespace Inkslab.Map.Maps
             {
                 if (destinationType.GetArrayRank() > 1)
                 {
-                    throw new NotSupportedException($"暂不支持映射到多维数组({destinationType})!");
+                    throw new InvalidCastException($"暂不支持映射到多维数组({destinationType})!");
                 }
             }
 
@@ -52,7 +52,7 @@ namespace Inkslab.Map.Maps
             {
                 if (sourceType.GetArrayRank() > 1)
                 {
-                    throw new NotSupportedException($"暂不支持多维数组({sourceType})的映射!");
+                    throw new InvalidCastException($"暂不支持多维数组({sourceType})的映射!");
                 }
             }
 

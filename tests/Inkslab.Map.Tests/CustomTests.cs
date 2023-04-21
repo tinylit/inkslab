@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
-using System.Reflection.Metadata;
 using Xunit;
 
 namespace Inkslab.Map.Tests
@@ -261,59 +258,6 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
-    /// 无泛型的 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/>.
-    /// </summary>
-    public class NewInstanceGenericOfNothings : INewInstance<List<C1>, C1, LinkedList<C2>, C2>
-    {
-        /// <summary>
-        /// <inheritdoc/>.
-        /// </summary>
-        public LinkedList<C2> CreateInstance(List<C1> source, List<C2> destinationItems) => new LinkedList<C2>(destinationItems);
-    }
-
-    /// <summary>
-    /// 一个泛型的 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/>.
-    /// </summary>
-    public class NewInstanceGenericOfSingle<TItem> : INewInstance<List<TItem>, TItem, ReadOnlyCollection<TItem>, TItem>
-    {
-        /// <summary>
-        /// <inheritdoc/>.
-        /// </summary>
-        public ReadOnlyCollection<TItem> CreateInstance(List<TItem> source, List<TItem> destinationItems) => new ReadOnlyCollection<TItem>(destinationItems);
-    }
-
-    /// <summary>
-    /// 两个泛型的 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/>.
-    /// </summary>
-    public class NewInstanceGenericOfDouble<TSourceItem, TDestinationItem> : INewInstance<PagedList<TSourceItem>, TSourceItem, PagedList<TDestinationItem>, TDestinationItem>
-    {
-        /// <summary>
-        /// <inheritdoc/>.
-        /// </summary>
-        public PagedList<TDestinationItem> CreateInstance(PagedList<TSourceItem> source, List<TDestinationItem> destinationItems) => new PagedList<TDestinationItem>(destinationItems, source.PageIndex, source.PageSize, source.Count);
-    }
-
-    /// <summary>
-    /// 四个泛型的 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/>.
-    /// </summary>
-    public class NewInstanceGenericOfFull<TSource, TSourceItem, TDestination, TDestinationItem> : INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : class, IEnumerable<TSourceItem> where TDestination : class, ICollection<TDestinationItem>, new()
-    {
-        /// <summary>
-        /// <inheritdoc/>.
-        /// </summary>
-        public TDestination CreateInstance(TSource source, List<TDestinationItem> destinationItems)
-        {
-            var destination = new TDestination();
-
-            foreach (var destinationItem in destinationItems)
-            {
-                destination.Add(destinationItem);
-            }
-
-            return destination;
-        }
-    }
-    /// <summary>
     /// 自定义。
     /// </summary>
     public class CustomTests
@@ -435,8 +379,8 @@ namespace Inkslab.Map.Tests
                 Version = 1,
                 Time = x.P3
             })
-            .IncludeConstraints((x/* 源类型 */, y/* 原类型泛型参数，不是泛型时为空数组 */, z/* 目标类型泛型参数类型数组 */) => x == z[0] || x.IsSubclassOf(z[0])) //! 目标类型必须是泛型。;
-            .Map(x => x.P3, x => x.From(y => y.P3));
+            .Map(x => x.P3, x => x.From(y => y.P3))
+            .IncludeConstraints((x/* 源类型 */, y/* 原类型泛型参数，不是泛型时为空数组 */, z/* 目标类型泛型参数类型数组 */) => x == z[0] || x.IsSubclassOf(z[0])); //! 目标类型必须是泛型。
 
             var sourceC2 = new C3
             {
@@ -494,23 +438,22 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 无泛型的实现类。特定源类型和目标类型的转换。
+        /// 元素对等的迭代器转换。
         /// </summary>
         [Fact]
-        public void NewInstanceGenericOfNothingsTest()
+        public void NewEnumerableSimTest()
         {
             var constant = DateTimeKind.Utc;
 
             using var instance = new MapperInstance();
 
             instance.Map<C1, C2>()
+                .NewEnumerable<PagedList<C1>, PagedList<C2>>((x, y) => new PagedList<C2>(y, x.PageIndex, x.PageSize, x.Count))
                 .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
                                                         //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
-
-            instance.New(typeof(NewInstanceGenericOfNothings));
 
             var sourceList = new List<C1>
             {
@@ -539,164 +482,107 @@ namespace Inkslab.Map.Tests
                 }
             };
 
-            var destinationList = instance.Map<LinkedList<C2>>(sourceList);
+            var destinationList = instance.Map<PagedList<C2>>(new PagedList<C1>(sourceList, 0, sourceList.Count, sourceList.Count));
 
             //? 集合元素个数。
             Assert.True(destinationList.Count == sourceList.Count);
         }
 
         /// <summary>
-        /// <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 一个泛型的实现类。源集合类型的表示任意元素，到同元素的目标集合类型转换。
+        /// 元素有继承关系的迭代器转换。
         /// </summary>
         [Fact]
-        public void NewInstanceGenericOfSingleTest()
+        public void NewEnumerableByItemInheritTest()
         {
-            using var instance = new MapperInstance();
-
-            instance.New(typeof(NewInstanceGenericOfSingle<>));
-
-            var sourceList = new List<C1>
-            {
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                },
-
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                },
-
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                }
-            };
-
-            var destinationReadOnlyCollection = instance.Map<ReadOnlyCollection<C1>>(sourceList);
-
-            Assert.True(sourceList.Count == destinationReadOnlyCollection.Count);
-        }
-
-        /// <summary>
-        /// <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 两个泛型的实现类。源集合类型的表示任意元素，到目标集合类型任意元素的转换。
-        /// </summary>
-        [Fact]
-        public void NewInstanceGenericOfDoubleTest()
-        {
-            var items = new List<C1>
-            {
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                },
-
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                },
-
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                }
-            };
-
             var constant = DateTimeKind.Utc;
 
             using var instance = new MapperInstance();
 
             instance.Map<C1, C2>()
+                .NewEnumerable<PagedList<C1>, PagedList<C2>>((x, y) => new PagedList<C2>(y, x.PageIndex, x.PageSize, x.Count))
                 .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
                                                         //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
 
-            instance.New(typeof(NewInstanceGenericOfDouble<,>));
+            var sourceList = new List<C3>
+            {
+                new C3
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                },
 
-            var sourceList = new PagedList<C1>(items, 5, 10, 53);
+                new C3
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                },
 
+                new C3
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                }
+            };
+
+            //? 声明 C1 ，使用 C3 进行映射。
+            var destinationList = instance.Map<PagedList<C2>>(new PagedList<C3>(sourceList, 0, sourceList.Count, sourceList.Count));
+
+            //? 集合元素个数。
+            Assert.True(destinationList.Count == sourceList.Count);
+        }
+
+        /// <summary>
+        /// 按照类型约束作为入参。
+        /// </summary>
+        [Fact]
+        public void NewEnumerableByConstraintsTest()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<object, object>() //? 任意类型，都可以，仅对 NewEnumerable 有效。
+                .NewEnumerable<List<object>, PagedList<object>>((x, y) => new PagedList<object>(y, 0, x.Count, x.Count));
+
+            var sourceList = new List<C3>
+            {
+                new C3
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                },
+
+                new C3
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                },
+
+                new C3
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                }
+            };
+
+            //? 声明 C1 ，使用 C3 进行映射。
             var destinationList = instance.Map<PagedList<C2>>(sourceList);
 
             //? 集合元素个数。
-            Assert.True(destinationList.Count() == sourceList.Count());
-            //? 总数。
             Assert.True(destinationList.Count == sourceList.Count);
-            Assert.True(destinationList.PageIndex == sourceList.PageIndex);
-            Assert.True(destinationList.PageSize == sourceList.PageSize);
-        }
-
-        /// <summary>
-        /// <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 四个泛型的实现类。任意满足泛型约束的类型转换。
-        /// </summary>
-        [Fact]
-        public void NewInstanceGenericOfFullTest()
-        {
-            var items = new List<C1>
-            {
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                },
-
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                },
-
-                new C1
-                {
-                    P1 = 1,
-                    P2 = "Test",
-                    P3 = DateTime.Now,
-                    I5 = 10000
-                }
-            };
-
-            var constant = DateTimeKind.Utc;
-
-            using var instance = new MapperInstance();
-
-            instance.Map<C1, C2>()
-                .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
-                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
-                .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
-                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
-
-            instance.New(typeof(NewInstanceGenericOfFull<,,,>));
-
-            var sourceList = new PagedList<C1>(items, 5, 10, 53);
-
-            var destinationList = instance.Map<LinkedList<C2>>(sourceList);
-
-            //? 集合元素个数。
-            Assert.True(destinationList.Count == sourceList.Count());
         }
     }
 }

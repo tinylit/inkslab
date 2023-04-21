@@ -30,6 +30,13 @@ namespace Inkslab.Map
         /// <param name="memberOptions">成员配置。</param>
         /// <returns></returns>
         IMappingExpressionBase<TSource, TDestination> Map<TMember>(Expression<Func<TDestination, TMember>> destinationMember, Action<IMemberMappingExpression<TSource, TMember>> memberOptions);
+
+        /// <summary>
+        /// 继承泛型约束：类型 <typeparamref name="TDestination"/> 是型参数的泛型类时，泛型参数作为继承约束类型适配。
+        /// </summary>
+        /// <param name="matchConstraints">泛型参数是否匹配。</param>
+        /// <returns>映射表达式。</returns>
+        void IncludeConstraints(MatchConstraints matchConstraints);
     }
 
     /// <summary>
@@ -46,7 +53,7 @@ namespace Inkslab.Map
         /// <typeparam name="TDestinationEnumerable"><typeparamref name="TDestination"/>的迭代集合处理。</typeparam>
         /// <param name="destinationOptions">生成迭代器配置。</param>
         /// <returns>映射表达式。</returns>
-        IMappingExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSource, List<TDestination>, TDestinationEnumerable>> destinationOptions) where TSourceEnumerable : IEnumerable<TSource> where TDestinationEnumerable : IEnumerable<TDestination>;
+        IMappingExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSourceEnumerable, List<TDestination>, TDestinationEnumerable>> destinationOptions) where TSourceEnumerable : IEnumerable<TSource> where TDestinationEnumerable : IEnumerable<TDestination>;
     }
 
     /// <summary>
@@ -54,7 +61,7 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源。</typeparam>
     /// <typeparam name="TDestination">目标。</typeparam>
-    public interface IIncludeMappingExpression<TSource, TDestination> : IIncludeConstraintsMappingExpression<TSource, TDestination>
+    public interface IIncludeMappingExpression<TSource, TDestination> : IMappingExpressionBase<TSource, TDestination>
     {
         /// <summary>
         /// 包含继承 <typeparamref name="TDestination"/> 的类型，指定共享规则。
@@ -62,21 +69,6 @@ namespace Inkslab.Map
         /// <typeparam name="TAssignableToDestination">可赋值到<typeparamref name="TDestination"/>的类型。</typeparam>
         /// <returns>映射表达式。</returns>
         IIncludeMappingExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination;
-    }
-
-    /// <summary>
-    /// 【包含】映射表达式。
-    /// </summary>
-    /// <typeparam name="TSource">源。</typeparam>
-    /// <typeparam name="TDestination">目标。</typeparam>
-    public interface IIncludeConstraintsMappingExpression<TSource, TDestination> : IMappingExpressionBase<TSource, TDestination>
-    {
-        /// <summary>
-        /// 继承泛型约束：类型 <typeparamref name="TDestination"/> 是型参数的泛型类时，泛型参数作为继承约束类型适配。
-        /// </summary>
-        /// <param name="matchConstraints">泛型参数是否匹配。</param>
-        /// <returns>映射表达式。</returns>
-        IMappingExpressionBase<TSource, TDestination> IncludeConstraints(MatchConstraints matchConstraints);
     }
 
     /// <summary>

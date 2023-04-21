@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq.Expressions;
 
 namespace Inkslab.Map
@@ -24,34 +23,10 @@ namespace Inkslab.Map
         /// </summary>
         /// <typeparam name="TSource">源类型。</typeparam>
         /// <typeparam name="TDestination">目标类型。</typeparam>
-        /// <param name="createInstanceExpression">创建实例的表达式。</param>
+        /// <param name="destinationOptions">创建实例的表达式。</param>
         /// <returns>映射表达式。</returns>
-        IIncludeConstraintsMappingExpression<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> createInstanceExpression)
+        IMappingExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> destinationOptions)
             where TSource : class
             where TDestination : class;
-
-        /// <summary>
-        /// 实例化，支持定义类型(<see cref="Type.IsGenericTypeDefinition"/>)。
-        /// </summary>
-        /// <param name="newInstanceType">创建实例类型，必须实现 <see cref="INewInstance{TSource, TSourceItem, TDestination, TDestinationItem}"/> 接口。</param>
-        void New(Type newInstanceType);
-    }
-
-    /// <summary>
-    /// 创建实例。
-    /// </summary>
-    /// <typeparam name="TSource">源类型。</typeparam>
-    /// <typeparam name="TSourceItem">源集合元素类型。</typeparam>
-    /// <typeparam name="TDestination">目标类型。</typeparam>
-    /// <typeparam name="TDestinationItem">目标集合元素类型。</typeparam>
-    public interface INewInstance<TSource, TSourceItem, TDestination, TDestinationItem> where TSource : class, IEnumerable<TSourceItem> where TDestination : class, IEnumerable<TDestinationItem>
-    {
-        /// <summary>
-        /// 创建实例。
-        /// </summary>
-        /// <param name="source">源数据。</param>
-        /// <param name="destinationItems">目标集合元素数据。</param>
-        /// <returns>目标类型实例。</returns>
-        TDestination CreateInstance(TSource source, List<TDestinationItem> destinationItems);
     }
 }
