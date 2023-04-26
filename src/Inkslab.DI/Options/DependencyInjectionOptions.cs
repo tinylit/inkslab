@@ -24,10 +24,10 @@ namespace Inkslab.DI.Options
         static DependencyInjectionOptions()
         {
 #if NET6_0_OR_GREATER
-            controllerAttrType = typeof(ApiControllerAttribute);
+            controllerAttrType = typeof(ControllerAttribute);
             fromServicesAttrType = typeof(FromServicesAttribute);
 #elif NETSTANDARD2_1_OR_GREATER
-            controllerAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.ApiControllerAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
+            controllerAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.ControllerAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
             fromServicesAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.FromServicesAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
 #else
             controllerType = Type.GetType("System.Web.Http.Controllers.IHttpController, System.Web.Http", false, true);
