@@ -7,6 +7,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 
 namespace Inkslab.Map
@@ -196,12 +197,11 @@ namespace Inkslab.Map
 
             public override Expression Visit(Expression node)
             {
-                for (int i = 0; i < originalParameters.Length; i++)
+                var indexOf = Array.IndexOf(originalParameters, node);
+
+                if (indexOf > -1)
                 {
-                    if (originalParameters[i] == node)
-                    {
-                        return parameters[i];
-                    }
+                    return parameters[indexOf];
                 }
 
                 return base.Visit(node);
@@ -213,92 +213,91 @@ namespace Inkslab.Map
 
                 if (declaringType.IsGenericType)
                 {
-                    var reflectedType = memberInfo.ReflectedType;
+                    if (originalDestinationType.IsGenericType && (declaringType == originalDestinationType || memberInfo.ReflectedType == originalDestinationType))
+                    {
+                        memberInfo = memberInfo.MemberType switch
+                        {
+                            MemberTypes.Property => destinationType.GetProperty(memberInfo.Name, bindingFlags),
+                            MemberTypes.Field => destinationType.GetField(memberInfo.Name, bindingFlags),
+                            MemberTypes.Event => destinationType.GetEvent(memberInfo.Name, bindingFlags),
+                            MemberTypes.Method when memberInfo is MethodInfo methodInfo => MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, destinationType.TypeHandle),
+                            _ => Member(memberInfo, destinationType),
+                        };
 
-                    if (originalSourceType.IsGenericType && (reflectedType == originalSourceType || declaringType == originalSourceType))
-                    {
-                        switch (memberInfo.MemberType)
-                        {
-                            case MemberTypes.Property:
-                                memberInfo = sourceType.GetProperty(memberInfo.Name, bindingFlags);
-                                return true;
-                            case MemberTypes.Field:
-                                memberInfo = sourceType.GetField(memberInfo.Name, bindingFlags);
-                                return true;
-                            case MemberTypes.Method when memberInfo is MethodInfo methodInfo:
-                                memberInfo = MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, sourceType.TypeHandle);
-                                return true;
-                            default:
-                                return false;
-                        }
-                    }
-                    else if (originalDestinationType.IsGenericType && (reflectedType == originalDestinationType || declaringType == originalDestinationType))
-                    {
-                        switch (memberInfo.MemberType)
-                        {
-                            case MemberTypes.Property:
-                                memberInfo = destinationType.GetProperty(memberInfo.Name, bindingFlags);
-                                return true;
-                            case MemberTypes.Field:
-                                memberInfo = destinationType.GetField(memberInfo.Name, bindingFlags);
-                                return true;
-                            case MemberTypes.Method when memberInfo is MethodInfo methodInfo:
-                                memberInfo = MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, destinationType.TypeHandle);
-                                return true;
-                            default:
-                                return false;
-                        }
+                        return true;
                     }
                 }
 
                 return false;
+
+                static MemberInfo Member(MemberInfo memberInfo, Type destinationType)
+                {
+                    var memberInfos = destinationType.GetMember(memberInfo.Name, memberInfo.MemberType, bindingFlags);
+
+                    if (memberInfos.Length == 1)
+                    {
+                        return memberInfos[0];
+                    }
+
+                    var declaringType = memberInfo.DeclaringType;
+
+                    var typeDefintion = declaringType.GetGenericTypeDefinition();
+
+                    return memberInfos.Single(x => x.DeclaringType.IsGenericType && x.DeclaringType.GetGenericTypeDefinition() == typeDefintion);
+                }
             }
 
-            private static MemberInfo GetMemberInfo(Type destinationType, MemberInfo memberInfo)
+            private Expression VisitZip(Expression node, Type destinationType)
             {
-                var declaringType = memberInfo.DeclaringType;
-
-                if (declaringType.IsGenericType && destinationType.IsGenericType)
+                if (node is MethodCallExpression callExpression)
                 {
-                    return memberInfo.MemberType switch
+                    var methodInfo = callExpression.Method;
+
+                    if (methodInfo.IsGenericMethod)
                     {
-                        MemberTypes.Property => destinationType.GetProperty(memberInfo.Name, bindingFlags),
-                        MemberTypes.Field => destinationType.GetField(memberInfo.Name, bindingFlags),
-                        MemberTypes.Method when memberInfo is MethodInfo methodInfo => MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, destinationType.TypeHandle),
-                        _ => memberInfo,
-                    };
+                        var genericArguments = methodInfo.GetGenericArguments();
+
+#if NET_Traditional
+                        if (genericArguments[genericArguments.Length - 1] == node.Type)
+                        {
+                            genericArguments[genericArguments.Length - 1] = destinationType;
+#else
+
+                        if (genericArguments[^1] == node.Type)
+                        {
+                            genericArguments[^1] = destinationType;
+#endif
+
+                            var arguments = new List<Expression>(callExpression.Arguments.Count);
+
+                            var destinationMethodInfo = methodInfo
+                                    .GetGenericMethodDefinition()
+                                    .MakeGenericMethod(genericArguments);
+
+                            return Call(callExpression.Object, destinationMethodInfo, callExpression.Arguments.Zip(destinationMethodInfo.GetParameters(), (x, y) => VisitZip(x, y.ParameterType)));
+                        }
+                    }
                 }
 
-                return memberInfo;
+                return Visit(node);
             }
 
             protected override Expression VisitNew(NewExpression node)
             {
                 if (node.Type == originalDestinationType && destinationType.IsGenericType)
                 {
-                    var arguments = new List<Expression>(node.Arguments.Count);
-
-                    foreach (var arg in node.Arguments)
-                    {
-                        arguments.Add(Visit(arg));
-                    }
-
                     var constructorInfo = (ConstructorInfo)MethodBase.GetMethodFromHandle(node.Constructor.MethodHandle, destinationType.TypeHandle);
 
-                    if (node.Members is null)
+                    var arguments = new List<Expression>(node.Arguments.Count);
+
+                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => VisitZip(x, y.ParameterType)));
+
+                    if (node.Members is null || node.Members.Count == 0)
                     {
                         return Expression.New(constructorInfo, arguments);
                     }
 
-                    var memberInfos = new List<MemberInfo>(node.Members.Count);
-
-                    foreach (var memberInfo in node.Members)
-                    {
-                        memberInfos.Add(GetMemberInfo(destinationType, memberInfo));
-                    }
-
-
-                    return Expression.New(constructorInfo, arguments, memberInfos);
+                    throw new NotSupportedException();
                 }
 
                 return base.VisitNew(node);
@@ -308,16 +307,18 @@ namespace Inkslab.Map
             {
                 var memberInfo = node.Member;
 
+                var declaringType = memberInfo.DeclaringType;
+
                 var instanceExpression = Visit(node.Expression);
 
-                if (MemberIsRef(ref memberInfo))
+                if (declaringType.IsGenericType && originalSourceType.IsGenericType && (declaringType == originalSourceType || memberInfo.ReflectedType == originalSourceType))
                 {
-                    return memberInfo switch
+                    return memberInfo.MemberType switch
                     {
-                        PropertyInfo propertyInfo => Property(instanceExpression, propertyInfo),
-                        FieldInfo fieldInfo => Field(instanceExpression, fieldInfo),
-                        MethodInfo methodInfo => Property(instanceExpression, methodInfo),
-                        _ => node,
+                        MemberTypes.Property => Property(instanceExpression, sourceType.GetProperty(memberInfo.Name, bindingFlags)),
+                        MemberTypes.Field => Field(instanceExpression, sourceType.GetField(memberInfo.Name, bindingFlags)),
+                        MemberTypes.Method when memberInfo is MethodInfo method => Property(instanceExpression, (MethodInfo)MethodBase.GetMethodFromHandle(method.MethodHandle, sourceType.TypeHandle)),
+                        _ => throw new NotSupportedException(),
                     };
                 }
 
@@ -328,14 +329,28 @@ namespace Inkslab.Map
             {
                 var memberInfo = node.Member;
 
-                var valueExpression = Visit(node.Expression);
-
                 if (MemberIsRef(ref memberInfo))
                 {
+                    Type destinationType = node.Expression.Type;
+
+                    if (destinationType.IsGenericType)
+                    {
+                        destinationType = memberInfo.MemberType switch
+                        {
+                            MemberTypes.Field => ((FieldInfo)memberInfo).FieldType,
+                            MemberTypes.Method => ((MethodInfo)memberInfo).ReturnType,
+                            MemberTypes.Property => ((PropertyInfo)memberInfo).PropertyType,
+                            MemberTypes.Event => ((EventInfo)memberInfo).EventHandlerType,
+                            _ => throw new NotSupportedException(),
+                        };
+                    }
+
+                    var valueExpression = VisitZip(node.Expression, destinationType);
+
                     return Bind(memberInfo, valueExpression);
                 }
 
-                return node.Update(valueExpression);
+                return node.Update(Visit(node.Expression));
             }
         }
 
