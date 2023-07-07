@@ -26,7 +26,7 @@ namespace Inkslab.Map.Maps
 
         private static readonly MethodInfo ToStringMtd = typeof(Enum).GetMethod(nameof(Enum.ToString), Type.EmptyTypes);
 
-        private readonly static MethodInfo ConcatMtd = typeof(string).GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { typeof(string), typeof(string), typeof(string) }, null);
+        private readonly static MethodInfo ConcatMtd = MapConstants.StirngType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StirngType, MapConstants.StirngType, MapConstants.StirngType }, null);
 
         /// <summary>
         /// <inheritdoc/>

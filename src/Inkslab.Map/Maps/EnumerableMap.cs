@@ -24,8 +24,8 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
             => !sourceType.IsPrimitive && !destinationType.IsPrimitive
-                && sourceType != typeof(string)
-                && destinationType != typeof(string)
+                && sourceType != MapConstants.StirngType
+                && destinationType != MapConstants.StirngType
                 && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
                 && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
 

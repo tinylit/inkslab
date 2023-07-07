@@ -1,14 +1,9 @@
-﻿using Inkslab.Map.Maps;
-using Inkslab.Map.Visitors;
+﻿using Inkslab.Map.Visitors;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.InteropServices;
-using System.Security.AccessControl;
 
 namespace Inkslab.Map
 {
@@ -29,6 +24,9 @@ namespace Inkslab.Map
                 this.x = x;
                 this.y = y;
             }
+
+            public Type X => x;
+            public Type Y => y;
 
             private class TypeCodeEqualityComparer : IEqualityComparer<TypeCode>
             {
@@ -182,15 +180,17 @@ namespace Inkslab.Map
             private readonly Type originalDestinationType;
             private readonly Type sourceType;
             private readonly Type destinationType;
-            private readonly ParameterExpression[] originalParameters;
-            private readonly ParameterExpression[] parameters;
+            private readonly IMapConfiguration configuration;
+            private readonly Expression[] originalParameters;
+            private readonly Expression[] parameters;
 
-            public MapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, ParameterExpression[] originalParameters, ParameterExpression[] parameters)
+            public MapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, IMapConfiguration configuration, Expression[] originalParameters, Expression[] parameters)
             {
                 this.originalSourceType = originalSourceType;
                 this.originalDestinationType = originalDestinationType;
                 this.sourceType = sourceType;
                 this.destinationType = destinationType;
+                this.configuration = configuration;
                 this.originalParameters = originalParameters;
                 this.parameters = parameters;
             }
@@ -247,41 +247,6 @@ namespace Inkslab.Map
                 }
             }
 
-            private Expression VisitZip(Expression node, Type destinationType)
-            {
-                if (node is MethodCallExpression callExpression)
-                {
-                    var methodInfo = callExpression.Method;
-
-                    if (methodInfo.IsGenericMethod)
-                    {
-                        var genericArguments = methodInfo.GetGenericArguments();
-
-#if NET_Traditional
-                        if (genericArguments[genericArguments.Length - 1] == node.Type)
-                        {
-                            genericArguments[genericArguments.Length - 1] = destinationType;
-#else
-
-                        if (genericArguments[^1] == node.Type)
-                        {
-                            genericArguments[^1] = destinationType;
-#endif
-
-                            var arguments = new List<Expression>(callExpression.Arguments.Count);
-
-                            var destinationMethodInfo = methodInfo
-                                    .GetGenericMethodDefinition()
-                                    .MakeGenericMethod(genericArguments);
-
-                            return Call(callExpression.Object, destinationMethodInfo, callExpression.Arguments.Zip(destinationMethodInfo.GetParameters(), (x, y) => VisitZip(x, y.ParameterType)));
-                        }
-                    }
-                }
-
-                return Visit(node);
-            }
-
             protected override Expression VisitNew(NewExpression node)
             {
                 if (node.Type == originalDestinationType && destinationType.IsGenericType)
@@ -290,14 +255,25 @@ namespace Inkslab.Map
 
                     var arguments = new List<Expression>(node.Arguments.Count);
 
-                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => VisitZip(x, y.ParameterType)));
+                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => configuration.Map(Visit(x), y.ParameterType)));
 
                     if (node.Members is null || node.Members.Count == 0)
                     {
                         return Expression.New(constructorInfo, arguments);
                     }
 
-                    throw new NotSupportedException();
+                    var memberInfos = new List<MemberInfo>(node.Members.Count);
+
+                    for (int i = 0; i < node.Members.Count; i++)
+                    {
+                        var memberInfo = memberInfos[i];
+
+                        MemberIsRef(ref memberInfo);
+
+                        memberInfos.Add(memberInfo);
+                    }
+
+                    return Expression.New(constructorInfo, arguments, memberInfos);
                 }
 
                 return base.VisitNew(node);
@@ -331,26 +307,19 @@ namespace Inkslab.Map
 
                 if (MemberIsRef(ref memberInfo))
                 {
-                    Type destinationType = node.Expression.Type;
-
-                    if (destinationType.IsGenericType)
+                    Type destinationType = memberInfo.MemberType switch
                     {
-                        destinationType = memberInfo.MemberType switch
-                        {
-                            MemberTypes.Field => ((FieldInfo)memberInfo).FieldType,
-                            MemberTypes.Method => ((MethodInfo)memberInfo).ReturnType,
-                            MemberTypes.Property => ((PropertyInfo)memberInfo).PropertyType,
-                            MemberTypes.Event => ((EventInfo)memberInfo).EventHandlerType,
-                            _ => throw new NotSupportedException(),
-                        };
-                    }
+                        MemberTypes.Field => ((FieldInfo)memberInfo).FieldType,
+                        MemberTypes.Property => ((PropertyInfo)memberInfo).PropertyType,
+                        _ => throw new NotSupportedException(),
+                    };
 
-                    var valueExpression = VisitZip(node.Expression, destinationType);
+                    var valueExpression = configuration.Map(Visit(node.Expression), destinationType);
 
                     return Bind(memberInfo, valueExpression);
                 }
 
-                return node.Update(Visit(node.Expression));
+                return node.Update(configuration.Map(Visit(node.Expression), node.Expression.Type));
             }
         }
 
@@ -373,7 +342,7 @@ namespace Inkslab.Map
             private MatchConstraints matchConstraints;
             private MapConstraints sourceConstraints;
             private List<MapConstraints> destinationConstraints;
-            private Dictionary<TypeCode, EnumerableInstanceFactory> enumerableInstanceFactories;
+            private Dictionary<TypeCode, InstanceEnumerableFactory> enumerableInstanceFactories;
 
             public MapSlot(Type sourceType, Type destinationType)
             {
@@ -534,23 +503,34 @@ namespace Inkslab.Map
                 return destinationTypes.Contains(destinationType) && this.sourceType.IsAssignableFrom(sourceType);
             }
 
-            public InstanceSlot CreateInstance(Type sourceType, Type destinationType)
+            public bool TryCreateMap(Type sourceType, Type destinationType, out IInstanceMapSlot mapSlot)
             {
                 if (hasInumerableInstanceSlot && sourceType.IsGenericType && destinationType.IsGenericType)
                 {
                     var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
                     var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
 
-                    if (enumerableInstanceFactories.TryGetValue(new TypeCode(sourceTypeDefinition, destinationTypeDefinition), out EnumerableInstanceFactory instanceFactory))
+                    if (enumerableInstanceFactories.TryGetValue(new TypeCode(sourceTypeDefinition, destinationTypeDefinition), out InstanceEnumerableFactory instanceFactory))
                     {
-                        return instanceFactory.CreateInstance(sourceType, destinationType);
+                        mapSlot = instanceFactory.CreateMap(sourceType, destinationType);
+
+                        return true;
                     }
                 }
 
-                return instanceFactory.CreateInstance(sourceType, destinationType);
+                if (hasInstanceSlot)
+                {
+                    mapSlot = instanceFactory.CreateMap(sourceType, destinationType);
+
+                    return true;
+                }
+
+                mapSlot = null;
+
+                return false;
             }
 
-            public void NewEnumerable(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+            public void NewEnumerable(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
             {
                 if (!sourceTypeEnumerable.IsGenericType)
                 {
@@ -589,7 +569,7 @@ namespace Inkslab.Map
                 var sourceTypeDefinition = sourceTypeEnumerable.GetGenericTypeDefinition();
                 var destinationTypeDefinition = destinationTypeEnumerable.GetGenericTypeDefinition();
 
-                var instanceFactory = new EnumerableInstanceFactory(sourceTypeEnumerable, destinationTypeEnumerable, destinationSetType, body, parameter, parameterOfSet);
+                var instanceFactory = new InstanceEnumerableFactory(sourceTypeEnumerable, destinationTypeEnumerable, body, parameter, parameterOfSet);
 
                 var typeCode = new TypeCode(sourceTypeDefinition, destinationTypeDefinition);
 
@@ -597,7 +577,7 @@ namespace Inkslab.Map
                 {
                     hasInumerableInstanceSlot = true;
 
-                    enumerableInstanceFactories = new Dictionary<TypeCode, EnumerableInstanceFactory>(TypeCode.InstanceComparer)
+                    enumerableInstanceFactories = new Dictionary<TypeCode, InstanceEnumerableFactory>(TypeCode.InstanceComparer)
                     {
                         [typeCode] = instanceFactory
                     };
@@ -631,53 +611,17 @@ namespace Inkslab.Map
             }
         }
 
-        private class InstanceSlot
+        private interface IInstanceFactory
         {
-            private readonly Expression body;
-            private readonly ParameterExpression parameter;
-
-            public InstanceSlot(Expression body, ParameterExpression parameter)
-            {
-                this.body = body;
-                this.parameter = parameter;
-            }
-
-            public virtual Expression NewInstance(Expression parameter, IMapConfiguration configuration)
-            {
-                var visitor = new ReplaceExpressionVisitor(this.parameter, parameter);
-
-                return visitor.Visit(body);
-            }
+            IInstanceMapSlot CreateMap(Type sourceType, Type destinationType);
         }
 
-        private class EnumerableInstanceSlot : InstanceSlot
+        private interface IInstanceMapSlot
         {
-            private readonly Expression body;
-            private readonly ParameterExpression parameter;
-            private readonly Type destinationSetType;
-            private readonly ParameterExpression parameterOfSet;
-
-            public EnumerableInstanceSlot(Expression body, ParameterExpression parameter, Type destinationSetType, ParameterExpression parameterOfSet) : base(body, parameter)
-            {
-                this.body = body;
-                this.parameter = parameter;
-                this.destinationSetType = destinationSetType;
-                this.parameterOfSet = parameterOfSet;
-            }
-
-            public override Expression NewInstance(Expression source, IMapConfiguration configuration)
-            {
-                var destinationSetVariable = Variable(destinationSetType);
-
-                var destinationSetExpression = configuration.Map(source, destinationSetType);
-
-                var visitor = new ReplaceExpressionVisitor(new ParameterExpression[] { parameter, parameterOfSet }, new Expression[] { source, destinationSetVariable });
-
-                return Block(new ParameterExpression[] { destinationSetVariable }, new Expression[] { Assign(destinationSetVariable, destinationSetExpression), visitor.Visit(body) });
-            }
+            Expression Map(Expression source, IMapConfiguration configuration);
         }
 
-        private class InstanceFactory
+        private class InstanceFactory : IInstanceFactory
         {
             private readonly Type sourceType;
             private readonly Type destinationType;
@@ -692,73 +636,138 @@ namespace Inkslab.Map
                 this.parameter = parameter;
             }
 
-            public InstanceSlot CreateInstance(Type sourceType, Type destinationType)
+            private class SimpleSlot : IInstanceMapSlot
+            {
+                private readonly Expression body;
+                private readonly ParameterExpression parameter;
+
+                public SimpleSlot(Expression body, ParameterExpression parameter)
+                {
+                    this.body = body;
+                    this.parameter = parameter;
+                }
+
+                public Expression Map(Expression source, IMapConfiguration configuration)
+                {
+                    var visitor = new ReplaceExpressionVisitor(parameter, source);
+
+                    return visitor.Visit(body);
+                }
+            }
+
+            private class MapperSlot : IInstanceMapSlot
+            {
+                private readonly Type destinationType;
+                private readonly Expression body;
+                private readonly ParameterExpression parameter;
+
+                public MapperSlot(Type destinationType, Expression body, ParameterExpression parameter)
+                {
+                    this.destinationType = destinationType;
+                    this.body = body;
+                    this.parameter = parameter;
+                }
+
+                public Expression Map(Expression source, IMapConfiguration configuration)
+                {
+                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, configuration, new[] { parameter }, new[] { source });
+
+                    return visitor.Visit(body);
+                }
+            }
+
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
             {
                 if (this.sourceType == sourceType && this.destinationType == destinationType)
                 {
-                    return new InstanceSlot(body, parameter);
+                    return new SimpleSlot(body, parameter);
                 }
 
-                try
-                {
-                    var parameter = Parameter(sourceType);
-
-                    var visitor = new MapExpressionVisitor(this.sourceType, this.destinationType, sourceType, destinationType, new[] { this.parameter }, new[] { parameter });
-
-                    var body = visitor.Visit(this.body);
-
-                    return new InstanceSlot(body, parameter);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidCastException($"无法从源({this.sourceType}=>{this.destinationType})的表达式，分析出目标({sourceType}=>{destinationType})的表达式！", ex);
-                }
+                return new MapperSlot(destinationType, body, parameter);
             }
         }
 
-        private class EnumerableInstanceFactory
+        private class InstanceEnumerableFactory : IInstanceFactory
         {
             private readonly Type sourceTypeEnumerable;
             private readonly Type destinationTypeEnumerable;
-            private readonly Type destinationSetType;
             private readonly Expression body;
             private readonly ParameterExpression parameter;
             private readonly ParameterExpression parameterOfSet;
 
-            public EnumerableInstanceFactory(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+            public InstanceEnumerableFactory(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
             {
                 this.sourceTypeEnumerable = sourceTypeEnumerable;
                 this.destinationTypeEnumerable = destinationTypeEnumerable;
-                this.destinationSetType = destinationSetType;
                 this.body = body;
                 this.parameter = parameter;
                 this.parameterOfSet = parameterOfSet;
             }
 
-            public EnumerableInstanceSlot CreateInstance(Type sourceType, Type destinationType)
+            private class SimpleSlot : IInstanceMapSlot
+            {
+                private readonly Type destinationSetType;
+                private readonly Expression body;
+                private readonly ParameterExpression parameter;
+                private readonly ParameterExpression parameterOfSet;
+
+                public SimpleSlot(Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+                {
+                    this.destinationSetType = destinationSetType;
+                    this.body = body;
+                    this.parameter = parameter;
+                    this.parameterOfSet = parameterOfSet;
+                }
+
+                public Expression Map(Expression source, IMapConfiguration configuration)
+                {
+                    var destinationSetVariable = Variable(destinationSetType);
+
+                    var destinationSetExpression = configuration.Map(source, destinationSetType);
+
+                    var visitor = new ReplaceExpressionVisitor(new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
+
+                    return Block(new ParameterExpression[] { destinationSetVariable }, Assign(destinationSetVariable, destinationSetExpression), visitor.Visit(body));
+                }
+            }
+
+            private class MapperSlot : IInstanceMapSlot
+            {
+                private readonly Type destinationType;
+                private readonly Type destinationSetType;
+                private readonly Expression body;
+                private readonly ParameterExpression parameter;
+                private readonly ParameterExpression parameterOfSet;
+
+                public MapperSlot(Type destinationType, Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+                {
+                    this.destinationType = destinationType;
+                    this.destinationSetType = destinationSetType;
+                    this.body = body;
+                    this.parameter = parameter;
+                    this.parameterOfSet = parameterOfSet;
+                }
+
+                public Expression Map(Expression source, IMapConfiguration configuration)
+                {
+                    var destinationSetVariable = Variable(destinationSetType);
+
+                    var destinationSetExpression = configuration.Map(source, destinationSetType);
+
+                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, configuration, new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
+
+                    return Block(new ParameterExpression[] { destinationSetVariable }, Assign(destinationSetVariable, destinationSetExpression), visitor.Visit(body));
+                }
+            }
+
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
             {
                 if (sourceTypeEnumerable == sourceType && destinationTypeEnumerable == destinationType)
                 {
-                    return new EnumerableInstanceSlot(body, parameter, destinationSetType, parameterOfSet);
+                    return new SimpleSlot(parameterOfSet.Type, body, parameter, parameterOfSet);
                 }
 
-                try
-                {
-                    var destinationSetType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
-
-                    var parameter = Parameter(sourceType);
-                    var parameterOfSet = Parameter(destinationSetType);
-
-                    var visitor = new MapExpressionVisitor(sourceTypeEnumerable, destinationTypeEnumerable, sourceType, destinationType, new[] { this.parameter, this.parameterOfSet }, new[] { parameter, parameterOfSet });
-
-                    var body = visitor.Visit(this.body);
-
-                    return new EnumerableInstanceSlot(body, parameter, destinationSetType, parameterOfSet);
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidCastException($"无法从源({sourceTypeEnumerable}=>{destinationTypeEnumerable})的表达式，分析出目标({sourceType}=>{destinationType})的表达式！", ex);
-                }
+                return new MapperSlot(destinationType, typeof(List<>).MakeGenericType(destinationType.GetGenericArguments()), body, parameter, parameterOfSet);
             }
         }
 
@@ -891,7 +900,7 @@ namespace Inkslab.Map
                     throw new ArgumentException("仅支持形如：(x, y) => new A(y, x.Id, ...) 或 (x, y) => new B(y) { A = 1, B = x.C ... } 的表达式！", nameof(destinationOptions));
                 }
 
-                mapSlot.NewEnumerable(typeof(TSourceEnumerable), typeof(TDestinationEnumerable), typeof(List<TDestination>), body, destinationOptions.Parameters[0], destinationOptions.Parameters[1]);
+                mapSlot.NewEnumerable(typeof(TSourceEnumerable), typeof(TDestinationEnumerable), body, destinationOptions.Parameters[0], destinationOptions.Parameters[1]);
 
                 return this;
             }
@@ -910,7 +919,9 @@ namespace Inkslab.Map
         private bool disposedValue;
 
         private readonly List<MapSlot> mapSlots = new List<MapSlot>();
-        private readonly Dictionary<TypeCode, InstanceSlot> instanceCachings = new Dictionary<TypeCode, InstanceSlot>(TypeCode.InstanceComparer);
+        private readonly Dictionary<TypeCode, MapSlot> mapCachings = new Dictionary<TypeCode, MapSlot>(TypeCode.InstanceComparer);
+        private readonly Dictionary<TypeCode, IInstanceMapSlot> instanceMapCachings = new Dictionary<TypeCode, IInstanceMapSlot>(TypeCode.InstanceComparer);
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<TypeCode, bool> matchCachings = new System.Collections.Concurrent.ConcurrentDictionary<TypeCode, bool>(TypeCode.InstanceComparer);
 
         /// <summary>
         /// 解决映射关系。
@@ -945,22 +956,20 @@ namespace Inkslab.Map
 
                     do
                     {
-                        for (int i = mapSlots.Count - 1; i >= 0; i--)
+                        if (mapCachings.TryGetValue(new TypeCode(currentType, destinationType), out var mapSlot))
                         {
-                            var mapSlot = mapSlots[i];
-
-                            if (mapSlot.HasMemberSettings && mapSlot.IsMatch(currentType, destinationType))
+                            if (mapSlot.HasMemberSettings)
                             {
                                 validSlots.Add(mapSlot);
                             }
                         }
 
-                        if (currentType.BaseType is null)
+                        currentType = currentType.BaseType;
+
+                        if (currentType is null)
                         {
                             break;
                         }
-
-                        currentType = currentType.BaseType;
 
                     } while (currentType != MapConstants.ObjectType);
                 }
@@ -1000,14 +1009,7 @@ namespace Inkslab.Map
                 {
                     if (memberInfo.CanRead && string.Equals(memberInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (configuration.IsMatch(memberInfo.PropertyType, propertyInfo.PropertyType))
-                        {
-                            yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExpression, memberInfo), propertyInfo.PropertyType));
-                        }
-                        else
-                        {
-                            throw new InvalidCastException($"成员【{memberInfo.Name}】({memberInfo.PropertyType})无法转换为【{propertyInfo.Name}】({propertyInfo.PropertyType})类型!");
-                        }
+                        yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExpression, memberInfo), propertyInfo.PropertyType));
 
                         goto label_skip;
                     }
@@ -1032,25 +1034,32 @@ label_skip:
 
             var typeCode = new TypeCode(sourceType, destinationType);
 
-            if (instanceCachings.ContainsKey(typeCode))
+            if (mapCachings.ContainsKey(typeCode) || instanceMapCachings.ContainsKey(typeCode))
             {
                 return true;
             }
 
-            foreach (var mapSlot in mapSlots)
+            return matchCachings.GetOrAdd(typeCode, tuple =>
             {
-                if (mapSlot.IsMatch(sourceType, destinationType, false))
+                foreach (var mapSlot in mapSlots)
                 {
-                    if (mapSlot.HasInstanceSlot)
+                    if (mapSlot.IsMatch(tuple.X, tuple.Y, false))
                     {
-                        instanceCachings[typeCode] = mapSlot.CreateInstance(sourceType, destinationType);
+                        if (mapSlot.HasInstanceSlot && mapSlot.TryCreateMap(tuple.X, tuple.Y, out var slot))
+                        {
+                            instanceMapCachings[typeCode] = slot;
+                        }
+                        else
+                        {
+                            mapCachings[typeCode] = mapSlot;
+                        }
+
+                        return true;
                     }
-
-                    return true;
                 }
-            }
 
-            return false;
+                return false;
+            });
         }
 
         /// <summary>
@@ -1066,15 +1075,28 @@ label_skip:
 
             var typeCode = new TypeCode(sourceType, destinationType);
 
-            if (instanceCachings.TryGetValue(typeCode, out InstanceSlot instanceSlot))
+            if (instanceMapCachings.TryGetValue(typeCode, out IInstanceMapSlot mapSlot))
             {
-                var instanceExpression = instanceSlot.NewInstance(sourceExpression, configuration);
-
                 var destinationVariable = Variable(destinationType);
+
+                List<ParameterExpression> variables = new List<ParameterExpression>(1)
+                {
+                    destinationVariable
+                };
+
+                List<Expression> expressions = new List<Expression>(3);
+
+                var instanceExpression = mapSlot.Map(sourceExpression, configuration);
+
+                expressions.Add(Assign(destinationVariable, instanceExpression));
 
                 var bodyExp = ToSolve(sourceExpression, sourceType, destinationVariable, destinationType, configuration);
 
-                return Block(destinationType, new ParameterExpression[] { destinationVariable }, new Expression[] { Assign(destinationVariable, instanceExpression), bodyExp, destinationVariable });
+                expressions.Add(bodyExp);
+
+                expressions.Add(destinationVariable);
+
+                return Block(destinationType, variables, expressions);
             }
 
             return base.ToSolve(sourceExpression, sourceExpression.Type, destinationType, configuration);
@@ -1089,15 +1111,22 @@ label_skip:
         /// <param name="destinationType">目标类型。</param>
         /// <param name="configuration">映射配置。</param>
         /// <returns>目标类型<paramref name="destinationType"/>的映射结果表达式。</returns>
-        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+        protected sealed override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
         {
-            var expressions = ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, configuration);
+            var expressions = new List<Expression>();
 
-            var arrays = expressions.ToArray();
-
-            if (arrays.Length > 0)
+            foreach (var node in ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, configuration))
             {
-                return Block(arrays);
+                var visitor = new IgnoreIfNullExpressionVisitor();
+
+                var bodyExp = visitor.Visit(node);
+
+                expressions.Add(visitor.HasIgnore ? IfThen(visitor.Test, bodyExp) : bodyExp);
+            }
+
+            if (expressions.Count > 0)
+            {
+                return Block(expressions);
             }
 
             return Empty();
@@ -1113,9 +1142,17 @@ label_skip:
             where TSource : class
             where TDestination : class
         {
-            var mapSlot = new MapSlot(typeof(TSource), typeof(TDestination));
+            var sourceType = typeof(TSource);
+            var destinationType = typeof(TDestination);
+
+            var mapSlot = new MapSlot(sourceType, destinationType);
 
             mapSlots.Add(mapSlot);
+
+            //? 优先使用自定义。
+            var typeCode = new TypeCode(sourceType, destinationType);
+
+            mapCachings[typeCode] = mapSlot;
 
             return new MappingExpression<TSource, TDestination>(mapSlot);
         }
@@ -1150,9 +1187,12 @@ label_skip:
 
             mapSlots.Add(mapSlot);
 
+            //? 优先使用自定义。
             var typeCode = new TypeCode(sourceType, destinationType);
 
-            instanceCachings[typeCode] = new InstanceSlot(body, destinationOptions.Parameters[0]);
+            mapCachings[typeCode] = mapSlot;
+
+            instanceMapCachings[typeCode] = instanceFactory.CreateMap(sourceType, destinationType);
 
             return new MappingExpression<TSource, TDestination>(mapSlot);
         }
@@ -1175,7 +1215,9 @@ label_skip:
                     mapSlots.Clear();
                 }
 
-                instanceCachings.Clear();
+                instanceMapCachings.Clear();
+
+                matchCachings.Clear();
 
                 disposedValue = true;
             }

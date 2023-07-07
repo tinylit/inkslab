@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Linq.Expressions;
-using System.Reflection;
 
 namespace Inkslab.Map.Maps
 {
@@ -18,12 +17,7 @@ namespace Inkslab.Map.Maps
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType)
-            => Array.Exists(destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), x =>
-            {
-                var parameterInfos = x.GetParameters();
-
-                return parameterInfos.Length == 1 && Array.TrueForAll(parameterInfos, y => y.ParameterType.IsAssignableFrom(sourceType));
-            });
+            => destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceType }, null) is not null;
 
         /// <summary>
         /// <inheritdoc/>
@@ -35,12 +29,7 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
         {
-            var constructorInfo = Array.Find(destinationType.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance), x =>
-            {
-                var parameterInfos = x.GetParameters();
-
-                return parameterInfos.Length == 1 && Array.TrueForAll(parameterInfos, y => y.ParameterType.IsAssignableFrom(sourceType));
-            });
+            var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceType }, null);
 
             return New(constructorInfo, sourceExpression);
         }

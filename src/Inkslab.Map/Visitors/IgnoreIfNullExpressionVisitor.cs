@@ -1,5 +1,5 @@
-﻿using Inkslab.Map.Expressions;
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 
 namespace Inkslab.Map.Visitors
@@ -9,17 +9,13 @@ namespace Inkslab.Map.Visitors
     /// <summary>
     /// 为 null 时，忽略。
     /// </summary>
-    public class IgnoreIfNullExpressionVisitor : ExpressionVisitor
+    internal class IgnoreIfNullExpressionVisitor : ExpressionVisitor
     {
-        private readonly ExpressionVisitor visitor;
-
         /// <summary>
         /// 构造函数。
         /// </summary>
-        /// <param name="visitor">原始访问器。</param>
-        public IgnoreIfNullExpressionVisitor(ExpressionVisitor visitor)
+        public IgnoreIfNullExpressionVisitor()
         {
-            this.visitor = visitor ?? throw new ArgumentNullException(nameof(visitor));
         }
 
         /// <summary>
@@ -32,37 +28,49 @@ namespace Inkslab.Map.Visitors
         /// </summary>
         public Expression Test { private set; get; }
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="node"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
         public override Expression Visit(Expression node)
         {
-            if (node?.NodeType == IgnoreIfNullExpression.IgnoreIfNull)
+            if (node is null)
             {
                 return base.Visit(node);
             }
 
-            return visitor.Visit(node);
+            switch (node.NodeType)
+            {
+                case ExpressionType.Block:
+                case ExpressionType.Lambda:
+                case ExpressionType.New:
+                case ExpressionType.NewArrayBounds:
+                case ExpressionType.NewArrayInit:
+                case ExpressionType.Switch:
+                case ExpressionType.Throw:
+                case ExpressionType.Try:
+                case ExpressionType.Unbox:
+                case ExpressionType.Loop:
+                case ExpressionType.Extension:
+                case ExpressionType.Goto:
+                case ExpressionType.Conditional:
+                    return node;
+                default:
+                    return base.Visit(node);
+            }
         }
 
         /// <summary>
         /// 访问为空忽略表达式。
         /// </summary>
-        /// <param name="node"></param>
-        /// <returns></returns>
-        protected internal virtual Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
+        /// <param name="node">判空节点。</param>
+        /// <returns>新的表达式。</returns>
+        internal Expression VisitIgnoreIfNull(Expression node)
         {
-            var reduceNode = node.CanReduce
-                ? node.Reduce()
-                : node;
-
-            bool nullable = reduceNode.Type.IsNullable();
+            bool nullable = node.Type.IsNullable();
 
             Expression test = nullable
-                ? Property(reduceNode, "HasValue")
-                : NotEqual(reduceNode, Default(reduceNode.Type));
+                ? Property(node, "HasValue")
+                : node.Type.IsClass
+                    ? NotEqual(node, Constant(null, node.Type))
+                    : NotEqual(node, Default(node.Type));
 
             if (HasIgnore)
             {
@@ -75,9 +83,7 @@ namespace Inkslab.Map.Visitors
                 Test = test;
             }
 
-            return nullable
-                ? Property(reduceNode, "Value")
-                : reduceNode;
+            return node.CanReduce ? node.Reduce() : node;
         }
     }
 }

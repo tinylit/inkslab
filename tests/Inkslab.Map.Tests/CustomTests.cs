@@ -335,7 +335,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// 是否有下一个。
         /// </summary>
-        public bool HasNext { get; set; }
+        public bool HasNext { get; }
 
         /// <summary>
         /// 数据。
@@ -514,13 +514,16 @@ namespace Inkslab.Map.Tests
                 I5 = 10000
             };
 
-            var destinationC4 = instance.Map<C4>(sourceC1);
+            for (int i = 0; i < 100000; i++)
+            {
+                var destinationC4 = instance.Map<C4>(sourceC1);
 
-            Assert.True(sourceC1.P1 == destinationC4.P1); //? 指定映射。
-            Assert.True(sourceC1.P2 == destinationC4.P2); //? 默认映射。
-            Assert.True(sourceC1.P3.ToString() == destinationC4.T3); //? 指定映射规则。
-            Assert.True(destinationC4.D4 == constant); //? 常量。
-            Assert.True(sourceC1.I5 == 10000 && destinationC4.I5 == long.MaxValue); //! 忽略映射。
+                Assert.True(sourceC1.P1 == destinationC4.P1); //? 指定映射。
+                Assert.True(sourceC1.P2 == destinationC4.P2); //? 默认映射。
+                Assert.True(sourceC1.P3.ToString() == destinationC4.T3); //? 指定映射规则。
+                Assert.True(destinationC4.D4 == constant); //? 常量。
+                Assert.True(sourceC1.I5 == 10000 && destinationC4.I5 == long.MaxValue); //! 忽略映射。
+            }
         }
 
         /// <summary>
@@ -533,7 +536,7 @@ namespace Inkslab.Map.Tests
 
             using var instance = new MapperInstance();
 
-            instance.New<LazyLoading<object>, LazyLoading<object>>(x => new LazyLoading<object>(instance.Map<List<object>>(x.Datas), x.Offset, x.HasNext) { HasNext = x.HasNext })
+            instance.New<LazyLoading<object>, LazyLoading<object>>(x => new LazyLoading<object>(x.Datas, x.Offset, x.HasNext))
                 .IncludeConstraints((x, y, z) => true);
 
             instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
@@ -552,7 +555,10 @@ namespace Inkslab.Map.Tests
 
             var source = new LazyLoading<C1>(new List<C1> { sourceC1 }, 10, true);
 
-            var destination = instance.Map<LazyLoading<C2>>(source);
+            for (int i = 0; i < 10000; i++)
+            {
+                var destination = instance.Map<LazyLoading<C2>>(source);
+            }
         }
 
         /// <summary>

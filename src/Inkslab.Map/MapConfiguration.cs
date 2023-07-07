@@ -1,5 +1,5 @@
-﻿using Inkslab.Map.Expressions;
-using Inkslab.Map.Maps;
+﻿using Inkslab.Map.Maps;
+using Inkslab.Map.Visitors;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -304,7 +304,7 @@ namespace Inkslab.Map
                     return sourceExpression;
                 }
 
-                return IgnoreIfNull(sourceExpression);
+                return IgnoreIfNull(sourceExpression, true);
             }
 
             if (sourceType.IsValueType)
@@ -319,9 +319,7 @@ namespace Inkslab.Map
                         {
                             var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
 
-                            var destinationExpression = underlyingSourceType == underlyingDestinationType
-                                ? Property(sourceExpression, "Value")
-                                : MapGeneral(Property(sourceExpression, "Value"), sourceType, destinationType, underlyingDestinationType);
+                            var destinationExpression = MapGeneral(Property(sourceExpression, "Value"), sourceType, destinationType, underlyingDestinationType);
 
                             return Condition(Property(sourceExpression, "HasValue"), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression), Default(conversionType));
                         }
@@ -333,9 +331,7 @@ namespace Inkslab.Map
                     {
                         var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
 
-                        var destinationExpression = sourceType == underlyingDestinationType
-                            ? IgnoreIfNull(sourceExpression)
-                            : MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType);
+                        var destinationExpression = MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType);
 
                         return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
                     }
@@ -409,6 +405,95 @@ namespace Inkslab.Map
             throw new InvalidCastException($"无法从源【{sourceType}】源映射到目标【{destinationType}】的类型！");
         }
 
-        private static Expression IgnoreIfNull(Expression node) => new IgnoreIfNullExpression(node);
+        private static Expression IgnoreIfNull(Expression node, bool keepNullable = false) => new IgnoreIfNullExpression(node, keepNullable);
+
+        /// <summary>
+        /// 忽略表达式。
+        /// </summary>
+        private class IgnoreIfNullExpression : Expression
+        {
+            private readonly Type type;
+            private readonly Expression node;
+            private readonly bool keepNullable;
+
+            /// <summary>
+            /// 忽略表达式枚举值。
+            /// </summary>
+            private const ExpressionType IgnoreIfNull = (ExpressionType)(-1);
+
+            /// <summary>
+            /// 构造函数。
+            /// </summary>
+            /// <param name="node">表达式节点。</param>
+            /// <param name="keepNullable"></param>
+            public IgnoreIfNullExpression(Expression node, bool keepNullable)
+            {
+                this.node = node ?? throw new ArgumentNullException(nameof(node));
+                this.keepNullable = keepNullable;
+
+                if (node is IgnoreIfNullExpression ignoreNode)
+                {
+                    this.node = ignoreNode.node;
+                    type = ignoreNode.type;
+                }
+                else if (keepNullable || !node.Type.IsValueType)
+                {
+                    this.node = node;
+                    type = node.Type;
+                }
+                else if (node.Type.IsNullable())
+                {
+                    this.node = node;
+                    type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type);
+                }
+                else
+                {
+                    throw new ArgumentException($"类型【{node.Type}】的值不可能为null！");
+                }
+            }
+
+            /// <summary>
+            /// 类型。
+            /// </summary>
+            public override Type Type => type;
+
+            /// <summary>
+            /// 节点类型。
+            /// </summary>
+            public override ExpressionType NodeType => IgnoreIfNull;
+
+            public override bool CanReduce => true;
+
+            public override Expression Reduce()
+            {
+                if (keepNullable)
+                {
+                    goto label_original;
+                }
+
+                if (node.Type.IsNullable())
+                {
+                    return Property(node, "Value");
+                }
+
+label_original:
+                return node;
+            }
+
+            /// <summary>
+            /// 分配为默认值。
+            /// </summary>
+            /// <param name="visitor">访问器。</param>
+            /// <returns></returns>
+            protected override Expression Accept(ExpressionVisitor visitor)
+            {
+                if (visitor is IgnoreIfNullExpressionVisitor ignoreVisitor)
+                {
+                    return ignoreVisitor.VisitIgnoreIfNull(this);
+                }
+
+                return visitor.Visit(Reduce());
+            }
+        }
     }
 }

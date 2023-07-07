@@ -16,7 +16,7 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => destinationType == typeof(string);
+        public bool IsMatch(Type sourceType, Type destinationType) => destinationType == MapConstants.StirngType;
 
         /// <summary>
         /// <inheritdoc/>
@@ -30,7 +30,7 @@ namespace Inkslab.Map.Maps
         {
             Type objectType = MapConstants.ObjectType;
 
-            var toStringMethod = sourceType.GetMethod(nameof(object.ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(object.ToString), Type.EmptyTypes);
+            var toStringMethod = sourceType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
 
             if (sourceType.IsValueType && toStringMethod.DeclaringType == objectType)
             {

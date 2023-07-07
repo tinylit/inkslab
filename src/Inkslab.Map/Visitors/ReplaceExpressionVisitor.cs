@@ -28,8 +28,8 @@ namespace Inkslab.Map.Visitors
                 throw new ArgumentNullException(nameof(node));
             }
 
-            this.originals = new Expression[] { original };
-            this.nodes = new Expression[] { node };
+            originals = new Expression[] { original };
+            nodes = new Expression[] { node };
         }
 
         /// <summary>

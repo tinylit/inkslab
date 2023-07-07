@@ -17,7 +17,7 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => sourceType == typeof(string) && (destinationType == typeof(Guid) || destinationType == typeof(Version) || destinationType == typeof(TimeSpan) || destinationType == typeof(DateTimeOffset));
+        public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && (destinationType == typeof(Guid) || destinationType == typeof(Version) || destinationType == typeof(TimeSpan) || destinationType == typeof(DateTimeOffset));
 
         /// <summary>
         /// <inheritdoc/>
