@@ -943,11 +943,6 @@ namespace Inkslab.Map
 
             foreach (var propertyInfo in destinationType.GetProperties())
             {
-                if (!propertyInfo.CanWrite)
-                {
-                    continue;
-                }
-
                 if (flag) //? 匿名或元组等无可写属性的类型。
                 {
                     flag = false;
@@ -983,15 +978,22 @@ namespace Inkslab.Map
                             goto label_skip;
                         }
 
-                        if (slot.ValueExpression is LambdaExpression lambda)
-                        {
-                            var visitor = new ReplaceExpressionVisitor(lambda.Parameters[0], sourceExpression);
+                        var destinationPropEx = slot.ValueExpression is LambdaExpression lambda
+                            ? new ReplaceExpressionVisitor(lambda.Parameters[0], sourceExpression)
+                                .Visit(lambda.Body)
+                            : slot.ValueExpression;
 
-                            yield return Assign(Property(destinationExpression, propertyInfo), visitor.Visit(lambda.Body));
+                        if (propertyInfo.CanWrite)
+                        {
+                            yield return Assign(Property(destinationExpression, propertyInfo), destinationPropEx);
+                        }
+                        else if (TryAdd(propertyInfo.PropertyType, out Type destinationSetType, out MethodInfo methodInfo))
+                        {
+                            yield return Add(IgnoreIfNull(Property(destinationExpression, propertyInfo)), configuration.Map(destinationPropEx, destinationSetType), methodInfo);
                         }
                         else
                         {
-                            yield return Assign(Property(destinationExpression, propertyInfo), slot.ValueExpression);
+                            throw new InvalidCastException();
                         }
 
                         goto label_skip;
@@ -1009,7 +1011,14 @@ namespace Inkslab.Map
                 {
                     if (memberInfo.CanRead && string.Equals(memberInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExpression, memberInfo), propertyInfo.PropertyType));
+                        if (propertyInfo.CanWrite)
+                        {
+                            yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExpression, memberInfo), propertyInfo.PropertyType));
+                        }
+                        else if (TryAdd(propertyInfo.PropertyType, out Type destinationSetType, out MethodInfo methodInfo))
+                        {
+                            yield return Add(IgnoreIfNull(Property(destinationExpression, propertyInfo)), configuration.Map(Property(sourceExpression, memberInfo), destinationSetType), methodInfo);
+                        }
 
                         goto label_skip;
                     }
@@ -1017,6 +1026,97 @@ namespace Inkslab.Map
 label_skip:
                 continue;
             }
+        }
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Tuple<Type, MethodInfo, bool>> addCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Tuple<Type, MethodInfo, bool>>();
+
+        private static Expression IgnoreIfNull(Expression node) => IgnoreIfNullExpressionVisitor.IgnoreIfNull(node, true);
+
+        private static bool TryAdd(Type destinationType, out Type destinationSetType, out MethodInfo methodInfo)
+        {
+            if (!destinationType.IsGenericType)
+            {
+                methodInfo = null;
+                destinationSetType = null;
+
+                return false;
+            }
+
+            var tuple = addCachings.GetOrAdd(destinationType, conversionType =>
+            {
+                var genericArguments = conversionType.GetGenericArguments();
+
+                if (genericArguments.Length != 1)
+                {
+                    return new Tuple<Type, MethodInfo, bool>(null, null, false);
+                }
+
+                var destinationItemType = genericArguments[0];
+
+                var destinationSetType = typeof(List<>).MakeGenericType(destinationItemType);
+
+                var addRangeMethodInfo = destinationType.GetMethod("AddRange", MapConstants.InstanceBindingFlags, null, new Type[] { typeof(IEnumerable<>).MakeGenericType(destinationItemType) }, null);
+
+                if (addRangeMethodInfo != null)
+                {
+                    return new Tuple<Type, MethodInfo, bool>(destinationSetType, addRangeMethodInfo, true);
+                }
+
+                var addMethodInfo = destinationType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[] { destinationItemType }, null);
+
+                if (addMethodInfo is null)
+                {
+                    return new Tuple<Type, MethodInfo, bool>(null, null, false);
+                }
+
+                var sourceExpression = Parameter(destinationSetType, "source");
+
+                var destinationExpression = Parameter(destinationType, "destination");
+
+                var bodyExp = ArrayToArray(sourceExpression, destinationExpression, addRangeMethodInfo);
+
+                var lambdaExp = Lambda(bodyExp, sourceExpression, destinationExpression);
+
+                var @delegate = lambdaExp.Compile();
+
+                return new Tuple<Type, MethodInfo, bool>(destinationSetType, @delegate.Method, true);
+            });
+
+            destinationSetType = tuple.Item1;
+            methodInfo = tuple.Item2;
+
+            return tuple.Item3;
+        }
+
+        private static Expression ArrayToArray(ParameterExpression sourceExpression, ParameterExpression destinationExpression, MethodInfo methodInfo)
+        {
+            var indexExp = Variable(typeof(int));
+
+            var lengthExp = Variable(typeof(int));
+
+            LabelTarget break_label = Label(MapConstants.VoidType);
+            LabelTarget continue_label = Label(MapConstants.VoidType);
+
+            return Block(new ParameterExpression[]
+              {
+                indexExp,
+                lengthExp
+              }, new Expression[]
+              {
+                Assign(indexExp, Constant(0)),
+                Assign(lengthExp, ArrayLength(sourceExpression)),
+                Loop(
+                    IfThenElse(
+                        GreaterThan(lengthExp, indexExp),
+                        Block(
+                            Call(destinationExpression, methodInfo, ArrayIndex(sourceExpression, indexExp)),
+                            AddAssign(indexExp, Constant(1)),
+                            Continue(continue_label)
+                        ),
+                        Break(break_label)), // push to eax/rax --> return value
+                    break_label, continue_label
+                )
+              });
         }
 
         /// <summary>

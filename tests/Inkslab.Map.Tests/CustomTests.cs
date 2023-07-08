@@ -1,8 +1,11 @@
-﻿using System;
+﻿using Google.Protobuf.Collections;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Metadata;
 using Xunit;
 
 namespace Inkslab.Map.Tests
@@ -62,6 +65,27 @@ namespace Inkslab.Map.Tests
         /// <inheritdoc/>.
         /// </summary>
         public long I5 { get; set; } = long.MaxValue;
+    }
+
+    /// <summary>
+    /// 解决GRPC只读<see cref="RepeatedField{T}"/>属性。
+    /// </summary>
+    public class GrpcField
+    {
+        public RepeatedField<int> Ints { get; } = new RepeatedField<int>();
+    }
+
+    public class TestGrpc
+    {
+        public List<C1> C4s { get; set; }
+    }
+
+    /// <summary>
+    /// 解决GRPC只读<see cref="RepeatedField{T}"/>属性。
+    /// </summary>
+    public class GrpcFieldV2
+    {
+        public RepeatedField<C4> C4s { get; } = new RepeatedField<C4>();
     }
 
     /// <summary>
@@ -707,6 +731,51 @@ namespace Inkslab.Map.Tests
 
             //? 集合元素个数。
             Assert.True(destinationList.Count == sourceList.Count);
+        }
+
+        /// <summary>
+        /// 使用New映射只读属性。
+        /// </summary>
+        [Fact]
+        public void NewReadonlyProp()
+        {
+            using var instance = new MapperInstance();
+
+            instance.New<IEnumerable<int>, GrpcField>(x => new GrpcField { Ints = { x } });
+
+            var sourceList = new List<int> { 1, 2, 3, 4, 5 };
+
+            var destinationList = instance.Map<GrpcField>(sourceList);
+        }
+
+        /// <summary>
+        /// 映射只读属性。
+        /// </summary>
+        [Fact]
+        public void MapReadonlyPropV2()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<TestGrpc, GrpcFieldV2>();
+
+            instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
+                .Map(x => x.D4, y => y.Constant(DateTimeKind.Utc)) //? 指定目标值为常量。
+                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
+
+            var sourceC1 = new C1
+            {
+                P1 = 1,
+                P2 = "Test",
+                P3 = DateTime.Now,
+                I5 = 10000
+            };
+
+            var destinationList = instance.Map<GrpcFieldV2>(new TestGrpc
+            {
+                C4s = new List<C1> { sourceC1 }
+            });
         }
     }
 }

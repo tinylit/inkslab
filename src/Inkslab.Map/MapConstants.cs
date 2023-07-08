@@ -29,7 +29,7 @@ namespace Inkslab.Map
         /// <summary>
         /// 本类的实例。
         /// </summary>
-        public const BindingFlags InstanceDeclaredOnlyBindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        public const BindingFlags InstanceDeclaredOnlyBindingFlags = InstanceBindingFlags | BindingFlags.DeclaredOnly;
 
         /// <summary>
         /// <see cref="void"/> 类型。

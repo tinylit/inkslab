@@ -13,12 +13,13 @@ namespace Inkslab.Sugars
 
     /// <summary>
     /// <see cref="IStringSugar"/> 默认实现。
+    /// 支持属性空字符串【空字符串运算符（A?B 或 A??B），当属性A为“null”时，返回B内容，否则返回A内容】、属性内容合并(A+B)，属性非“null”合并【空试探合并符(A?+B)，当属性A为“null”时，返回null，否则返回A+B的内容】，末尾表达式支持指定“format”，如：{Datetime:yyyy-MM}、{Enum:D}等。
     /// </summary>
     public class DefaultStringSugar : IStringSugar
     {
         private static readonly Type objectType = typeof(object);
         private static readonly MethodInfo toStringMtd = objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
-        private static readonly Regex regularExpression = new Regex("\\{(?<name>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)([\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*(?<name>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+))*\\}", RegexOptions.Multiline);
+        private static readonly Regex regularExpression = new Regex("\\{((?<pre>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)[\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*)?(?<name>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)(:(?<format>[^\\}]+?))?\\}", RegexOptions.Multiline);
 
         private readonly static HashSet<Type> simpleTypes = new HashSet<Type>()
         {
@@ -34,6 +35,7 @@ namespace Inkslab.Sugars
             typeof(double)
         };
         private readonly static System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>> operationOfAdditionCachings = new System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>>();
+        private readonly static System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>> formatCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>>();
 
         /// <summary>
         /// <inheritdoc/>
@@ -68,6 +70,47 @@ namespace Inkslab.Sugars
             }
 
             return operationOfAdditionCachings.GetOrAdd(Tuple.Create(left.GetType(), right.GetType()), tuple => MakeAddition(tuple.Item1, tuple.Item2)).Invoke(left, right);
+        }
+
+        /// <summary>
+        /// <paramref name="source"/>.ToString(<paramref name="format"/>).
+        /// </summary>
+        /// <param name="source">对象。</param>
+        /// <param name="format">格式化。</param>
+        /// <returns>格式化字符串。</returns>
+        public static string Format(object source, string format)
+        {
+            if (source is null)
+            {
+                return null;
+            }
+
+            if (format.IsEmpty())
+            {
+                return source.ToString();
+            }
+
+            var sourceType = source.GetType();
+
+            if (sourceType.IsNullable())
+            {
+                sourceType = Nullable.GetUnderlyingType(sourceType);
+            }
+
+            return formatCachings.GetOrAdd(sourceType.IsEnum ? typeof(Enum) : sourceType, destinationType =>
+             {
+                 var formatFn = destinationType.GetMethod(nameof(ToString), new Type[] { typeof(string) }) ?? throw new MissingMethodException($"未找到“{destinationType.Name}.ToString(string format)”方法！");
+
+                 var sourceExp = Parameter(typeof(object));
+                 var formatExp = Parameter(typeof(string));
+
+                 var bodyExp = Call(Convert(sourceExp, destinationType), formatFn, formatExp);
+
+                 var lambdaExp = Lambda<Func<object, string, string>>(bodyExp, sourceExp, formatExp);
+
+                 return lambdaExp.Compile();
+             })
+             .Invoke(source, format);
         }
 
         private static Func<object, object, object> MakeAddition(Type left, Type right)
@@ -262,48 +305,50 @@ namespace Inkslab.Sugars
             }
 
             [Mismatch("token")]//? 不匹配 token。
+            public string Single(string name, string format) => settings.Convert(DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
+
+            [Mismatch("token")]//? 不匹配 token。
             public string Single(string name) => settings.Convert(valueGetter.Invoke(source, name, settings));
 
-
-            public string Combination([Match("name")] CaptureCollection nameCaptures, [Match("token")] CaptureCollection tokenCaptures)
+            public string Combination(string pre, string token, string name, string format)
             {
-                object result = valueGetter.Invoke(source, nameCaptures[0].Value, settings);
+                object result = valueGetter.Invoke(source, pre, settings);
 
-                for (int i = 0, length = tokenCaptures.Count; i < length; i++)
+                if (result is null)
                 {
-                    string token = tokenCaptures[i].Value;
-
-                    if (result is null)
+                    if (token == "?+")
                     {
-                        if (token == "?+")
-                        {
-                            break;
-                        }
+                        goto label_core;
                     }
-                    else if (token == "?" || token == "??")
-                    {
-                        break;
-                    }
-
-                    string name = nameCaptures[i + 1].Value;
-
-                    var value = valueGetter.Invoke(source, name, settings);
-
-                    if (value is null)
-                    {
-                        continue;
-                    }
-
-                    if (result is null)
-                    {
-                        result = value;
-
-                        continue;
-                    }
-
-                    result = Add(result, value);
+                }
+                else if (token == "?" || token == "??")
+                {
+                    goto label_core;
                 }
 
+                result = Add(result, DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
+label_core:
+                return settings.Convert(result);
+            }
+
+            public string Combination(string pre, string token, string name)
+            {
+                object result = valueGetter.Invoke(source, pre, settings);
+
+                if (result is null)
+                {
+                    if (token == "?+")
+                    {
+                        goto label_core;
+                    }
+                }
+                else if (token == "?" || token == "??")
+                {
+                    goto label_core;
+                }
+
+                result = Add(result, valueGetter.Invoke(source, name, settings));
+label_core:
                 return settings.Convert(result);
             }
         }

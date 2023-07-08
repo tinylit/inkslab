@@ -4,7 +4,6 @@ using System.Text;
 
 namespace Inkslab.Settings
 {
-
     /// <summary>
     /// 属性设置。
     /// </summary>

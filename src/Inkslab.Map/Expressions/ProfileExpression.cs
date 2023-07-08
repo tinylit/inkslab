@@ -73,21 +73,11 @@ namespace Inkslab.Map.Expressions
 
             if (sourceType.IsValueType || destinationType.IsValueType)
             {
-                return Mapper<TDestination>.Map(configuration, source);
+                return Mapper<TDestination>.Map(this, source);
             }
 
-            if (base.IsMatch(sourceType, destinationType))
-            {
-                return (TDestination)routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
+            return (TDestination)routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
                         .Map(source);
-            }
-
-            if (configuration.IsMatch(sourceType, destinationType))
-            {
-                return Mapper<TDestination>.Map(configuration, source);
-            }
-
-            throw new InvalidCastException($"无法从【{sourceType}】源映射到【{destinationType}】的类型！");
         }
 
         /// <summary>
@@ -109,21 +99,8 @@ namespace Inkslab.Map.Expressions
                 return null;
             }
 
-            var sourceType = source.GetType();
-
-            //? 自己独有的。
-            if (base.IsMatch(sourceType, destinationType))
-            {
-                return routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
-                        .Map(source);
-            }
-
-            if (configuration.IsMatch(sourceType, destinationType))
-            {
-                return Mapper.Map(configuration, source, destinationType);
-            }
-
-            throw new InvalidCastException($"无法从【{sourceType}】源映射到【{destinationType}】的类型！");
+            return routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
+                         .Map(source);
         }
 
         /// <summary>
@@ -149,15 +126,6 @@ namespace Inkslab.Map.Expressions
 
         private class Mapper
         {
-            private static readonly ConcurrentDictionary<Type, MapperDestination> routerCachings = new ConcurrentDictionary<Type, MapperDestination>();
-
-            public static object Map(TConfiguration mapper, object source, Type destinationType)
-            {
-                return routerCachings
-                        .GetOrAdd(destinationType, runtimeType => new MapperDestination(mapper, runtimeType))
-                        .Map(source);
-            }
-
             protected static Tuple<BlockExpression, ParameterExpression> Map(IMapConfiguration configuration, Type sourceType, Type destinationType)
             {
                 var sourceExp = Variable(sourceType);
