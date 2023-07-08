@@ -14,7 +14,7 @@ namespace Inkslab.Map
         /// <typeparam name="TSource">源类型。</typeparam>
         /// <typeparam name="TDestination">目标类型。</typeparam>
         /// <returns>映射表达式。</returns>
-        IMappingExpression<TSource, TDestination> Map<TSource, TDestination>()
+        IProfileExpression<TSource, TDestination> Map<TSource, TDestination>()
             where TSource : class
             where TDestination : class;
 
@@ -25,7 +25,7 @@ namespace Inkslab.Map
         /// <typeparam name="TDestination">目标类型。</typeparam>
         /// <param name="destinationOptions">创建实例的表达式。</param>
         /// <returns>映射表达式。</returns>
-        IMappingExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> destinationOptions)
+        IProfileExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> destinationOptions)
             where TSource : class
             where TDestination : class;
     }

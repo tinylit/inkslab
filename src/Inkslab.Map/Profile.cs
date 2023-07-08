@@ -785,12 +785,12 @@ namespace Inkslab.Map
             };
         }
 
-        private class MemberMappingExpression<TSource, TMember> : IMemberMappingExpression<TSource, TMember>
+        private class MemberConfigurationExpression<TSource, TMember> : IMemberConfigurationExpression<TSource, TMember>
         {
             private readonly string memberName;
             private readonly MapSlot mapSlot;
 
-            public MemberMappingExpression(string memberName, MapSlot mapSlot)
+            public MemberConfigurationExpression(string memberName, MapSlot mapSlot)
             {
                 this.memberName = memberName;
                 this.mapSlot = mapSlot;
@@ -838,16 +838,16 @@ namespace Inkslab.Map
             public void Ignore() => mapSlot.Ignore(memberName);
         }
 
-        private class MappingExpression<TSource, TDestination> : IMappingExpression<TSource, TDestination>
+        private class ProfileExpressio<TSource, TDestination> : IProfileExpression<TSource, TDestination>
         {
             private readonly MapSlot mapSlot;
 
-            public MappingExpression(MapSlot mapSlot)
+            public ProfileExpressio(MapSlot mapSlot)
             {
                 this.mapSlot = mapSlot;
             }
 
-            public IIncludeMappingExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination
+            public IIncludeProfileExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination
             {
                 mapSlot.Include(typeof(TAssignableToDestination));
 
@@ -865,7 +865,7 @@ namespace Inkslab.Map
                 };
             }
 
-            public IMappingExpressionBase<TSource, TDestination> Map<TMember>(Expression<Func<TDestination, TMember>> destinationMember, Action<IMemberMappingExpression<TSource, TMember>> memberOptions)
+            public IProfileExpressionBase<TSource, TDestination> Map<TMember>(Expression<Func<TDestination, TMember>> destinationMember, Action<IMemberConfigurationExpression<TSource, TMember>> memberOptions)
             {
                 if (destinationMember is null)
                 {
@@ -879,14 +879,14 @@ namespace Inkslab.Map
 
                 string memberName = NameOfAnalysis(destinationMember);
 
-                var options = new MemberMappingExpression<TSource, TMember>(memberName, mapSlot);
+                var options = new MemberConfigurationExpression<TSource, TMember>(memberName, mapSlot);
 
                 memberOptions.Invoke(options);
 
                 return this;
             }
 
-            public IMappingExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSourceEnumerable, List<TDestination>, TDestinationEnumerable>> destinationOptions)
+            public IProfileExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSourceEnumerable, List<TDestination>, TDestinationEnumerable>> destinationOptions)
                 where TSourceEnumerable : IEnumerable<TSource>
                 where TDestinationEnumerable : IEnumerable<TDestination>
             {
@@ -1238,7 +1238,7 @@ label_skip:
         /// <typeparam name="TSource">源。</typeparam>
         /// <typeparam name="TDestination">目标。</typeparam>
         /// <returns>映射关系表达式。</returns>
-        public IMappingExpression<TSource, TDestination> Map<TSource, TDestination>()
+        public IProfileExpression<TSource, TDestination> Map<TSource, TDestination>()
             where TSource : class
             where TDestination : class
         {
@@ -1254,7 +1254,7 @@ label_skip:
 
             mapCachings[typeCode] = mapSlot;
 
-            return new MappingExpression<TSource, TDestination>(mapSlot);
+            return new ProfileExpressio<TSource, TDestination>(mapSlot);
         }
 
         /// <summary>
@@ -1264,7 +1264,7 @@ label_skip:
         /// <typeparam name="TDestination">目标。</typeparam>
         /// <param name="destinationOptions">创建实例表达式(<see cref="Expression.New(ConstructorInfo, Expression[])"/> 或 <seealso cref="MemberInit(NewExpression, MemberBinding[])"/>)。</param>
         /// <returns>映射关系表达式。</returns>
-        public IMappingExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> destinationOptions)
+        public IProfileExpressionBase<TSource, TDestination> New<TSource, TDestination>(Expression<Func<TSource, TDestination>> destinationOptions)
             where TSource : class
             where TDestination : class
         {
@@ -1294,7 +1294,7 @@ label_skip:
 
             instanceMapCachings[typeCode] = instanceFactory.CreateMap(sourceType, destinationType);
 
-            return new MappingExpression<TSource, TDestination>(mapSlot);
+            return new ProfileExpressio<TSource, TDestination>(mapSlot);
         }
 
         /// <summary>
