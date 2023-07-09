@@ -19,6 +19,11 @@ namespace Inkslab.Map.Visitors
         }
 
         /// <summary>
+        /// 忽略表达式枚举值。
+        /// </summary>
+        private const ExpressionType IgnoreIf = (ExpressionType)(-1);
+
+        /// <summary>
         /// 是否含有忽略条件。
         /// </summary>
         public bool HasIgnore { private set; get; }
@@ -38,11 +43,10 @@ namespace Inkslab.Map.Visitors
 
             switch (node.NodeType)
             {
+                case IgnoreIf:
+                    return Visit(node.Reduce());
                 case ExpressionType.Block:
                 case ExpressionType.Lambda:
-                case ExpressionType.New:
-                case ExpressionType.NewArrayBounds:
-                case ExpressionType.NewArrayInit:
                 case ExpressionType.Switch:
                 case ExpressionType.Throw:
                 case ExpressionType.Try:
@@ -57,38 +61,50 @@ namespace Inkslab.Map.Visitors
             }
         }
 
+        /// <inheritdoc/>
+        protected override Expression VisitBinary(BinaryExpression node)
+        {
+            if (node.NodeType == ExpressionType.Assign)
+            {
+                if (node.Right?.NodeType == IgnoreIf)
+                {
+                    return node.Update(base.Visit(node.Left), node.Conversion, base.Visit(node.Right));
+                }
+            }
+
+            return base.VisitBinary(node);
+        }
+
+        /// <inheritdoc/>
+        protected override MemberAssignment VisitMemberAssignment(MemberAssignment node)
+        {
+            if (node.Expression?.NodeType == IgnoreIf)
+            {
+                return node.Update(base.Visit(node.Expression));
+            }
+
+            return base.VisitMemberAssignment(node);
+        }
+
         /// <summary>
         /// 访问为空忽略表达式。
         /// </summary>
         /// <param name="node">判空节点。</param>
-        /// <param name="keepNullable">保持可空。</param>
         /// <returns>新的表达式。</returns>
-        internal Expression VisitIgnoreIfNull(Expression node, bool keepNullable)
+        private Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
         {
-            bool nullable = node.Type.IsNullable();
-
-            Expression test = nullable
-                ? Property(node, "HasValue")
-                : node.Type.IsClass
-                    ? NotEqual(node, Constant(null, node.Type))
-                    : NotEqual(node, Default(node.Type));
-
             if (HasIgnore)
             {
-                Test = AndAlso(Test, test);
+                Test = AndAlso(Test, node.Test);
             }
             else
             {
                 HasIgnore = true;
 
-                Test = test;
+                Test = node.Test;
             }
 
-            return nullable 
-                ? keepNullable 
-                    ? node 
-                    : Property(node, "Value") 
-                : node;
+            return node.CanReduce ? node.Reduce() : node;
         }
 
         public static Expression IgnoreIfNull(Expression node, bool keepNullable = false) => new IgnoreIfNullExpression(node, keepNullable);
@@ -100,6 +116,7 @@ namespace Inkslab.Map.Visitors
         {
             private readonly Type type;
             private readonly Expression node;
+            private readonly Expression test;
             private readonly bool keepNullable;
 
             /// <summary>
@@ -121,22 +138,30 @@ namespace Inkslab.Map.Visitors
                 {
                     this.node = ignoreNode.node;
                     type = ignoreNode.type;
+                    test = ignoreNode.test;
                 }
-                else if (keepNullable || !node.Type.IsValueType)
+                else if (!node.Type.IsValueType)
                 {
                     this.node = node;
                     type = node.Type;
+                    test = NotEqual(node, Constant(null, node.Type));
                 }
                 else if (node.Type.IsNullable())
                 {
                     this.node = node;
                     type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type);
+                    test = Property(node, "HasValue");
                 }
                 else
                 {
                     throw new ArgumentException($"类型【{node.Type}】的值不可能为null！");
                 }
             }
+
+            /// <summary>
+            /// 非空条件。
+            /// </summary>
+            public Expression Test => test;
 
             /// <summary>
             /// 类型。
@@ -148,9 +173,23 @@ namespace Inkslab.Map.Visitors
             /// </summary>
             public override ExpressionType NodeType => IgnoreIfNull;
 
-            public override bool CanReduce => false;
+            public override bool CanReduce => true;
 
-            public override Expression Reduce() => this;
+            public override Expression Reduce()
+            {
+                if (keepNullable)
+                {
+                    goto label_original;
+                }
+
+                if (node.Type.IsNullable())
+                {
+                    return Property(node, "Value");
+                }
+
+label_original:
+                return node;
+            }
 
             /// <summary>
             /// 分配为默认值。
@@ -161,21 +200,10 @@ namespace Inkslab.Map.Visitors
             {
                 if (visitor is IgnoreIfNullExpressionVisitor ignoreVisitor)
                 {
-                    return ignoreVisitor.VisitIgnoreIfNull(node, keepNullable);
+                    return ignoreVisitor.VisitIgnoreIfNull(this);
                 }
 
-                if (keepNullable)
-                {
-                    goto label_original;
-                }
-
-                if (node.Type.IsNullable())
-                {
-                    return visitor.Visit(Property(node, "Value"));
-                }
-
-label_original:
-                return visitor.Visit(node);
+                return visitor.Visit(Reduce());
             }
         }
     }

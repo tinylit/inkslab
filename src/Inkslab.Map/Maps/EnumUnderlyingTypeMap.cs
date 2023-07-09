@@ -29,7 +29,7 @@ namespace Inkslab.Map.Maps
         private readonly static MethodInfo ConcatMtd = MapConstants.StirngType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StirngType, MapConstants.StirngType, MapConstants.StirngType }, null);
 
         /// <summary>
-        /// <inheritdoc/>
+        /// 枚举因映射。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
@@ -39,15 +39,8 @@ namespace Inkslab.Map.Maps
             || sourceType.IsEnum && EnumTypes.Contains(destinationType)
             || destinationType.IsEnum && EnumTypes.Contains(sourceType);
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             if (sourceType.IsEnum && destinationType.IsEnum)
             {

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -19,22 +18,15 @@ namespace Inkslab.Map.Maps
 
 
         /// <summary>
-        /// <inheritdoc/>
+        /// 字符串转枚举映射。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && destinationType.IsEnum;
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             List<SwitchCase> switchCases = new List<SwitchCase>();
 

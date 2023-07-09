@@ -1,4 +1,5 @@
-﻿using Inkslab.Map.Visitors;
+﻿using Inkslab.Map.Maps;
+using Inkslab.Map.Visitors;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,7 +13,7 @@ namespace Inkslab.Map
     /// <summary>
     /// 配置。
     /// </summary>
-    public abstract class Profile : AbstractMap, IProfile, IDisposable
+    public abstract class Profile : DefaultMap, IProfile, IDisposable
     {
         private class TypeCode
         {
@@ -180,17 +181,17 @@ namespace Inkslab.Map
             private readonly Type originalDestinationType;
             private readonly Type sourceType;
             private readonly Type destinationType;
-            private readonly IMapConfiguration configuration;
+            private readonly IMapApplication application;
             private readonly Expression[] originalParameters;
             private readonly Expression[] parameters;
 
-            public MapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, IMapConfiguration configuration, Expression[] originalParameters, Expression[] parameters)
+            public MapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, IMapApplication application, Expression[] originalParameters, Expression[] parameters)
             {
                 this.originalSourceType = originalSourceType;
                 this.originalDestinationType = originalDestinationType;
                 this.sourceType = sourceType;
                 this.destinationType = destinationType;
-                this.configuration = configuration;
+                this.application = application;
                 this.originalParameters = originalParameters;
                 this.parameters = parameters;
             }
@@ -255,7 +256,7 @@ namespace Inkslab.Map
 
                     var arguments = new List<Expression>(node.Arguments.Count);
 
-                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => configuration.Map(Visit(x), y.ParameterType)));
+                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => application.Map(Visit(x), y.ParameterType)));
 
                     if (node.Members is null || node.Members.Count == 0)
                     {
@@ -314,12 +315,12 @@ namespace Inkslab.Map
                         _ => throw new NotSupportedException(),
                     };
 
-                    var valueExpression = configuration.Map(Visit(node.Expression), destinationType);
+                    var valueExpression = application.Map(Visit(node.Expression), destinationType);
 
                     return Bind(memberInfo, valueExpression);
                 }
 
-                return node.Update(configuration.Map(Visit(node.Expression), node.Expression.Type));
+                return node.Update(application.Map(Visit(node.Expression), node.Expression.Type));
             }
         }
 
@@ -327,12 +328,13 @@ namespace Inkslab.Map
         {
             private readonly Type sourceType;
             private readonly Type destinationType;
-            private readonly InstanceFactory instanceFactory;
+            private readonly List<MapSlot> mapSlots;
+            private readonly IInstanceFactory instanceFactory;
+            private readonly bool isTypeDefinition;
             private readonly List<Type> destinationTypes;
             private readonly Dictionary<string, Slot> memberExpressions = new Dictionary<string, Slot>();
 
             private readonly bool hasInstanceSlot = false;
-            private bool hasInumerableInstanceSlot = false;
 
             private bool isSourceConstraints;
             private bool isDestinationConstraints;
@@ -342,24 +344,28 @@ namespace Inkslab.Map
             private MatchConstraints matchConstraints;
             private MapConstraints sourceConstraints;
             private List<MapConstraints> destinationConstraints;
-            private Dictionary<TypeCode, InstanceEnumerableFactory> enumerableInstanceFactories;
 
-            public MapSlot(Type sourceType, Type destinationType)
+            public MapSlot(Type sourceType, Type destinationType, List<MapSlot> mapSlots)
             {
                 this.sourceType = sourceType;
                 this.destinationType = destinationType;
-
+                this.mapSlots = mapSlots;
                 destinationTypes = new List<Type>(1) { destinationType };
             }
 
-            public MapSlot(Type sourceType, Type destinationType, InstanceFactory instanceFactory) : this(sourceType, destinationType)
+            public MapSlot(Type sourceType, Type destinationType, IInstanceFactory instanceFactory, List<MapSlot> mapSlots) : this(sourceType, destinationType, mapSlots)
             {
                 hasInstanceSlot = true;
 
                 this.instanceFactory = instanceFactory;
             }
 
-            public bool HasInstanceSlot => hasInstanceSlot || hasInumerableInstanceSlot;
+            private MapSlot(Type sourceType, Type destinationType, InstanceEnumerableFactory instanceFactory) : this(sourceType, destinationType, instanceFactory, null)
+            {
+                isTypeDefinition = true;
+            }
+
+            public bool HasInstanceSlot => hasInstanceSlot;
 
             public bool HasMemberSettings => memberExpressions.Count > 0;
 
@@ -463,20 +469,22 @@ namespace Inkslab.Map
 
             public bool IsMatch(Type sourceType, Type destinationType, bool definitionOnly = true)
             {
+                if (isTypeDefinition)
+                {
+                    if (sourceType.IsGenericType && destinationType.IsGenericType)
+                    {
+                        var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
+                        var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
+
+                        return sourceTypeDefinition == this.sourceType && destinationTypeDefinition == this.destinationType;
+                    }
+
+                    return false;
+                }
+
                 if (this.sourceType == sourceType)
                 {
                     return destinationTypes.Contains(destinationType);
-                }
-
-                if (hasInumerableInstanceSlot && sourceType.IsGenericType && destinationType.IsGenericType)
-                {
-                    var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
-                    var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
-
-                    if (enumerableInstanceFactories.ContainsKey(new TypeCode(sourceTypeDefinition, destinationTypeDefinition)))
-                    {
-                        return true;
-                    }
                 }
 
                 if (isDestinationConstraints)
@@ -503,31 +511,9 @@ namespace Inkslab.Map
                 return destinationTypes.Contains(destinationType) && this.sourceType.IsAssignableFrom(sourceType);
             }
 
-            public bool TryCreateMap(Type sourceType, Type destinationType, out IInstanceMapSlot mapSlot)
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
             {
-                if (hasInumerableInstanceSlot && sourceType.IsGenericType && destinationType.IsGenericType)
-                {
-                    var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
-                    var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
-
-                    if (enumerableInstanceFactories.TryGetValue(new TypeCode(sourceTypeDefinition, destinationTypeDefinition), out InstanceEnumerableFactory instanceFactory))
-                    {
-                        mapSlot = instanceFactory.CreateMap(sourceType, destinationType);
-
-                        return true;
-                    }
-                }
-
-                if (hasInstanceSlot)
-                {
-                    mapSlot = instanceFactory.CreateMap(sourceType, destinationType);
-
-                    return true;
-                }
-
-                mapSlot = null;
-
-                return false;
+                return instanceFactory.CreateMap(sourceType, destinationType);
             }
 
             public void NewEnumerable(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
@@ -571,33 +557,23 @@ namespace Inkslab.Map
 
                 var instanceFactory = new InstanceEnumerableFactory(sourceTypeEnumerable, destinationTypeEnumerable, body, parameter, parameterOfSet);
 
-                var typeCode = new TypeCode(sourceTypeDefinition, destinationTypeDefinition);
+                var mapSlot = new MapSlot(sourceTypeDefinition, destinationTypeDefinition, instanceFactory);
 
-                if (enumerableInstanceFactories is null)
+                if (body is MemberInitExpression initExpression) //? 忽略已经初始化的属性，避免重复初始化。
                 {
-                    hasInumerableInstanceSlot = true;
-
-                    enumerableInstanceFactories = new Dictionary<TypeCode, InstanceEnumerableFactory>(TypeCode.InstanceComparer)
+                    foreach (var binding in initExpression.Bindings)
                     {
-                        [typeCode] = instanceFactory
-                    };
+                        mapSlot.Ignore(binding.Member.Name);
+                    }
                 }
-                else
-                {
-                    enumerableInstanceFactories[typeCode] = instanceFactory;
-                }
+
+                mapSlots.Add(mapSlot);
             }
 
             public void Dispose()
             {
                 destinationTypes.Clear();
                 memberExpressions.Clear();
-
-                if (enumerableInstanceFactories?.Count > 0)
-                {
-                    enumerableInstanceFactories.Clear();
-                }
-
                 if (destinationConstraints?.Count > 0)
                 {
                     destinationConstraints.Clear();
@@ -605,7 +581,6 @@ namespace Inkslab.Map
 
                 sourceConstraints = null;
                 destinationConstraints = null;
-                enumerableInstanceFactories = null;
 
                 GC.SuppressFinalize(this);
             }
@@ -618,7 +593,7 @@ namespace Inkslab.Map
 
         private interface IInstanceMapSlot
         {
-            Expression Map(Expression source, IMapConfiguration configuration);
+            Expression Map(Expression source, IMapApplication application);
         }
 
         private class InstanceFactory : IInstanceFactory
@@ -647,7 +622,7 @@ namespace Inkslab.Map
                     this.parameter = parameter;
                 }
 
-                public Expression Map(Expression source, IMapConfiguration configuration)
+                public Expression Map(Expression source, IMapApplication application)
                 {
                     var visitor = new ReplaceExpressionVisitor(parameter, source);
 
@@ -668,9 +643,9 @@ namespace Inkslab.Map
                     this.parameter = parameter;
                 }
 
-                public Expression Map(Expression source, IMapConfiguration configuration)
+                public Expression Map(Expression source, IMapApplication application)
                 {
-                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, configuration, new[] { parameter }, new[] { source });
+                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, application, new[] { parameter }, new[] { source });
 
                     return visitor.Visit(body);
                 }
@@ -719,11 +694,11 @@ namespace Inkslab.Map
                     this.parameterOfSet = parameterOfSet;
                 }
 
-                public Expression Map(Expression source, IMapConfiguration configuration)
+                public Expression Map(Expression source, IMapApplication application)
                 {
                     var destinationSetVariable = Variable(destinationSetType);
 
-                    var destinationSetExpression = configuration.Map(source, destinationSetType);
+                    var destinationSetExpression = application.Map(source, destinationSetType);
 
                     var visitor = new ReplaceExpressionVisitor(new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
 
@@ -748,13 +723,13 @@ namespace Inkslab.Map
                     this.parameterOfSet = parameterOfSet;
                 }
 
-                public Expression Map(Expression source, IMapConfiguration configuration)
+                public Expression Map(Expression source, IMapApplication application)
                 {
                     var destinationSetVariable = Variable(destinationSetType);
 
-                    var destinationSetExpression = configuration.Map(source, destinationSetType);
+                    var destinationSetExpression = application.Map(source, destinationSetType);
 
-                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, configuration, new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
+                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, application, new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
 
                     return Block(new ParameterExpression[] { destinationSetVariable }, Assign(destinationSetVariable, destinationSetExpression), visitor.Visit(body));
                 }
@@ -930,10 +905,10 @@ namespace Inkslab.Map
         /// <param name="sourceType">源类型。</param>
         /// <param name="destinationExpression">目标对象表达式。</param>
         /// <param name="destinationType">目标类型。</param>
-        /// <param name="configuration">映射配置。</param>
+        /// <param name="application">映射配置。</param>
         /// <returns>赋值表达式迭代器。</returns>
         /// <exception cref="InvalidCastException">类型不能被转换。</exception>
-        protected virtual IEnumerable<BinaryExpression> ToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+        protected override IEnumerable<Expression> ToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
             bool flag = true;
 
@@ -978,18 +953,20 @@ namespace Inkslab.Map
                             goto label_skip;
                         }
 
-                        var destinationPropEx = slot.ValueExpression is LambdaExpression lambda
+                        var sourcePrt = slot.ValueExpression is LambdaExpression lambda
                             ? new ReplaceExpressionVisitor(lambda.Parameters[0], sourceExpression)
                                 .Visit(lambda.Body)
                             : slot.ValueExpression;
 
+                        var destinationPrt = Property(destinationExpression, propertyInfo);
+
                         if (propertyInfo.CanWrite)
                         {
-                            yield return Assign(Property(destinationExpression, propertyInfo), destinationPropEx);
+                            yield return Assign(destinationPrt, sourcePrt);
                         }
-                        else if (TryAdd(propertyInfo.PropertyType, out Type destinationSetType, out MethodInfo methodInfo))
+                        else if (TrySolve(propertyInfo, destinationPrt, sourcePrt, application, out Expression destinationRs))
                         {
-                            yield return Add(IgnoreIfNull(Property(destinationExpression, propertyInfo)), configuration.Map(destinationPropEx, destinationSetType), methodInfo);
+                            yield return destinationRs;
                         }
                         else
                         {
@@ -1000,7 +977,7 @@ namespace Inkslab.Map
                     }
                 }
 
-                if (propertyInfo.IsIgnore())
+                if (!propertyInfo.CanWrite || propertyInfo.IsIgnore())
                 {
                     continue;
                 }
@@ -1011,14 +988,10 @@ namespace Inkslab.Map
                 {
                     if (memberInfo.CanRead && string.Equals(memberInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (propertyInfo.CanWrite)
-                        {
-                            yield return Assign(Property(destinationExpression, propertyInfo), configuration.Map(Property(sourceExpression, memberInfo), propertyInfo.PropertyType));
-                        }
-                        else if (TryAdd(propertyInfo.PropertyType, out Type destinationSetType, out MethodInfo methodInfo))
-                        {
-                            yield return Add(IgnoreIfNull(Property(destinationExpression, propertyInfo)), configuration.Map(Property(sourceExpression, memberInfo), destinationSetType), methodInfo);
-                        }
+                        var sourcePrt = Property(sourceExpression, memberInfo);
+                        var destinationPrt = Property(destinationExpression, propertyInfo);
+
+                        yield return Assign(destinationPrt, application.Map(sourcePrt, propertyInfo.PropertyType));
 
                         goto label_skip;
                     }
@@ -1026,97 +999,6 @@ namespace Inkslab.Map
 label_skip:
                 continue;
             }
-        }
-
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Tuple<Type, MethodInfo, bool>> addCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Tuple<Type, MethodInfo, bool>>();
-
-        private static Expression IgnoreIfNull(Expression node) => IgnoreIfNullExpressionVisitor.IgnoreIfNull(node, true);
-
-        private static bool TryAdd(Type destinationType, out Type destinationSetType, out MethodInfo methodInfo)
-        {
-            if (!destinationType.IsGenericType)
-            {
-                methodInfo = null;
-                destinationSetType = null;
-
-                return false;
-            }
-
-            var tuple = addCachings.GetOrAdd(destinationType, conversionType =>
-            {
-                var genericArguments = conversionType.GetGenericArguments();
-
-                if (genericArguments.Length != 1)
-                {
-                    return new Tuple<Type, MethodInfo, bool>(null, null, false);
-                }
-
-                var destinationItemType = genericArguments[0];
-
-                var destinationSetType = typeof(List<>).MakeGenericType(destinationItemType);
-
-                var addRangeMethodInfo = destinationType.GetMethod("AddRange", MapConstants.InstanceBindingFlags, null, new Type[] { typeof(IEnumerable<>).MakeGenericType(destinationItemType) }, null);
-
-                if (addRangeMethodInfo != null)
-                {
-                    return new Tuple<Type, MethodInfo, bool>(destinationSetType, addRangeMethodInfo, true);
-                }
-
-                var addMethodInfo = destinationType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[] { destinationItemType }, null);
-
-                if (addMethodInfo is null)
-                {
-                    return new Tuple<Type, MethodInfo, bool>(null, null, false);
-                }
-
-                var sourceExpression = Parameter(destinationSetType, "source");
-
-                var destinationExpression = Parameter(destinationType, "destination");
-
-                var bodyExp = ArrayToArray(sourceExpression, destinationExpression, addRangeMethodInfo);
-
-                var lambdaExp = Lambda(bodyExp, sourceExpression, destinationExpression);
-
-                var @delegate = lambdaExp.Compile();
-
-                return new Tuple<Type, MethodInfo, bool>(destinationSetType, @delegate.Method, true);
-            });
-
-            destinationSetType = tuple.Item1;
-            methodInfo = tuple.Item2;
-
-            return tuple.Item3;
-        }
-
-        private static Expression ArrayToArray(ParameterExpression sourceExpression, ParameterExpression destinationExpression, MethodInfo methodInfo)
-        {
-            var indexExp = Variable(typeof(int));
-
-            var lengthExp = Variable(typeof(int));
-
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
-
-            return Block(new ParameterExpression[]
-              {
-                indexExp,
-                lengthExp
-              }, new Expression[]
-              {
-                Assign(indexExp, Constant(0)),
-                Assign(lengthExp, ArrayLength(sourceExpression)),
-                Loop(
-                    IfThenElse(
-                        GreaterThan(lengthExp, indexExp),
-                        Block(
-                            Call(destinationExpression, methodInfo, ArrayIndex(sourceExpression, indexExp)),
-                            AddAssign(indexExp, Constant(1)),
-                            Continue(continue_label)
-                        ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
-                )
-              });
         }
 
         /// <summary>
@@ -1145,9 +1027,9 @@ label_skip:
                 {
                     if (mapSlot.IsMatch(tuple.X, tuple.Y, false))
                     {
-                        if (mapSlot.HasInstanceSlot && mapSlot.TryCreateMap(tuple.X, tuple.Y, out var slot))
+                        if (mapSlot.HasInstanceSlot)
                         {
-                            instanceMapCachings[typeCode] = slot;
+                            instanceMapCachings[typeCode] = mapSlot.CreateMap(tuple.X, tuple.Y);
                         }
                         else
                         {
@@ -1167,9 +1049,9 @@ label_skip:
         /// </summary>
         /// <param name="sourceExpression">源对象表达式。</param>
         /// <param name="destinationType">目标类型。</param>
-        /// <param name="configuration">配置。</param>
+        /// <param name="application">配置应用程序。</param>
         /// <returns>目标类型<paramref name="destinationType"/>的映射结果表达式。</returns>
-        public Expression Map(Expression sourceExpression, Type destinationType, IMapConfiguration configuration)
+        public Expression Map(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             var sourceType = sourceExpression.Type;
 
@@ -1177,7 +1059,7 @@ label_skip:
 
             if (instanceMapCachings.TryGetValue(typeCode, out IInstanceMapSlot mapSlot))
             {
-                var destinationVariable = Variable(destinationType);
+                var destinationVariable = Variable(destinationType, "instance");
 
                 List<ParameterExpression> variables = new List<ParameterExpression>(1)
                 {
@@ -1186,11 +1068,11 @@ label_skip:
 
                 List<Expression> expressions = new List<Expression>(3);
 
-                var instanceExpression = mapSlot.Map(sourceExpression, configuration);
+                var instanceExpression = mapSlot.Map(sourceExpression, application);
 
                 expressions.Add(Assign(destinationVariable, instanceExpression));
 
-                var bodyExp = ToSolve(sourceExpression, sourceType, destinationVariable, destinationType, configuration);
+                var bodyExp = ToSolve(sourceExpression, sourceType, destinationVariable, destinationType, application);
 
                 expressions.Add(bodyExp);
 
@@ -1199,37 +1081,7 @@ label_skip:
                 return Block(destinationType, variables, expressions);
             }
 
-            return base.ToSolve(sourceExpression, sourceExpression.Type, destinationType, configuration);
-        }
-
-        /// <summary>
-        /// 解决<paramref name="sourceType"/>到<paramref name="destinationType"/>的映射。
-        /// </summary>
-        /// <param name="sourceExpression">源对象表达式。</param>
-        /// <param name="sourceType">源类型。</param>
-        /// <param name="destinationExpression">目标对象表达式。</param>
-        /// <param name="destinationType">目标类型。</param>
-        /// <param name="configuration">映射配置。</param>
-        /// <returns>目标类型<paramref name="destinationType"/>的映射结果表达式。</returns>
-        protected sealed override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
-        {
-            var expressions = new List<Expression>();
-
-            foreach (var node in ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, configuration))
-            {
-                var visitor = new IgnoreIfNullExpressionVisitor();
-
-                var bodyExp = visitor.Visit(node);
-
-                expressions.Add(visitor.HasIgnore ? IfThen(visitor.Test, bodyExp) : bodyExp);
-            }
-
-            if (expressions.Count > 0)
-            {
-                return Block(expressions);
-            }
-
-            return Empty();
+            return base.ToSolve(sourceExpression, sourceExpression.Type, destinationType, application);
         }
 
         /// <summary>
@@ -1245,7 +1097,7 @@ label_skip:
             var sourceType = typeof(TSource);
             var destinationType = typeof(TDestination);
 
-            var mapSlot = new MapSlot(sourceType, destinationType);
+            var mapSlot = new MapSlot(sourceType, destinationType, mapSlots);
 
             mapSlots.Add(mapSlot);
 
@@ -1283,7 +1135,15 @@ label_skip:
 
             var instanceFactory = new InstanceFactory(sourceType, destinationType, body, destinationOptions.Parameters[0]);
 
-            var mapSlot = new MapSlot(sourceType, destinationType, instanceFactory);
+            var mapSlot = new MapSlot(sourceType, destinationType, instanceFactory, mapSlots);
+
+            if (body is MemberInitExpression initExpression) //? 忽略已经初始化的属性，避免重复初始化。
+            {
+                foreach (var binding in initExpression.Bindings)
+                {
+                    mapSlot.Ignore(binding.Member.Name);
+                }
+            }
 
             mapSlots.Add(mapSlot);
 

@@ -31,16 +31,8 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType) => kvStringCollectionType.IsAssignableFrom(destinationType);
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationExpression"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
             var propertyInfos = Array.FindAll(sourceType.GetProperties(), x => x.CanRead);
 
@@ -51,7 +43,7 @@ namespace Inkslab.Map.Maps
             foreach (var propertyInfo in propertyInfos)
             {
                 var keyExpression = Constant(propertyInfo.Name);
-                var valueExpression = configuration.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
+                var valueExpression = application.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
 
                 if (flag)
                 {

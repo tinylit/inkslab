@@ -12,22 +12,15 @@ namespace Inkslab.Map.Maps
     public class ParseStringMap : IMap
     {
         /// <summary>
-        /// <inheritdoc/>
+        /// 解析字符串。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && (destinationType == typeof(Guid) || destinationType == typeof(Version) || destinationType == typeof(TimeSpan) || destinationType == typeof(DateTimeOffset));
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             var parseMethod = destinationType.GetMethod("Parse", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null);
 

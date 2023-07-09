@@ -19,15 +19,8 @@ namespace Inkslab.Map.Maps
         public bool IsMatch(Type sourceType, Type destinationType)
             => destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceType }, null) is not null;
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceType }, null);
 

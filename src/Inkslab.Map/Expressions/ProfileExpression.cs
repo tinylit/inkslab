@@ -14,7 +14,7 @@ namespace Inkslab.Map.Expressions
     /// <summary>
     /// 配置。
     /// </summary>
-    public abstract class ProfileExpression<TMapper, TConfiguration> : Profile, IMapConfiguration, IConfiguration, IProfile where TMapper : ProfileExpression<TMapper, TConfiguration> where TConfiguration : class, IMapConfiguration, IConfiguration
+    public abstract class ProfileExpression<TMapper, TConfiguration> : Profile, IMapApplication, IConfiguration, IProfile where TMapper : ProfileExpression<TMapper, TConfiguration> where TConfiguration : class, IMapConfiguration, IConfiguration
     {
         private readonly TConfiguration configuration;
 
@@ -32,9 +32,10 @@ namespace Inkslab.Map.Expressions
             this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
-        bool IMapConfiguration.IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType) || configuration.IsMatch(sourceType, destinationType);
+        /// <inheritdoc/>
+        public override bool IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType) || configuration.IsMatch(sourceType, destinationType);
 
-        Expression IMapConfiguration.Map(Expression sourceExpression, Type destinationType) => Map(sourceExpression, destinationType);
+        Expression IMapApplication.Map(Expression sourceExpression, Type destinationType) => Map(sourceExpression, destinationType);
 
         /// <summary>
         /// 映射。
@@ -52,7 +53,7 @@ namespace Inkslab.Map.Expressions
                 return Map(sourceExpression, destinationType, this);
             }
 
-            return configuration.Map(sourceExpression, destinationType);
+            return configuration.Map(sourceExpression, destinationType, this);
         }
 
         /// <summary>
@@ -126,18 +127,18 @@ namespace Inkslab.Map.Expressions
 
         private class Mapper
         {
-            protected static Tuple<BlockExpression, ParameterExpression> Map(IMapConfiguration configuration, Type sourceType, Type destinationType)
+            protected static Tuple<BlockExpression, ParameterExpression> Map(IMapApplication application, Type sourceType, Type destinationType)
             {
-                var sourceExp = Variable(sourceType);
+                var sourceExp = Variable(sourceType, "source");
 
-                var bodyExp = configuration.Map(sourceExp, destinationType);
+                var bodyExp = application.Map(sourceExp, destinationType);
 
                 if (!destinationType.IsAssignableFrom(bodyExp.Type))
                 {
                     throw new InvalidOperationException();
                 }
 
-                var parameterExp = Parameter(MapConstants.ObjectType);
+                var parameterExp = Parameter(MapConstants.ObjectType, "arg");
 
                 var expressions = new List<Expression>
                 {
@@ -223,7 +224,7 @@ namespace Inkslab.Map.Expressions
 
             private static readonly ConcurrentDictionary<Type, Func<object, TDestination>> cachings = new ConcurrentDictionary<Type, Func<object, TDestination>>();
 
-            public static TDestination Map(IMapConfiguration configuration, object source)
+            public static TDestination Map(IMapApplication application, object source)
             {
                 var sourceType = source.GetType();
 
@@ -256,7 +257,7 @@ namespace Inkslab.Map.Expressions
 
                 var factory = cachings.GetOrAdd(sourceType, type =>
                 {
-                    var tuple = Map(configuration, type, destinationType);
+                    var tuple = Map(application, type, destinationType);
 
                     var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
 
@@ -269,14 +270,14 @@ namespace Inkslab.Map.Expressions
 
         private class MapperDestination : Mapper, IDisposable
         {
-            private readonly IMapConfiguration configuration;
+            private readonly IMapApplication application;
             private readonly Type runtimeType;
             private readonly Type destinationType;
             private readonly ConcurrentDictionary<Type, Func<object, object>> cachings = new ConcurrentDictionary<Type, Func<object, object>>();
 
-            public MapperDestination(IMapConfiguration configuration, Type destinationType)
+            public MapperDestination(IMapApplication application, Type destinationType)
             {
-                this.configuration = configuration;
+                this.application = application;
 
                 this.destinationType = runtimeType = destinationType;
 
@@ -342,7 +343,7 @@ namespace Inkslab.Map.Expressions
 
                 var factory = cachings.GetOrAdd(sourceType, type =>
                 {
-                    var tuple = Map(configuration, sourceType, conversionType);
+                    var tuple = Map(application, sourceType, conversionType);
 
                     var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
 
