@@ -1064,7 +1064,7 @@ label_auto:
 
             var typeCode = new TypeCode(sourceType, destinationType);
 
-            if (mapCachings.ContainsKey(typeCode) || instanceMapCachings.ContainsKey(typeCode))
+            if (mapCachings.ContainsKey(typeCode))
             {
                 return true;
             }
@@ -1077,12 +1077,10 @@ label_auto:
                     {
                         if (mapSlot.IsInstanceSlot)
                         {
-                            instanceMapCachings[typeCode] = mapSlot.CreateMap(tuple.X, tuple.Y);
+                            instanceMapCachings[tuple] = mapSlot.CreateMap(tuple.X, tuple.Y);
                         }
-                        else
-                        {
-                            mapCachings[typeCode] = mapSlot;
-                        }
+
+                        mapCachings[tuple] = mapSlot;
 
                         return true;
                     }
