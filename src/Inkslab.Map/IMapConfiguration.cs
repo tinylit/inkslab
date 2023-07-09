@@ -21,7 +21,9 @@ namespace Inkslab.Map
         /// </summary>
         /// <param name="sourceExpression">源数据。</param>
         /// <param name="destinationType">目标类型。</param>
+        /// <param name="application">映射应用。</param>
         /// <returns>映射关系表达式。</returns>
-        Expression Map(Expression sourceExpression, Type destinationType);
+        /// <exception cref="InvalidCastException">映射失败异常。</exception>
+        Expression Map(Expression sourceExpression, Type destinationType, IMapApplication application);
     }
 }

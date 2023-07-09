@@ -29,12 +29,17 @@ namespace Inkslab.Map
         /// <summary>
         /// 本类的实例。
         /// </summary>
-        public const BindingFlags InstanceDeclaredOnlyBindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        public const BindingFlags InstanceDeclaredOnlyBindingFlags = InstanceBindingFlags | BindingFlags.DeclaredOnly;
 
         /// <summary>
         /// <see cref="void"/> 类型。
         /// </summary>
         public readonly static Type VoidType = typeof(void);
+
+        /// <summary>
+        /// <see cref="string"/> 类型。
+        /// </summary>
+        public readonly static Type StirngType = typeof(string);
 
         /// <summary>
         /// <see cref="object"/> 类型。
@@ -89,7 +94,7 @@ namespace Inkslab.Map
         /// <summary>
         /// <see cref="string.ToLower()"/> 方法。
         /// </summary>
-        public readonly static MethodInfo ToLowerMtd = typeof(string).GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags, null, Type.EmptyTypes, null);
+        public readonly static MethodInfo ToLowerMtd = StirngType.GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags, null, Type.EmptyTypes, null);
 
         /// <summary>
         /// <see cref="ICloneable.Clone()"/> 方法。
@@ -105,6 +110,6 @@ namespace Inkslab.Map
         /// <summary>
         /// <see cref="InvalidCastException(string)"/> 构造函数。
         /// </summary>
-        public readonly static ConstructorInfo InvalidCastExceptionCtorOfString = typeof(InvalidCastException).GetConstructor(new Type[1] { typeof(string) });
+        public readonly static ConstructorInfo InvalidCastExceptionCtorOfString = typeof(InvalidCastException).GetConstructor(new Type[1] { StirngType });
     }
 }

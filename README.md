@@ -7,7 +7,6 @@
 ![AppVeyor tests](https://img.shields.io/appveyor/tests/tinylit/inkslab)
 [![GitHub issues](https://img.shields.io/github/issues-raw/tinylit/inkslab)](../../issues)
 
-
 ### “Inkslab”是什么？
 
 Inkslab 是一套简单、高效的轻量级框架（涵盖了对象映射、配置读取、Xml/Json序列化和反序列化、以及自动/定制化依赖注入）。

@@ -17,22 +17,15 @@ namespace Inkslab.Map.Maps
         private static bool IsKeyValue(Type conversionType) => conversionType.IsGenericType && conversionType.GetGenericTypeDefinition() == KeyValueType;
 
         /// <summary>
-        /// <inheritdoc/>
+        /// <see cref="KeyValuePair{TKey, TValue}"/> 映射。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType) => IsKeyValue(sourceType) && IsKeyValue(destinationType);
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             var conversionGenericArguments = destinationType.GetGenericArguments();
 
@@ -51,7 +44,7 @@ namespace Inkslab.Map.Maps
 
                     return x == y && x.IsValueType
                         ? propertyExpression
-                        : configuration.Map(propertyExpression, x);
+                        : application.Map(propertyExpression, x);
                 }
                 finally
                 {

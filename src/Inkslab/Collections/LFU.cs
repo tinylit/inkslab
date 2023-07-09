@@ -201,7 +201,7 @@ label_add:
         private readonly LFU<TKey> lfu;
 
         private readonly Dictionary<TKey, TValue> cachings;
-
+        private readonly Func<TKey, TValue> factory;
         private readonly int capacity;
         private readonly object lockObj = new object();
 
@@ -213,7 +213,8 @@ label_add:
         /// <summary>
         /// 默认容量。
         /// </summary>
-        public LFU() : this(DefaultCapacity)
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        public LFU(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
         {
         }
 
@@ -221,7 +222,8 @@ label_add:
         /// 指定最大容量。
         /// </summary>
         /// <param name="capacity">初始大小。</param>
-        public LFU(int capacity) : this(capacity, null)
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        public LFU(int capacity, Func<TKey, TValue> factory) : this(capacity, null, factory)
         {
         }
 
@@ -230,14 +232,18 @@ label_add:
         /// </summary>
         /// <param name="capacity">初始大小。</param>
         /// <param name="comparer"> 在比较集中的值时使用的 <see cref="IEqualityComparer{T}"/> 实现，或为 null 以使用集类型的默认 <seealso cref="EqualityComparer{T}"/> 实现。</param>
-        public LFU(int capacity, IEqualityComparer<TKey> comparer)
+        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
+        public LFU(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
         {
             if (capacity < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
+            this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
+
             this.capacity = capacity;
+
             comparer ??= EqualityComparer<TKey>.Default;
 
             lfu = new LFU<TKey>(capacity, comparer);
@@ -266,9 +272,8 @@ label_add:
         /// 获取值。
         /// </summary>
         /// <param name="key">键。</param>
-        /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
-        public TValue GetOrAdd(TKey key, Func<TKey, TValue> factory)
+        public TValue Get(TKey key)
         {
             if (key == null)
             {

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -20,7 +19,7 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源。</typeparam>
     /// <typeparam name="TDestination">目标。</typeparam>
-    public interface IMappingExpressionBase<TSource, TDestination>
+    public interface IProfileExpressionBase<TSource, TDestination>
     {
         /// <summary>
         /// 指定成员映射规则。
@@ -29,7 +28,7 @@ namespace Inkslab.Map
         /// <param name="destinationMember">目标成员。</param>
         /// <param name="memberOptions">成员配置。</param>
         /// <returns></returns>
-        IMappingExpressionBase<TSource, TDestination> Map<TMember>(Expression<Func<TDestination, TMember>> destinationMember, Action<IMemberMappingExpression<TSource, TMember>> memberOptions);
+        IProfileExpressionBase<TSource, TDestination> Map<TMember>(Expression<Func<TDestination, TMember>> destinationMember, Action<IMemberConfigurationExpression<TSource, TMember>> memberOptions);
 
         /// <summary>
         /// 继承泛型约束：类型 <typeparamref name="TDestination"/> 是型参数的泛型类时，泛型参数作为继承约束类型适配。
@@ -44,7 +43,7 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源。</typeparam>
     /// <typeparam name="TDestination">目标。</typeparam>
-    public interface IMappingExpression<TSource, TDestination> : IIncludeMappingExpression<TSource, TDestination>
+    public interface IProfileExpression<TSource, TDestination> : IIncludeProfileExpression<TSource, TDestination>
     {
         /// <summary>
         /// 迭代器映射。
@@ -53,7 +52,7 @@ namespace Inkslab.Map
         /// <typeparam name="TDestinationEnumerable"><typeparamref name="TDestination"/>的迭代集合处理。</typeparam>
         /// <param name="destinationOptions">生成迭代器配置。</param>
         /// <returns>映射表达式。</returns>
-        IMappingExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSourceEnumerable, List<TDestination>, TDestinationEnumerable>> destinationOptions) where TSourceEnumerable : IEnumerable<TSource> where TDestinationEnumerable : IEnumerable<TDestination>;
+        IProfileExpression<TSource, TDestination> NewEnumerable<TSourceEnumerable, TDestinationEnumerable>(Expression<Func<TSourceEnumerable, List<TDestination>, TDestinationEnumerable>> destinationOptions) where TSourceEnumerable : IEnumerable<TSource> where TDestinationEnumerable : IEnumerable<TDestination>;
     }
 
     /// <summary>
@@ -61,14 +60,14 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源。</typeparam>
     /// <typeparam name="TDestination">目标。</typeparam>
-    public interface IIncludeMappingExpression<TSource, TDestination> : IMappingExpressionBase<TSource, TDestination>
+    public interface IIncludeProfileExpression<TSource, TDestination> : IProfileExpressionBase<TSource, TDestination>
     {
         /// <summary>
         /// 包含继承 <typeparamref name="TDestination"/> 的类型，指定共享规则。
         /// </summary>
         /// <typeparam name="TAssignableToDestination">可赋值到<typeparamref name="TDestination"/>的类型。</typeparam>
         /// <returns>映射表达式。</returns>
-        IIncludeMappingExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination;
+        IIncludeProfileExpression<TSource, TDestination> Include<TAssignableToDestination>() where TAssignableToDestination : TDestination;
     }
 
     /// <summary>
@@ -76,12 +75,17 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源。</typeparam>
     /// <typeparam name="TMember">成员。</typeparam>
-    public interface IMemberMappingExpression<TSource, TMember>
+    public interface IMemberConfigurationExpression<TSource, TMember>
     {
         /// <summary>
         /// 忽略。
         /// </summary>
         void Ignore();
+
+        /// <summary>
+        /// 按照属性名称忽略大小写匹配（解决例如在自定义映射时，只读属性默认不被映射的问题）。
+        /// </summary>
+        void Auto();
 
         /// <summary>
         /// 常量。
@@ -115,14 +119,14 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源类型。</typeparam>
     /// <typeparam name="TDestination">目标类型。</typeparam>
-    public interface IGenericMappingExpression<TSource, TDestination> : IMappingExpressionBase<TSource, TDestination>
+    public interface IProfileGenericExpression<TSource, TDestination> : IProfileExpressionBase<TSource, TDestination>
     {
         /// <summary>
         /// 新建实例映射。
         /// </summary>
         /// <param name="newInstanceExpression">创建实例表达式。</param>
         /// <returns>映射关系表达式。</returns>
-        IMappingExpressionBase<TSource, TDestination> New(Expression<Func<TSource, TDestination>> newInstanceExpression);
+        IProfileExpressionBase<TSource, TDestination> New(Expression<Func<TSource, TDestination>> newInstanceExpression);
     }
 
     /// <summary>

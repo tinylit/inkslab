@@ -16,12 +16,12 @@ namespace Inkslab.Map.Maps
     {
         private static readonly Type kvStringType = typeof(kvString);
         private static readonly Type kvStringCollectionType = typeof(ICollection<kvString>);
-        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { typeof(string), MapConstants.ObjectType });
+        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { MapConstants.StirngType, MapConstants.ObjectType });
 
         private static readonly Type kvStringDictionaryType = typeof(IDictionary<string, object>);
 
         private static readonly MethodInfo collectionAddMtd = kvStringCollectionType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[1] { kvStringType }, null);
-        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { typeof(string), MapConstants.ObjectType }, null);
+        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { MapConstants.StirngType, MapConstants.ObjectType }, null);
 
         /// <summary>
         /// 解决 <see cref="KeyValuePair{TKey, TValue}"/>, TKey is <seealso cref="string"/>, TValue is <seealso cref="object"/> 到对象的映射。
@@ -31,16 +31,8 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType) => kvStringCollectionType.IsAssignableFrom(destinationType);
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationExpression"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
             var propertyInfos = Array.FindAll(sourceType.GetProperties(), x => x.CanRead);
 
@@ -51,7 +43,7 @@ namespace Inkslab.Map.Maps
             foreach (var propertyInfo in propertyInfos)
             {
                 var keyExpression = Constant(propertyInfo.Name);
-                var valueExpression = configuration.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
+                var valueExpression = application.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
 
                 if (flag)
                 {

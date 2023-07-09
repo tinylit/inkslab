@@ -11,26 +11,19 @@ namespace Inkslab.Map.Maps
     public class ToStringMap : IMap
     {
         /// <summary>
-        /// <inheritdoc/>
+        /// 转字符串。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => destinationType == typeof(string);
+        public bool IsMatch(Type sourceType, Type destinationType) => destinationType == MapConstants.StirngType;
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             Type objectType = MapConstants.ObjectType;
 
-            var toStringMethod = sourceType.GetMethod(nameof(object.ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(object.ToString), Type.EmptyTypes);
+            var toStringMethod = sourceType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
 
             if (sourceType.IsValueType && toStringMethod.DeclaringType == objectType)
             {

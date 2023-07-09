@@ -11,7 +11,7 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class ConvertMap : IMap
     {
-        private static bool IsPrimitive(Type type) => type.IsPrimitive || type == typeof(string) || type == typeof(decimal);
+        private static bool IsPrimitive(Type type) => type.IsPrimitive || type == MapConstants.StirngType || type == typeof(decimal);
 
         /// <summary>
         /// <inheritdoc/>
@@ -20,19 +20,12 @@ namespace Inkslab.Map.Maps
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType) =>
-            (sourceType == typeof(string) && destinationType == typeof(DateTime)) ||
-            (sourceType == typeof(DateTime) && destinationType == typeof(string)) ||
+            (sourceType == MapConstants.StirngType && destinationType == typeof(DateTime)) ||
+            (sourceType == typeof(DateTime) && destinationType == MapConstants.StirngType) ||
             (IsPrimitive(sourceType) && IsPrimitive(destinationType));
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             var convertMethod = typeof(Convert).GetMethod("To" + destinationType.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null);
 

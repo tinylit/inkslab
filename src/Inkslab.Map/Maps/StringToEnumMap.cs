@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -14,27 +13,20 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class StringToEnumMap : IMap
     {
-        private static readonly PropertyInfo LengthPrt = typeof(string).GetProperty("length");
-        private readonly static MethodInfo ConcatMtd = typeof(string).GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { typeof(string), typeof(string), typeof(string) }, null);
+        private static readonly PropertyInfo LengthPrt = MapConstants.StirngType.GetProperty("length");
+        private readonly static MethodInfo ConcatMtd = MapConstants.StirngType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StirngType, MapConstants.StirngType, MapConstants.StirngType }, null);
 
 
         /// <summary>
-        /// <inheritdoc/>
+        /// 字符串转枚举映射。
         /// </summary>
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => sourceType == typeof(string) && destinationType.IsEnum;
+        public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && destinationType.IsEnum;
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             List<SwitchCase> switchCases = new List<SwitchCase>();
 

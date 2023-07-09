@@ -32,16 +32,8 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType) => kvStringEnumerableType.IsAssignableFrom(sourceType);
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationExpression"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
             var propertyInfos = Array.FindAll(destinationType.GetProperties(), x => x.CanWrite);
 
@@ -65,7 +57,7 @@ namespace Inkslab.Map.Maps
             {
                 var destinationProp = Property(destinationExpression, propertyInfo);
 
-                switchCases.Add(SwitchCase(Assign(destinationProp, configuration.Map(sourceValueProp, propertyInfo.PropertyType)), Constant(propertyInfo.Name.ToPascalCase())));
+                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyInfo.PropertyType)), Constant(propertyInfo.Name.ToPascalCase())));
             }
 
             var bodyExp = Switch(MapConstants.VoidType, Call(MapConstants.ToNamingCaseMtd, sourceKeyProp, Constant(NamingType.PascalCase)), null, null, switchCases);

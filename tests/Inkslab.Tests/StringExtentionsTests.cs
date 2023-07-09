@@ -39,6 +39,37 @@ namespace Inkslab.Tests
         }
 
         /// <summary>
+        /// 语法糖测试。
+        /// </summary>
+        [Fact]
+        public void StringFormatTest()
+        {
+            DateTimeKind? i = DateTimeKind.Utc;
+            var date = DateTime.Now;
+            int j = 2;
+            var 测试中文 = "方程式";
+
+            var q = $"{测试中文}：{i}+{j},{i:D},{date:yyyy-MM-dd},{测试中文 + date.ToString("yyyy")}";//{测试中文 + date:yyyy} 有bug，生成内容为“方程式2023/7/8 10:24”, 与预期的“方程式2023”不符合。
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            for (int k = 0; k < 100000; k++)
+            {
+                var r = "{测试中文}：{i}+{j},{i:D},{date:yyyy-MM-dd},{测试中文 + date:yyyy}".StringSugar(new
+                {
+                    i,
+                    j,
+                    date,
+                    测试中文
+                });
+
+                Assert.True(r == q);
+            }
+
+            stopwatch.Stop();
+        }
+
+        /// <summary>
         /// 命名测试。
         /// </summary>
         /// <param name="name">原名称。</param>

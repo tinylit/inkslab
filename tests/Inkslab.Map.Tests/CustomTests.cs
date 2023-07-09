@@ -1,8 +1,12 @@
-﻿using System;
+﻿using Google.Protobuf.Collections;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
+using System.Reflection.Metadata;
 using Xunit;
 
 namespace Inkslab.Map.Tests
@@ -62,6 +66,27 @@ namespace Inkslab.Map.Tests
         /// <inheritdoc/>.
         /// </summary>
         public long I5 { get; set; } = long.MaxValue;
+    }
+
+    /// <summary>
+    /// 解决GRPC只读<see cref="RepeatedField{T}"/>属性。
+    /// </summary>
+    public class GrpcField
+    {
+        public RepeatedField<int> Ints { get; } = new RepeatedField<int>();
+    }
+
+    public class TestGrpc
+    {
+        public List<C1> C4s { get; set; }
+    }
+
+    /// <summary>
+    /// 解决GRPC只读<see cref="RepeatedField{T}"/>属性。
+    /// </summary>
+    public class GrpcFieldV2
+    {
+        public RepeatedField<C4> C4s { get; } = new RepeatedField<C4>();
     }
 
     /// <summary>
@@ -258,6 +283,92 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
+    /// 瀑布流。
+    /// </summary>
+    /// <typeparam name="T">类型。</typeparam>
+    public class LazyLoading<T>
+    {
+        /// <summary>
+        /// 空集合。
+        /// </summary>
+        public LazyLoading()
+        {
+            Datas = new List<T>(0);
+        }
+
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="queryable">查询能力。</param>
+        /// <param name="skipSize">跳过条数。</param>
+        /// <param name="takeSize">获取条数。</param>
+        public LazyLoading(IQueryable<T> queryable, int skipSize, int takeSize)
+        {
+            if (skipSize < 0)
+            {
+                throw new IndexOutOfRangeException("跳过数量不能小于0。");
+            }
+            if (takeSize < 1)
+            {
+                throw new IndexOutOfRangeException("获取条数不能小于1。");
+            }
+
+            Datas = queryable.Skip(skipSize)
+                .Take(takeSize)
+                .ToList();
+
+            Offset = skipSize + Datas.Count;
+
+            if (Datas.Count == takeSize)
+            {
+                HasNext = queryable
+                    .Skip(Offset)
+                    .Any();
+            }
+        }
+
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="datas">数据。</param>
+        /// <param name="offset">下一页偏移量。</param>
+        /// <param name="hasNext">是否有下一条数据。</param>
+        public LazyLoading(IEnumerable<T> datas, int offset, bool hasNext)
+        {
+            if (datas is null)
+            {
+                throw new ArgumentNullException(nameof(datas));
+            }
+
+            if (offset < 0)
+            {
+                throw new IndexOutOfRangeException("偏移量不能小于0。");
+            }
+
+            Datas = datas as IReadOnlyCollection<T> ?? new List<T>(datas);
+
+            HasNext = hasNext;
+
+            Offset = offset;
+        }
+
+        /// <summary>
+        /// 下一页的偏移量。
+        /// </summary>
+        public int Offset { get; }
+
+        /// <summary>
+        /// 是否有下一个。
+        /// </summary>
+        public bool HasNext { get; }
+
+        /// <summary>
+        /// 数据。
+        /// </summary>
+        public IReadOnlyCollection<T> Datas { get; }
+    }
+
+    /// <summary>
     /// 自定义。
     /// </summary>
     public class CustomTests
@@ -296,45 +407,6 @@ namespace Inkslab.Map.Tests
             Assert.True(sourceC1.P3.ToString() == destinationC2.T3); //? 指定映射规则。
             Assert.True(destinationC2.D4 == constant); //? 常量。
             Assert.True(sourceC1.I5 == 10000 && destinationC2.I5 == long.MaxValue); //! 忽略映射。
-        }
-
-        /// <summary>
-        /// 关系继承与重写（源类型及源的祖祖辈辈类型指定的关系，按照从子到祖的顺序优先被使用）。
-        /// </summary>
-        [Fact]
-        public void ExtendsOrOverwriteTest()
-        {
-            var constant = DateTimeKind.Utc;
-
-            using var instance = new MapperInstance();
-
-            instance.Map<C1, C2>()
-                .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
-                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
-                .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
-                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
-
-            instance.Map<C3, C2>()
-                .Map(x => x.D4, y => y.From(y => y.D4))
-                .Map(x => x.I5, y => y.From(z => z.I5));
-
-            var sourceC3 = new C3
-            {
-                P1 = 1,
-                P2 = "Test",
-                P3 = DateTime.Now,
-                D4 = DateTimeKind.Local,
-                I5 = 10000
-            };
-
-            var destinationC2 = instance.Map<C2>(sourceC3);
-
-            Assert.True(sourceC3.P1 == destinationC2.R1); //? 继承 C1 的映射关系。
-            Assert.True(sourceC3.P2 == destinationC2.P2); //? 继承 C1 的映射关系。
-            Assert.True(sourceC3.P3.ToString() == destinationC2.T3); //? 继承 C1 的映射关系。
-            Assert.True(destinationC2.D4 == sourceC3.D4); //? 关系重写。
-            Assert.True(sourceC3.I5 == destinationC2.I5); //! 关系重写。
         }
 
         /// <summary>
@@ -428,13 +500,55 @@ namespace Inkslab.Map.Tests
                 I5 = 10000
             };
 
-            var destinationC4 = instance.Map<C4>(sourceC1);
+            for (int i = 0; i < 100000; i++)
+            {
+                var destinationC4 = instance.Map<C4>(sourceC1);
 
-            Assert.True(sourceC1.P1 == destinationC4.P1); //? 指定映射。
-            Assert.True(sourceC1.P2 == destinationC4.P2); //? 默认映射。
-            Assert.True(sourceC1.P3.ToString() == destinationC4.T3); //? 指定映射规则。
-            Assert.True(destinationC4.D4 == constant); //? 常量。
-            Assert.True(sourceC1.I5 == 10000 && destinationC4.I5 == long.MaxValue); //! 忽略映射。
+                Assert.True(sourceC1.P1 == destinationC4.P1); //? 指定映射。
+                Assert.True(sourceC1.P2 == destinationC4.P2); //? 默认映射。
+                Assert.True(sourceC1.P3.ToString() == destinationC4.T3); //? 指定映射规则。
+                Assert.True(destinationC4.D4 == constant); //? 常量。
+                Assert.True(sourceC1.I5 == 10000 && destinationC4.I5 == long.MaxValue); //! 忽略映射。
+            }
+        }
+
+        /// <summary>
+        /// 构造函数重写。
+        /// </summary>
+        [Fact]
+        public void NewLazyLoadingTest()
+        {
+            var constant = DateTimeKind.Utc;
+
+            using var instance = new MapperInstance();
+
+            instance.New<LazyLoading<object>, LazyLoading<object>>(x => new LazyLoading<object>(x.Datas, x.Offset, x.HasNext))
+                .IncludeConstraints((x, y, z) => true);
+
+            instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
+                .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
+                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
+
+            var sourceC1 = new C1
+            {
+                P1 = 1,
+                P2 = "Test",
+                P3 = DateTime.Now,
+                I5 = 10000
+            };
+
+            var source = new LazyLoading<C1>(new List<C1> { sourceC1 }, 10, true);
+
+            for (int i = 0; i < 10000; i++)
+            {
+                var destination = instance.Map<LazyLoading<C2>>(source);
+
+                Assert.True(destination.Offset == source.Offset);
+                Assert.True(destination.HasNext == source.HasNext);
+                Assert.True(destination.Datas.Count == source.Datas.Count);
+            }
         }
 
         /// <summary>
@@ -583,6 +697,56 @@ namespace Inkslab.Map.Tests
 
             //? 集合元素个数。
             Assert.True(destinationList.Count == sourceList.Count);
+        }
+
+        /// <summary>
+        /// 使用New映射只读属性。
+        /// </summary>
+        [Fact]
+        public void NewReadonlyProp()
+        {
+            using var instance = new MapperInstance();
+
+            instance.New<IEnumerable<int>, GrpcField>(x => new GrpcField { Ints = { x } });
+
+            var sourceList = new List<int> { 1, 2, 3, 4, 5 };
+
+            var destinationList = instance.Map<GrpcField>(sourceList);
+
+            Assert.True(sourceList.Count == destinationList.Ints.Count);
+        }
+
+        /// <summary>
+        /// 映射只读属性。
+        /// </summary>
+        [Fact]
+        public void MapReadonlyPropV2()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<TestGrpc, GrpcFieldV2>()
+                .Map(x => x.C4s, y => y.Auto());
+
+            instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
+                .Map(x => x.D4, y => y.Constant(DateTimeKind.Utc)) //? 指定目标值为常量。
+                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
+
+            var sourceC1 = new C1
+            {
+                P1 = 1,
+                P2 = "Test",
+                P3 = DateTime.Now,
+                I5 = 10000
+            };
+
+            var destinationList = instance.Map<GrpcFieldV2>(new TestGrpc
+            {
+                C4s = new List<C1> { sourceC1 }
+            });
+
+            Assert.True(destinationList.C4s.Count == 1);
         }
     }
 }

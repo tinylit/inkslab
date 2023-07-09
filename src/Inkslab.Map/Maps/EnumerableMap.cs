@@ -24,21 +24,13 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
             => !sourceType.IsPrimitive && !destinationType.IsPrimitive
-                && sourceType != typeof(string)
-                && destinationType != typeof(string)
+                && sourceType != MapConstants.StirngType
+                && destinationType != MapConstants.StirngType
                 && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
                 && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
 
-        /// <summary>
         /// <inheritdoc/>
-        /// </summary>
-        /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
-        /// <param name="destinationType"><inheritdoc/></param>
-        /// <param name="configuration"><inheritdoc/></param>
-        /// <returns><inheritdoc/></returns>
-        /// <exception cref="NotImplementedException"></exception>
-        public override Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapConfiguration configuration)
+        public override Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             if (destinationType.IsArray)
             {
@@ -58,15 +50,15 @@ namespace Inkslab.Map.Maps
 
             if (sourceType.IsArray && destinationType.IsArray)
             {
-                return ArrayToArray(sourceExpression, destinationType, configuration);
+                return ArrayToArray(sourceExpression, destinationType, application);
             }
 
             if (destinationType.IsArray)
             {
-                return ToArray(sourceExpression, destinationType.GetElementType(), configuration);
+                return ToArray(sourceExpression, destinationType.GetElementType(), application);
             }
 
-            return base.ToSolve(sourceExpression, sourceType, destinationType, configuration);
+            return base.ToSolve(sourceExpression, sourceType, destinationType, application);
         }
 
         private static bool TryGet(Type destinationType, out Type elementType, out MethodInfo addElementMtd)
@@ -104,7 +96,7 @@ namespace Inkslab.Map.Maps
             return addElementMtd is not null;
         }
 
-        private static Expression ArrayToArray(Expression sourceExpression, Type destinationType, IMapConfiguration configuration)
+        private static Expression ArrayToArray(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             var indexExp = Variable(typeof(int));
 
@@ -134,7 +126,7 @@ namespace Inkslab.Map.Maps
                     IfThenElse(
                         GreaterThan(lengthExp, indexExp),
                         Block(
-                            Call(variableExp, addElementMtd, configuration.Map(ArrayIndex(sourceExpression, indexExp), elementType)),
+                            Call(variableExp, addElementMtd, application.Map(ArrayIndex(sourceExpression, indexExp), elementType)),
                             AddAssign(indexExp, Constant(1)),
                             Continue(continue_label)
                         ),
@@ -145,7 +137,7 @@ namespace Inkslab.Map.Maps
               });
         }
 
-        private static Expression ToArray(Expression sourceExpression, Type destinationElementType, IMapConfiguration configuration)
+        private static Expression ToArray(Expression sourceExpression, Type destinationElementType, IMapApplication application)
         {
             var sourceType = sourceExpression.Type;
 
@@ -161,15 +153,15 @@ namespace Inkslab.Map.Maps
                         || typeDefinition == typeof(IReadOnlyCollection<>)
                         || typeDefinition == typeof(IEnumerable<>))
                     {
-                        return ToArrayByGeneric(sourceExpression, interfaceType.GetGenericArguments()[0], destinationElementType, configuration);
+                        return ToArrayByGeneric(sourceExpression, interfaceType.GetGenericArguments()[0], destinationElementType, application);
                     }
                 }
             }
 
-            return ToArrayByGeneral(sourceExpression, destinationElementType, configuration);
+            return ToArrayByGeneral(sourceExpression, destinationElementType, application);
         }
 
-        private static Expression ToArrayByGeneral(Expression sourceExpression, Type destinationElementType, IMapConfiguration configuration)
+        private static Expression ToArrayByGeneral(Expression sourceExpression, Type destinationElementType, IMapApplication configuration)
         {
             LabelTarget break_label = Label(MapConstants.VoidType);
             LabelTarget continue_label = Label(MapConstants.VoidType);
@@ -204,7 +196,7 @@ namespace Inkslab.Map.Maps
              });
         }
 
-        private static Expression ToArrayByGeneric(Expression sourceExpression, Type sourceElementType, Type destinationElementType, IMapConfiguration configuration)
+        private static Expression ToArrayByGeneric(Expression sourceExpression, Type sourceElementType, Type destinationElementType, IMapApplication configuration)
         {
             LabelTarget break_label = Label(MapConstants.VoidType);
             LabelTarget continue_label = Label(MapConstants.VoidType);
@@ -243,7 +235,7 @@ namespace Inkslab.Map.Maps
              });
         }
 
-        private static Expression ArrayTo(Expression sourceExpression, ParameterExpression destinationExpression, Type elementType, MethodInfo addElementMtd, IMapConfiguration configuration)
+        private static Expression ArrayTo(Expression sourceExpression, ParameterExpression destinationExpression, Type elementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
             var indexExp = Variable(typeof(int));
 
@@ -274,7 +266,7 @@ namespace Inkslab.Map.Maps
               });
         }
 
-        private static Expression ToEnumerable(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapConfiguration configuration)
+        private static Expression ToEnumerable(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
             foreach (var interfaceType in sourceType.GetInterfaces())
             {
@@ -296,7 +288,7 @@ namespace Inkslab.Map.Maps
             return ToEnumerableByGeneral(sourceExpression, destinationExpression, destinationElementType, addElementMtd, configuration);
         }
 
-        private static Expression ToEnumerableByGeneral(Expression sourceExpression, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapConfiguration configuration)
+        private static Expression ToEnumerableByGeneral(Expression sourceExpression, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
             LabelTarget break_label = Label(MapConstants.VoidType);
             LabelTarget continue_label = Label(MapConstants.VoidType);
@@ -322,7 +314,7 @@ namespace Inkslab.Map.Maps
              });
         }
 
-        private static Expression ToEnumerableByGeneric(Expression sourceExpression, Type sourceElementType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapConfiguration configuration)
+        private static Expression ToEnumerableByGeneric(Expression sourceExpression, Type sourceElementType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
             LabelTarget break_label = Label(MapConstants.VoidType);
             LabelTarget continue_label = Label(MapConstants.VoidType);
@@ -363,7 +355,7 @@ namespace Inkslab.Map.Maps
         /// <param name="configuration"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         /// <exception cref="InvalidCastException">目标类型 <paramref name="destinationType"/> 为集合，但没有找到添加元素的方法！</exception>
-        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapConfiguration configuration)
+        protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication configuration)
         {
             if (TryGet(destinationType, out Type elementType, out MethodInfo addElementMtd))
             {
