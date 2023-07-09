@@ -410,45 +410,6 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// 关系继承与重写（源类型及源的祖祖辈辈类型指定的关系，按照从子到祖的顺序优先被使用）。
-        /// </summary>
-        [Fact]
-        public void ExtendsOrOverwriteTest()
-        {
-            var constant = DateTimeKind.Utc;
-
-            using var instance = new MapperInstance();
-
-            instance.Map<C1, C2>()
-                .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
-                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
-                .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
-                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
-
-            instance.Map<C3, C2>()
-                .Map(x => x.D4, y => y.From(y => y.D4))
-                .Map(x => x.I5, y => y.From(z => z.I5));
-
-            var sourceC3 = new C3
-            {
-                P1 = 1,
-                P2 = "Test",
-                P3 = DateTime.Now,
-                D4 = DateTimeKind.Local,
-                I5 = 10000
-            };
-
-            var destinationC2 = instance.Map<C2>(sourceC3);
-
-            Assert.True(sourceC3.P1 == destinationC2.R1); //? 继承 C1 的映射关系。
-            Assert.True(sourceC3.P2 == destinationC2.P2); //? 继承 C1 的映射关系。
-            Assert.True(sourceC3.P3.ToString() == destinationC2.T3); //? 继承 C1 的映射关系。
-            Assert.True(destinationC2.D4 == sourceC3.D4); //? 关系重写。
-            Assert.True(sourceC3.I5 == destinationC2.I5); //! 关系重写。
-        }
-
-        /// <summary>
         /// 包含。
         /// </summary>
         [Fact]
@@ -583,6 +544,10 @@ namespace Inkslab.Map.Tests
             for (int i = 0; i < 10000; i++)
             {
                 var destination = instance.Map<LazyLoading<C2>>(source);
+
+                Assert.True(destination.Offset == source.Offset);
+                Assert.True(destination.HasNext == source.HasNext);
+                Assert.True(destination.Datas.Count == source.Datas.Count);
             }
         }
 
@@ -747,6 +712,8 @@ namespace Inkslab.Map.Tests
             var sourceList = new List<int> { 1, 2, 3, 4, 5 };
 
             var destinationList = instance.Map<GrpcField>(sourceList);
+
+            Assert.True(sourceList.Count == destinationList.Ints.Count);
         }
 
         /// <summary>
@@ -757,7 +724,8 @@ namespace Inkslab.Map.Tests
         {
             using var instance = new MapperInstance();
 
-            instance.Map<TestGrpc, GrpcFieldV2>();
+            instance.Map<TestGrpc, GrpcFieldV2>()
+                .Map(x => x.C4s, y => y.Auto());
 
             instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
                                                     //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
@@ -777,6 +745,8 @@ namespace Inkslab.Map.Tests
             {
                 C4s = new List<C1> { sourceC1 }
             });
+
+            Assert.True(destinationList.C4s.Count == 1);
         }
     }
 }

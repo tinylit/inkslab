@@ -83,6 +83,11 @@ namespace Inkslab.Map
         void Ignore();
 
         /// <summary>
+        /// 按照属性名称忽略大小写匹配（解决例如在自定义映射时，只读属性默认不被映射的问题）。
+        /// </summary>
+        void Auto();
+
+        /// <summary>
         /// 常量。
         /// </summary>
         /// <param name="member">成员值。</param>

@@ -16,7 +16,7 @@ namespace Inkslab
 
         private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
 
-        private static readonly LRU<string, Assembly> assemblyLoads = new LRU<string, Assembly>(x =>
+        private static readonly LFU<string, Assembly> assemblyLoads = new LFU<string, Assembly>(x =>
         {
             try
             {

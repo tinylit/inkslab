@@ -139,34 +139,6 @@
 
     var destinationC2 = instance.Map<C2>(sourceC1);
    ```
-  - 关系继承和重写（源类型及源的祖祖辈辈类型指定的关系，按照从子到祖的顺序优先被使用）。
-   ```c#
-    var constant = DateTimeKind.Utc;
-
-    using var instance = new MapperInstance();
-
-    instance.Map<C1, C2>()
-        .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                                                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
-        .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
-        .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
-        .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
-
-    instance.Map<C3, C2>()
-        .Map(x => x.D4, y => y.From(y => y.D4)) //? 重写D4的规则，替换掉子类的常量关系。
-        .Map(x => x.I5, y => y.From(z => z.I5)); //? 重写I5的规则，替换掉子类的忽略关系。
-
-    var sourceC3 = new C3
-    {
-        P1 = 1,
-        P2 = "Test",
-        P3 = DateTime.Now,
-        D4 = DateTimeKind.Local,
-        I5 = 10000
-    };
-
-    var destinationC2 = instance.Map<C2>(sourceC3);
-   ```
   - 包含。
   ```c#
     using var instance = new MapperInstance();

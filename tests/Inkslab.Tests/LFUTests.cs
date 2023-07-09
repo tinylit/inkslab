@@ -17,14 +17,14 @@ namespace Inkslab.Tests
         [Fact]
         public async Task TestThreadSafety()
         {
-           // int total = 0;
+            // int total = 0;
             long totalMilliseconds = 0;
 
             Stopwatch totalStopwatch = Stopwatch.StartNew();
 
             int length = 1000;
             int capacity = length / 10;
-            var lfu = new LFU<int, int>(capacity);
+            var lfu = new LFU<int, int>(capacity, x => x * x);
 
             var tasks = new List<Task>(50);
 
@@ -37,7 +37,7 @@ namespace Inkslab.Tests
                     for (int j = 0; j < length; j++)
                     {
                         stopwatch.Start();
-                        var v = lfu.GetOrAdd(j, x => x * x);
+                        var v = lfu.Get(j);
                         stopwatch.Stop();
 
                         Assert.Equal(j * j, v);
@@ -70,14 +70,14 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lfu = new LFU<int, int>(capacity);
+            var lfu = new LFU<int, int>(capacity, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {
                 for (int j = 0; j < capacity; j++)
                 {
                     stopwatch.Start();
-                    var v = lfu.GetOrAdd(j, x => x * x);
+                    var v = lfu.Get(j);
                     stopwatch.Stop();
 
                     Assert.Equal(j * j, v);
@@ -99,14 +99,14 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lfu = new LFU<int, int>(capacity / 2);
+            var lfu = new LFU<int, int>(capacity / 2, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {
                 for (int j = 0; j < capacity; j++)
                 {
                     stopwatch.Start();
-                    var v = lfu.GetOrAdd(j, x => x * x);
+                    var v = lfu.Get(j);
                     stopwatch.Stop();
 
                     Assert.Equal(j * j, v);

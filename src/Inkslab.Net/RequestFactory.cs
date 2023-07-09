@@ -40,7 +40,7 @@ namespace Inkslab.Net
         private static readonly Type dateType = typeof(DateTime);
         private static readonly MethodInfo dateToStringFn = dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
-        private static readonly LRU<double, HttpClient> clients = new LRU<double, HttpClient>(100, timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
+        private static readonly LFU<double, HttpClient> clients = new LFU<double, HttpClient>(100, timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
 
         private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> cachings = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
 
@@ -1409,7 +1409,14 @@ namespace Inkslab.Net
                     }
                 }
 
-                return await client.SendAsync(httpMsg, cancellationToken);
+                try
+                {
+                    return await client.SendAsync(httpMsg, cancellationToken);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException();
+                }
             }
         }
 

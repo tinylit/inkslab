@@ -24,10 +24,6 @@ namespace System
         /// <summary>
         /// 有效的 KEY 与 IV 长度，以英文字符为单位： KEY（Min:16 Max:32 Skip:8），IV（16）。
         /// </summary>
-        Rijndael,
-        /// <summary>
-        /// 有效的 KEY 与 IV 长度，以英文字符为单位： KEY（Min:16 Max:32 Skip:8），IV（16）。
-        /// </summary>
         AES
     }
 
@@ -50,9 +46,6 @@ namespace System
                     break;
                 case CryptoKind.RC2:
                     algorithm = RC2.Create();
-                    break;
-                case CryptoKind.Rijndael:
-                    algorithm = Rijndael.Create();
                     break;
                 case CryptoKind.AES:
                     algorithm = Aes.Create();
