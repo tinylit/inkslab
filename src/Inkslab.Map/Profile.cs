@@ -980,7 +980,10 @@ namespace Inkslab.Map
         {
             if (mapCachings.TryGetValue(new TypeCode(sourceType, destinationType), out IMapSlot mapSlot))
             {
-                return PrivateToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, application, mapSlot);
+                if (mapSlot.IsInstanceSlot || mapSlot.HasMemberSettings)
+                {
+                    return PrivateToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, application, mapSlot);
+                }
             }
 
             return base.ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, application);
