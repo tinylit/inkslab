@@ -1,11 +1,9 @@
-﻿using Inkslab.Collections;
-using Inkslab.Map.Visitors;
+﻿using Inkslab.Map.Visitors;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Reflection;
 
 namespace Inkslab.Map.Expressions
 {

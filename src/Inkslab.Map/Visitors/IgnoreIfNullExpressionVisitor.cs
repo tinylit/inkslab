@@ -101,7 +101,11 @@ namespace Inkslab.Map.Visitors
         /// <returns>表达式。</returns>
         public static Expression IgnoreIfNull(Expression node, bool keepNullable = false)
             => node.NodeType == ExpressionType.Parameter
-            ? node
+            ? keepNullable
+                ? node
+                : node.Type.IsNullable()
+                    ? Property(node, "Value")
+                    : node
             : new IgnoreIfNullExpression(node, keepNullable);
 
         /// <summary>
