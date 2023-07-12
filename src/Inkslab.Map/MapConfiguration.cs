@@ -239,7 +239,7 @@ namespace Inkslab.Map
                 {
                     if (AllowPropagationNullValues)
                     {
-                        return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, conversionType, application));
+                        return Condition(Equal(sourceExpression, Constant(null, sourceType)), conversionType.IsValueType ? Default(conversionType) : Constant(null, conversionType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, conversionType, application));
                     }
 
                     return Map(Convert(IgnoreIfNull(sourceExpression), destinationType), destinationType, destinationType, conversionType, application);
@@ -274,7 +274,7 @@ namespace Inkslab.Map
                 {
                     if (AllowPropagationNullValues)
                     {
-                        return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), Map(sourceExpression, sourceType, destinationType, conversionType, application));
+                        return Condition(Equal(sourceExpression, Constant(null, sourceType)), Constant(null, conversionType), Map(sourceExpression, sourceType, destinationType, conversionType, application));
                     }
 
                     return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType, application);
@@ -290,7 +290,7 @@ namespace Inkslab.Map
 
             if (AllowPropagationNullValues)
             {
-                return Condition(Equal(sourceExpression, Default(sourceType)), Default(conversionType), Map(sourceExpression, sourceType, destinationType, conversionType, application));
+                return Condition(Equal(sourceExpression, Constant(null, sourceType)), conversionType.IsValueType ? Default(conversionType) : Constant(null, conversionType), Map(sourceExpression, sourceType, destinationType, conversionType, application));
             }
 
             return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType, application);
