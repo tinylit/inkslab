@@ -83,14 +83,14 @@ namespace System
 
 
         /// <summary>
-        /// 当前类型是否是迷你类型（枚举或不需要引号包裹的类型）。
+        /// 当前类型是否是迷你类型（枚举、基元类型（不含<see cref="char"/>）：<see cref="Enum"/>/<see cref="bool"/>/<see cref="sbyte"/>/<see cref="byte"/>/<see cref="float"/>/<see cref="double"/>/<see cref="decimal"/>/<see cref="short"/>/<see cref="ushort"/>/<see cref="short"/>/<see cref="int"/>/<see cref="uint"/>/<see cref="long"/>/<see cref="ulong"/>/<see cref="IntPtr"/>/<see cref="UIntPtr"/>）。
         /// </summary>
         /// <param name="type">类型。</param>
         /// <returns>是返回True，不是返回False。</returns>
         public static bool IsMini(this Type type) => type.IsEnum || type.IsValueType && (type.IsPrimitive ? type != CharType : type == DecimalType);
 
         /// <summary>
-        /// 当前类型是否是简单类型（基础类型）。
+        /// 当前类型是否是简单类型（基础类型：基元类型/<see cref="Enum"/>/<see cref="decimal"/>/<see cref="string"/>/<see cref="Guid"/>/<see cref="TimeSpan"/>/<see cref="DateTime"/>/<see cref="DateTimeOffset"/>/<see cref="byte"/>[]）。
         /// </summary>
         /// <param name="type">类型。</param>
         /// <returns>是返回True，不是返回False。</returns>

@@ -258,6 +258,16 @@ namespace Inkslab.Map
                 return MapAnyOfValueType(sourceExpression, sourceType, destinationType, conversionType, application);
             }
 
+            if (sourceType == conversionType && sourceType == MapConstants.StirngType)
+            {
+                if (AllowPropagationNullValues)
+                {
+                    return sourceExpression;
+                }
+
+                return IgnoreIfNull(sourceExpression, true);
+            }
+
             if (conversionType.IsAssignableFrom(sourceType))
             {
                 if (IsDepthMapping)
