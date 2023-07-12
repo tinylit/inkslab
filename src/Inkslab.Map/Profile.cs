@@ -619,7 +619,7 @@ namespace Inkslab.Map
                 var sourceTypeDefinition = sourceTypeEnumerable.GetGenericTypeDefinition();
                 var destinationTypeDefinition = destinationTypeEnumerable.GetGenericTypeDefinition();
 
-                var instanceFactory = new InstanceEnumerableFactory(sourceTypeEnumerable, destinationTypeEnumerable, body, parameter, parameterOfSet);
+                var instanceFactory = new InstanceEnumerableFactory(body, parameter, parameterOfSet);
 
                 var mapSlot = new GenericMapSlot(sourceTypeDefinition, destinationTypeDefinition, instanceFactory);
 
@@ -664,36 +664,13 @@ namespace Inkslab.Map
 
         private class InstanceFactory : IInstanceFactory
         {
-            private readonly Type sourceType;
-            private readonly Type destinationType;
             private readonly Expression body;
             private readonly ParameterExpression parameter;
 
-            public InstanceFactory(Type sourceType, Type destinationType, Expression body, ParameterExpression parameter)
+            public InstanceFactory(Expression body, ParameterExpression parameter)
             {
-                this.sourceType = sourceType;
-                this.destinationType = destinationType;
                 this.body = body;
                 this.parameter = parameter;
-            }
-
-            private class SimpleSlot : IInstanceMapSlot
-            {
-                private readonly Expression body;
-                private readonly ParameterExpression parameter;
-
-                public SimpleSlot(Expression body, ParameterExpression parameter)
-                {
-                    this.body = body;
-                    this.parameter = parameter;
-                }
-
-                public Expression Map(Expression source, IMapApplication application)
-                {
-                    var visitor = new ReplaceExpressionVisitor(parameter, source);
-
-                    return visitor.Visit(body);
-                }
             }
 
             private class MapperSlot : IInstanceMapSlot
@@ -717,73 +694,32 @@ namespace Inkslab.Map
                 }
             }
 
-            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
-            {
-                if (this.sourceType == sourceType && this.destinationType == destinationType)
-                {
-                    return new SimpleSlot(body, parameter);
-                }
-
-                return new MapperSlot(destinationType, body, parameter);
-            }
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType) => new MapperSlot(destinationType, body, parameter);
         }
 
         private class InstanceEnumerableFactory : IInstanceFactory
         {
-            private readonly Type sourceTypeEnumerable;
-            private readonly Type destinationTypeEnumerable;
             private readonly Expression body;
             private readonly ParameterExpression parameter;
             private readonly ParameterExpression parameterOfSet;
 
-            public InstanceEnumerableFactory(Type sourceTypeEnumerable, Type destinationTypeEnumerable, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+            public InstanceEnumerableFactory(Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
             {
-                this.sourceTypeEnumerable = sourceTypeEnumerable;
-                this.destinationTypeEnumerable = destinationTypeEnumerable;
                 this.body = body;
                 this.parameter = parameter;
                 this.parameterOfSet = parameterOfSet;
             }
 
-            private class SimpleSlot : IInstanceMapSlot
-            {
-                private readonly Type destinationSetType;
-                private readonly Expression body;
-                private readonly ParameterExpression parameter;
-                private readonly ParameterExpression parameterOfSet;
-
-                public SimpleSlot(Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
-                {
-                    this.destinationSetType = destinationSetType;
-                    this.body = body;
-                    this.parameter = parameter;
-                    this.parameterOfSet = parameterOfSet;
-                }
-
-                public Expression Map(Expression source, IMapApplication application)
-                {
-                    var destinationSetVariable = Variable(destinationSetType);
-
-                    var destinationSetExpression = application.Map(source, destinationSetType);
-
-                    var visitor = new ReplaceExpressionVisitor(new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
-
-                    return Block(new ParameterExpression[] { destinationSetVariable }, Assign(destinationSetVariable, destinationSetExpression), visitor.Visit(body));
-                }
-            }
-
             private class MapperSlot : IInstanceMapSlot
             {
                 private readonly Type destinationType;
-                private readonly Type destinationSetType;
                 private readonly Expression body;
                 private readonly ParameterExpression parameter;
                 private readonly ParameterExpression parameterOfSet;
 
-                public MapperSlot(Type destinationType, Type destinationSetType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+                public MapperSlot(Type destinationType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
                 {
                     this.destinationType = destinationType;
-                    this.destinationSetType = destinationSetType;
                     this.body = body;
                     this.parameter = parameter;
                     this.parameterOfSet = parameterOfSet;
@@ -791,25 +727,13 @@ namespace Inkslab.Map
 
                 public Expression Map(Expression source, IMapApplication application)
                 {
-                    var destinationSetVariable = Variable(destinationSetType);
+                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, application, new[] { parameter, parameterOfSet }, new[] { source, source });
 
-                    var destinationSetExpression = application.Map(source, destinationSetType);
-
-                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, application, new[] { parameter, parameterOfSet }, new[] { source, destinationSetVariable });
-
-                    return Block(new ParameterExpression[] { destinationSetVariable }, Assign(destinationSetVariable, destinationSetExpression), visitor.Visit(body));
+                    return visitor.Visit(body);
                 }
             }
 
-            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
-            {
-                if (sourceTypeEnumerable == sourceType && destinationTypeEnumerable == destinationType)
-                {
-                    return new SimpleSlot(parameterOfSet.Type, body, parameter, parameterOfSet);
-                }
-
-                return new MapperSlot(destinationType, typeof(List<>).MakeGenericType(destinationType.GetGenericArguments()), body, parameter, parameterOfSet);
-            }
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType) => new MapperSlot(destinationType, body, parameter, parameterOfSet);
         }
 
         private static bool TryAnalysisInstanceExpression(Expression node, out Expression validExpression)
@@ -1182,7 +1106,7 @@ label_auto:
             var sourceType = typeof(TSource);
             var destinationType = typeof(TDestination);
 
-            var instanceFactory = new InstanceFactory(sourceType, destinationType, body, destinationOptions.Parameters[0]);
+            var instanceFactory = new InstanceFactory(body, destinationOptions.Parameters[0]);
 
             var mapSlot = new MapSlot(sourceType, destinationType, instanceFactory, mapSlots);
 

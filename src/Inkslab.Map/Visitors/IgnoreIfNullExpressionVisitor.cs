@@ -100,13 +100,46 @@ namespace Inkslab.Map.Visitors
         /// <param name="keepNullable">是否保持表达式<see cref="Nullable"/>类型。</param>
         /// <returns>表达式。</returns>
         public static Expression IgnoreIfNull(Expression node, bool keepNullable = false)
-            => node.NodeType == ExpressionType.Parameter
-            ? keepNullable
-                ? node
-                : node.Type.IsNullable()
-                    ? Property(node, "Value")
-                    : node
-            : new IgnoreIfNullExpression(node, keepNullable);
+        {
+            if (node.NodeType == IgnoreIf)
+            {
+                return node;
+            }
+
+            if (node.NodeType == ExpressionType.Parameter)
+            {
+                if (keepNullable || !node.Type.IsNullable())
+                {
+                    return node;
+                }
+
+                return Property(node, "Value");
+            }
+
+            Expression ignoreIf = node;
+
+            while (ignoreIf is MethodCallExpression methodCall)
+            {
+                if (methodCall.Arguments.Count > (methodCall.Method.IsStatic ? 1 : 0))
+                {
+                    break;
+                }
+
+                ignoreIf = methodCall.Object ?? methodCall.Arguments[0];
+            }
+
+            if (ignoreIf.Type.IsValueType)
+            {
+                if (node.Type.IsNullable())
+                {
+                    return new IgnoreIfNullExpression(node, Property(ignoreIf, "HasValue"), keepNullable);
+                }
+
+                return node;
+            }
+
+            return new IgnoreIfNullExpression(node, NotEqual(ignoreIf, Constant(null, ignoreIf.Type)), keepNullable);
+        }
 
         /// <summary>
         /// 忽略表达式。
@@ -121,30 +154,19 @@ namespace Inkslab.Map.Visitors
             /// <summary>
             /// 构造函数。
             /// </summary>
-            /// <param name="node">表达式节点。</param>
-            /// <param name="keepNullable"></param>
-            public IgnoreIfNullExpression(Expression node, bool keepNullable)
+            public IgnoreIfNullExpression(Expression node, Expression test, bool keepNullable)
             {
                 this.node = node ?? throw new ArgumentNullException(nameof(node));
+                this.test = test ?? throw new ArgumentNullException(nameof(test));
                 this.keepNullable = keepNullable;
 
-                if (node is IgnoreIfNullExpression ignoreNode)
+                if (!node.Type.IsValueType)
                 {
-                    this.node = ignoreNode.node;
-                    type = ignoreNode.type;
-                    test = ignoreNode.test;
-                }
-                else if (!node.Type.IsValueType)
-                {
-                    this.node = node;
                     type = node.Type;
-                    test = NotEqual(node, Constant(null, node.Type));
                 }
                 else if (node.Type.IsNullable())
                 {
-                    this.node = node;
                     type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type);
-                    test = Property(node, "HasValue");
                 }
                 else
                 {
