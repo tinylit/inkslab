@@ -392,12 +392,14 @@ namespace Inkslab.Map
         {
             private readonly Type sourceType;
             private readonly Type destinationType;
+            private readonly IMapSlot mapSlot;
             private readonly InstanceEnumerableFactory instanceFactory;
 
-            public GenericMapSlot(Type sourceType, Type destinationType, InstanceEnumerableFactory instanceFactory)
+            public GenericMapSlot(Type sourceType, Type destinationType, IMapSlot mapSlot, InstanceEnumerableFactory instanceFactory)
             {
                 this.sourceType = sourceType;
                 this.destinationType = destinationType;
+                this.mapSlot = mapSlot;
                 this.instanceFactory = instanceFactory;
             }
 
@@ -412,7 +414,13 @@ namespace Inkslab.Map
                     var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
                     var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
 
-                    return sourceTypeDefinition == this.sourceType && destinationTypeDefinition == this.destinationType;
+                    if (sourceTypeDefinition == this.sourceType && destinationTypeDefinition == this.destinationType)
+                    {
+                        var sourceGenericArguments = sourceType.GetGenericArguments();
+                        var destinationGenericArguments = destinationType.GetGenericArguments();
+
+                        return mapSlot.IsMatch(sourceGenericArguments[0], destinationGenericArguments[0]);
+                    }
                 }
 
                 return false;
@@ -621,7 +629,7 @@ namespace Inkslab.Map
 
                 var instanceFactory = new InstanceEnumerableFactory(body, parameter, parameterOfSet);
 
-                var mapSlot = new GenericMapSlot(sourceTypeDefinition, destinationTypeDefinition, instanceFactory);
+                var mapSlot = new GenericMapSlot(sourceTypeDefinition, destinationTypeDefinition, this, instanceFactory);
 
                 if (body is MemberInitExpression initExpression) //? 忽略已经初始化的属性，避免重复初始化。
                 {
