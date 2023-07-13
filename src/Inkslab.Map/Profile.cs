@@ -390,17 +390,17 @@ namespace Inkslab.Map
 
         private class GenericMapSlot : BaseMapSlot, IMapSlot
         {
-            private readonly Type sourceType;
-            private readonly Type destinationType;
-            private readonly IMapSlot mapSlot;
+            private readonly Type sourceTypeDefinition;
+            private readonly Type destinationTypeDefinition;
             private readonly InstanceEnumerableFactory instanceFactory;
+            private readonly Func<Type, Type, bool> bindingConstraints;
 
-            public GenericMapSlot(Type sourceType, Type destinationType, IMapSlot mapSlot, InstanceEnumerableFactory instanceFactory)
+            public GenericMapSlot(Type sourceTypeDefinition, Type destinationTypeDefinition, InstanceEnumerableFactory instanceFactory, Func<Type, Type, bool> bindingConstraints)
             {
-                this.sourceType = sourceType;
-                this.destinationType = destinationType;
-                this.mapSlot = mapSlot;
+                this.sourceTypeDefinition = sourceTypeDefinition;
+                this.destinationTypeDefinition = destinationTypeDefinition;
                 this.instanceFactory = instanceFactory;
+                this.bindingConstraints = bindingConstraints;
             }
 
             public bool IsInstanceSlot => true;
@@ -414,12 +414,12 @@ namespace Inkslab.Map
                     var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
                     var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
 
-                    if (sourceTypeDefinition == this.sourceType && destinationTypeDefinition == this.destinationType)
+                    if (sourceTypeDefinition == this.sourceTypeDefinition && destinationTypeDefinition == this.destinationTypeDefinition)
                     {
                         var sourceGenericArguments = sourceType.GetGenericArguments();
                         var destinationGenericArguments = destinationType.GetGenericArguments();
 
-                        return mapSlot.IsMatch(sourceGenericArguments[0], destinationGenericArguments[0]);
+                        return bindingConstraints(sourceGenericArguments[0], destinationGenericArguments[0]);
                     }
                 }
 
@@ -451,7 +451,10 @@ namespace Inkslab.Map
                 this.sourceType = sourceType;
                 this.destinationType = destinationType;
                 this.mapSlots = mapSlots;
-                destinationTypes = new HashSet<Type> { destinationType };
+
+                destinationTypes = destinationType == MapConstants.ObjectType
+                    ? new HashSet<Type>()
+                    : new HashSet<Type> { destinationType };
             }
 
             public MapSlot(Type sourceType, Type destinationType, IInstanceFactory instanceFactory, List<IMapSlot> mapSlots) : this(sourceType, destinationType, mapSlots)
@@ -629,7 +632,11 @@ namespace Inkslab.Map
 
                 var instanceFactory = new InstanceEnumerableFactory(body, parameter, parameterOfSet);
 
-                var mapSlot = new GenericMapSlot(sourceTypeDefinition, destinationTypeDefinition, this, instanceFactory);
+                Func<Type, Type, bool> bindingConstraints = sourceType == MapConstants.ObjectType && destinationType == MapConstants.ObjectType
+                    ? (x, y) => true
+                    : IsMatch;
+
+                var mapSlot = new GenericMapSlot(sourceTypeDefinition, destinationTypeDefinition, instanceFactory, bindingConstraints);
 
                 if (body is MemberInitExpression initExpression) //? 忽略已经初始化的属性，避免重复初始化。
                 {
@@ -893,10 +900,11 @@ namespace Inkslab.Map
 
         private bool disposedValue;
 
+        private readonly object lockObj = new object();
         private readonly List<IMapSlot> mapSlots = new List<IMapSlot>();
+        private readonly HashSet<TypeCode> missCachings = new HashSet<TypeCode>(TypeCode.InstanceComparer);
         private readonly Dictionary<TypeCode, IMapSlot> mapCachings = new Dictionary<TypeCode, IMapSlot>(TypeCode.InstanceComparer);
         private readonly Dictionary<TypeCode, IInstanceMapSlot> instanceMapCachings = new Dictionary<TypeCode, IInstanceMapSlot>(TypeCode.InstanceComparer);
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<TypeCode, bool> matchCachings = new System.Collections.Concurrent.ConcurrentDictionary<TypeCode, bool>(TypeCode.InstanceComparer);
 
         /// <summary>
         /// 解决映射关系。
@@ -1004,25 +1012,42 @@ label_auto:
                 return true;
             }
 
-            return matchCachings.GetOrAdd(typeCode, tuple =>
+            if (missCachings.Contains(typeCode))
             {
+                return false;
+            }
+
+            lock (lockObj)
+            {
+                if (mapCachings.ContainsKey(typeCode))
+                {
+                    return true;
+                }
+
+                if (missCachings.Contains(typeCode))
+                {
+                    return false;
+                }
+
                 foreach (var mapSlot in mapSlots)
                 {
-                    if (mapSlot.IsMatch(tuple.X, tuple.Y))
+                    if (mapSlot.IsMatch(typeCode.X, typeCode.Y))
                     {
                         if (mapSlot.IsInstanceSlot)
                         {
-                            instanceMapCachings[tuple] = mapSlot.CreateMap(tuple.X, tuple.Y);
+                            instanceMapCachings[typeCode] = mapSlot.CreateMap(typeCode.X, typeCode.Y);
                         }
 
-                        mapCachings[tuple] = mapSlot;
+                        mapCachings[typeCode] = mapSlot;
 
                         return true;
                     }
                 }
 
+                missCachings.Add(typeCode);
+
                 return false;
-            });
+            }
         }
 
         /// <summary>
@@ -1078,14 +1103,18 @@ label_auto:
             var sourceType = typeof(TSource);
             var destinationType = typeof(TDestination);
 
+            //? 对象映射到对象只用作契约，不作为映射标准。
+            bool isContract = sourceType == MapConstants.ObjectType && destinationType == MapConstants.ObjectType;
+
             var mapSlot = new MapSlot(sourceType, destinationType, mapSlots);
 
             mapSlots.Add(mapSlot);
 
-            //? 优先使用自定义。
-            var typeCode = new TypeCode(sourceType, destinationType);
-
-            mapCachings[typeCode] = mapSlot;
+            if (!isContract)
+            {
+                //? 优先使用自定义。
+                mapCachings[new TypeCode(sourceType, destinationType)] = mapSlot;
+            }
 
             return new ProfileExpressio<TSource, TDestination>(mapSlot);
         }
@@ -1154,11 +1183,11 @@ label_auto:
                     }
 
                     mapSlots.Clear();
+
+                    missCachings.Clear();
+
+                    instanceMapCachings.Clear();
                 }
-
-                instanceMapCachings.Clear();
-
-                matchCachings.Clear();
 
                 disposedValue = true;
             }
