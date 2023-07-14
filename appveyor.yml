@@ -36,7 +36,7 @@ deploy:
 notifications:
 - provider: Email
   to:
-  - m.hyl@hotmail.com
+  - m.hyl@foxmail.com
   subject: inkslab
   on_build_success: true
   on_build_failure: true
