@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.1.1</Version>
+		<Version>1.2.1.3</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -63,7 +63,14 @@
 			<PropertyGroup>
 				<Description>The configured reader.</Description>
 			</PropertyGroup>
-
+			
+			<ItemGroup>
+				<None Include="..\..\Inkslab.Config.md">
+					<Pack>True</Pack>
+					<PackagePath>\</PackagePath>
+				</None>
+			</ItemGroup>
+			
 			<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
 				<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
 				<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0" />
@@ -85,7 +92,7 @@
 			<PropertyGroup>
 				<Description>An automated dependency injection extension.</Description>
 			</PropertyGroup>
-
+			
 			<ItemGroup Condition="'$(TargetFramework)' == 'net461' OR '$(TargetFramework)' == 'netstandard2.1'">
 				<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
 			</ItemGroup>
@@ -100,6 +107,14 @@
 			<PropertyGroup>
 				<Description>A high-performance JSON framework.</Description>
 			</PropertyGroup>
+
+			<ItemGroup>
+				<None Include="..\..\Inkslab.Json.md">
+					<Pack>True</Pack>
+					<PackagePath>\</PackagePath>
+				</None>
+			</ItemGroup>
+			
 			<ItemGroup>
 				<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
 			</ItemGroup>
@@ -109,9 +124,15 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Map' ">
 			<PropertyGroup>
-				<Version>1.2.1.2</Version>
 				<Description>A convention-based object-object mapper.</Description>
 			</PropertyGroup>
+
+			<ItemGroup>
+				<None Include="..\..\Inkslab.Map.md">
+					<Pack>True</Pack>
+					<PackagePath>\</PackagePath>
+				</None>
+			</ItemGroup>
 		</When>
 	</Choose>
 
@@ -121,6 +142,13 @@
 				<Description>A network communications assistant.</Description>
 			</PropertyGroup>
 
+			<ItemGroup>
+				<None Include="..\..\Inkslab.Net.md">
+					<Pack>True</Pack>
+					<PackagePath>\</PackagePath>
+				</None>
+			</ItemGroup>
+			
 			<ItemGroup Condition="'$(TargetFramework)' == 'net461'">
 				<Reference Include="System.Web" />
 				<Reference Include="System.Net.Http" />

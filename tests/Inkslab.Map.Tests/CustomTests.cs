@@ -90,6 +90,14 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
+    /// 解决只读抽象集合属性的映射。
+    /// </summary>
+    public class ReadOnlyAbstractCollection
+    {
+        public IList<C4> C4s { get; } = new List<C4>();
+    }
+
+    /// <summary>
     /// <inheritdoc/>.
     /// </summary>
     public class C3 : C1
@@ -603,6 +611,57 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
+        /// 元素对等的迭代器转换。
+        /// </summary>
+        [Fact]
+        public void NewEnumerableSimV2Test()
+        {
+            var constant = DateTimeKind.Utc;
+
+            using var instance = new MapperInstance();
+
+            instance.Map<C1, C2>()
+                .NewEnumerable<IEnumerable<C1>, PagedList<C2>>((x, y) => new PagedList<C2>(y, 0, y.Count, y.Count))
+                .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
+                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
+                .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
+                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
+
+            var sourceList = new List<C1>
+            {
+                new C1
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                },
+
+                new C1
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                },
+
+                new C1
+                {
+                    P1 = 1,
+                    P2 = "Test",
+                    P3 = DateTime.Now,
+                    I5 = 10000
+                }
+            };
+
+            var destinationList = instance.Map<PagedList<C2>>(sourceList);
+
+            //? 集合元素个数。
+            Assert.True(destinationList.Count == sourceList.Count);
+        }
+
+        /// <summary>
         /// 元素有继承关系的迭代器转换。
         /// </summary>
         [Fact]
@@ -717,7 +776,7 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// 映射只读属性。
+        /// 映射只读集合属性。
         /// </summary>
         [Fact]
         public void MapReadonlyPropV2()
@@ -742,6 +801,39 @@ namespace Inkslab.Map.Tests
             };
 
             var destinationList = instance.Map<GrpcFieldV2>(new TestGrpc
+            {
+                C4s = new List<C1> { sourceC1 }
+            });
+
+            Assert.True(destinationList.C4s.Count == 1);
+        }
+
+        /// <summary>
+        /// 映射抽象只读集合属性。
+        /// </summary>
+        [Fact]
+        public void MapReadonlyPropV3()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<TestGrpc, ReadOnlyAbstractCollection>()
+                .Map(x => x.C4s, y => y.Auto());
+
+            instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
+                .Map(x => x.D4, y => y.Constant(DateTimeKind.Utc)) //? 指定目标值为常量。
+                .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
+
+            var sourceC1 = new C1
+            {
+                P1 = 1,
+                P2 = "Test",
+                P3 = DateTime.Now,
+                I5 = 10000
+            };
+
+            var destinationList = instance.Map<ReadOnlyAbstractCollection>(new TestGrpc
             {
                 C4s = new List<C1> { sourceC1 }
             });

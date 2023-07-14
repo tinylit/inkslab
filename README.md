@@ -402,8 +402,6 @@ string value = "{a + b}".PropSugar(new { A = 1, B = 2 }, NamingType.CamelCase); 
 
     当A为`null`时，返回B，否则按照【合并运算符】计算A+B的结果。
 
-  - 可支持任意组合，从左到右依次计算（不支持小括号）。
-
 标星历程图。
 
 [![Stargazers over time](https://starchart.cc/tinylit/inkslab.svg)](https://starchart.cc/tinylit/inkslab)
