@@ -110,7 +110,6 @@ namespace System
         /// <returns> 是返回True，不是返回False。 </returns>
         public static bool IsKeyValuePair(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == KeyValuePair_TKey_TValue_Type;
 
-
         /// <summary>
         /// 类型 <paramref name="implementationType"/> 是 <paramref name="type"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="type"/> 相同（泛型数相等、顺序相同且约束相似）。
         /// </summary>
@@ -118,15 +117,6 @@ namespace System
         /// <param name="implementationType">比较类型。</param>
         /// <returns>是否相似。</returns>
         public static bool IsLike(this Type type, Type implementationType)
-            => IsLike(type, implementationType, TypeLikeKind.IsGenericType | TypeLikeKind.IsGenericTypeDefinition | TypeLikeKind.IsGenericTypeParameter);
-
-        /// <summary>
-        /// 类型 <paramref name="implementationType"/> 是 <paramref name="type"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="type"/> 相同（泛型数相等、顺序相同且约束相似）。
-        /// </summary>
-        /// <param name="type">指定类型。</param>
-        /// <param name="implementationType">比较类型。</param>
-        /// <returns>是否相似。</returns>
-        public static bool IsLikeTemplate(this Type type, Type implementationType)
             => IsLike(type, implementationType, TypeLikeKind.Template);
 
         /// <summary>
@@ -162,20 +152,15 @@ namespace System
                         return IsLikeGenericParameter(type, implementationType);
                     }
 
-                    if ((likeKind & TypeLikeKind.IsGenericTypeParameter) == TypeLikeKind.IsGenericTypeParameter)
+                    if (likeKind > TypeLikeKind.Template)
                     {
                         return false;
                     }
 
                     return IsLikeGenericParameterAssign(type, implementationType);
                 }
-                else
-                {
-                    return false;
-                }
             }
-
-            if (type.IsGenericTypeDefinition)
+            else if (type.IsGenericTypeDefinition)
             {
                 if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeDefinition) == TypeLikeKind.IsGenericTypeDefinition)
                 {
@@ -189,13 +174,8 @@ namespace System
                         return false;
                     }
                 }
-                else
-                {
-                    return false;
-                }
             }
-
-            if (type.IsGenericType)
+            else if (type.IsGenericType)
             {
                 if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericType) == TypeLikeKind.IsGenericType)
                 {
@@ -208,11 +188,13 @@ namespace System
 
                         return false;
                     }
+
                 }
-                else
-                {
-                    return false;
-                }
+            }
+
+            if (likeKind > TypeLikeKind.Template)
+            {
+                return false;
             }
 
             if (type == typeof(object))
@@ -476,13 +458,13 @@ label_generic_type:
 
             foreach (var interfaceType in typeDefinition.GetInterfaces())
             {
-                if (!IsLikeTemplate(interfaceType, implementationType))
+                if (!IsLike(interfaceType, implementationType))
                 {
                     return false;
                 }
             }
 
-            return typeDefinition.BaseType is null || IsLikeTemplate(typeDefinition.BaseType, implementationType);
+            return typeDefinition.BaseType is null || IsLike(typeDefinition.BaseType, implementationType);
         }
     }
 }

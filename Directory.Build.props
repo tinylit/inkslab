@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.1.3</Version>
+		<Version>1.2.1.4</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -116,7 +116,7 @@
 			</ItemGroup>
 			
 			<ItemGroup>
-				<PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
+				<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 			</ItemGroup>
 		</When>
 	</Choose>
