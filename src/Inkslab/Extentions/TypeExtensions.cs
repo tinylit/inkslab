@@ -155,49 +155,61 @@ namespace System
 
             if (type.IsGenericParameter)
             {
-                if (implementationType.IsGenericParameter)
+                if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeParameter) == TypeLikeKind.IsGenericTypeParameter)
                 {
-                    return IsLikeGenericParameter(type, implementationType);
-                }
+                    if (implementationType.IsGenericParameter)
+                    {
+                        return IsLikeGenericParameter(type, implementationType);
+                    }
 
-                if ((likeKind & TypeLikeKind.IsGenericTypeParameter) == TypeLikeKind.IsGenericTypeParameter)
+                    if ((likeKind & TypeLikeKind.IsGenericTypeParameter) == TypeLikeKind.IsGenericTypeParameter)
+                    {
+                        return false;
+                    }
+
+                    return IsLikeGenericParameterAssign(type, implementationType);
+                }
+                else
                 {
                     return false;
                 }
-
-                return IsLikeGenericParameterAssign(type, implementationType);
             }
 
             if (type.IsGenericTypeDefinition)
             {
-                if (implementationType.IsGenericTypeDefinition)
+                if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeDefinition) == TypeLikeKind.IsGenericTypeDefinition)
                 {
-                    if (IsLikeTypeDefinition(type, implementationType))
+                    if (implementationType.IsGenericTypeDefinition)
                     {
-                        goto label_generic_type;
+                        if (IsLikeTypeDefinition(type, implementationType))
+                        {
+                            goto label_generic_type;
+                        }
+
+                        return false;
                     }
-
-                    return false;
                 }
-
-                if ((likeKind & TypeLikeKind.IsGenericTypeDefinition) == TypeLikeKind.IsGenericTypeDefinition)
+                else
                 {
                     return false;
                 }
             }
-            else if (type.IsGenericType)
+
+            if (type.IsGenericType)
             {
-                if (implementationType.IsGenericType)
+                if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericType) == TypeLikeKind.IsGenericType)
                 {
-                    if (IsLikeTypeDefinition(type.GetGenericTypeDefinition(), implementationType))
+                    if (implementationType.IsGenericType)
                     {
-                        goto label_generic_type;
+                        if (IsLikeTypeDefinition(type.GetGenericTypeDefinition(), implementationType))
+                        {
+                            goto label_generic_type;
+                        }
+
+                        return false;
                     }
-
-                    return false;
                 }
-
-                if ((likeKind & TypeLikeKind.IsGenericType) == TypeLikeKind.IsGenericType)
+                else
                 {
                     return false;
                 }

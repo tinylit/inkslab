@@ -9,6 +9,7 @@ using System.Reflection;
 namespace Inkslab.Map
 {
     using static Expression;
+    using static System.Net.Mime.MediaTypeNames;
 
     /// <summary>
     /// 配置。
@@ -184,23 +185,114 @@ namespace Inkslab.Map
 
         private const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
-        private class MapExpressionVisitor : ExpressionVisitor
+        private static readonly ExpressionType NodeTypeMap = (ExpressionType)(-1024);
+        private static readonly ExpressionType NodeTypeConvertIf = (ExpressionType)(-1025);
+
+        private class ConvertIfExpression : Expression
+        {
+            private readonly Type destinationType;
+
+            public ConvertIfExpression(Type destinationType)
+            {
+                this.destinationType = destinationType;
+            }
+
+            public override Type Type => destinationType;
+
+            public override ExpressionType NodeType => NodeTypeConvertIf;
+
+            public override bool CanReduce => true;
+
+            public override Expression Reduce() => null;
+        }
+        private class MapExpression : Expression
+        {
+            private readonly Expression node;
+            private readonly Type destinationType;
+
+            public MapExpression(Expression node, Type destinationType)
+            {
+                this.node = node;
+                this.destinationType = destinationType;
+            }
+
+            public override ExpressionType NodeType => NodeTypeMap;
+
+            public override Type Type => destinationType;
+
+            public override bool CanReduce => true;
+
+            public override Expression Reduce() => node;
+        }
+
+        private static Expression PrivateMap(Expression node, Type destinationType)
+        {
+            if (node.Type.IsSimple())
+            {
+                return node;
+            }
+
+            if (destinationType.IsAssignableFrom(node.Type))
+            {
+                if (IsSecurityNode(node))
+                {
+                    return node;
+                }
+            }
+
+            if (node.NodeType == NodeTypeMap)
+            {
+                if (node.Type == destinationType)
+                {
+                    return node;
+                }
+
+                return new MapExpression(node.Reduce(), destinationType);
+            }
+
+            return new MapExpression(node, destinationType);
+        }
+
+        private static bool IsSecurityNode(Expression node)
+        {
+            if (node.NodeType == NodeTypeConvertIf)
+            {
+                return true;
+            }
+
+            while (node is MethodCallExpression methodCall)
+            {
+                if (methodCall.Arguments.Count > (methodCall.Method.IsStatic ? 1 : 0))
+                {
+                    break;
+                }
+
+                node = methodCall.Object ?? methodCall.Arguments[0];
+
+                if (node.NodeType == NodeTypeConvertIf)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private class PrepareMapExpressionVisitor : ExpressionVisitor
         {
             private readonly Type originalSourceType;
             private readonly Type originalDestinationType;
             private readonly Type sourceType;
             private readonly Type destinationType;
-            private readonly IMapApplication application;
             private readonly Expression[] originalParameters;
             private readonly Expression[] parameters;
 
-            public MapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, IMapApplication application, Expression[] originalParameters, Expression[] parameters)
+            public PrepareMapExpressionVisitor(Type originalSourceType, Type originalDestinationType, Type sourceType, Type destinationType, Expression[] originalParameters, Expression[] parameters)
             {
                 this.originalSourceType = originalSourceType;
                 this.originalDestinationType = originalDestinationType;
                 this.sourceType = sourceType;
                 this.destinationType = destinationType;
-                this.application = application;
                 this.originalParameters = originalParameters;
                 this.parameters = parameters;
             }
@@ -265,7 +357,7 @@ namespace Inkslab.Map
 
                     var arguments = new List<Expression>(node.Arguments.Count);
 
-                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => application.Map(Visit(x), y.ParameterType)));
+                    arguments.AddRange(node.Arguments.Zip(constructorInfo.GetParameters(), (x, y) => PrivateMap(Visit(x), y.ParameterType)));
 
                     if (node.Members is null || node.Members.Count == 0)
                     {
@@ -324,12 +416,43 @@ namespace Inkslab.Map
                         _ => throw new NotSupportedException(),
                     };
 
-                    var valueExpression = application.Map(Visit(node.Expression), destinationType);
+                    var valueExpression = PrivateMap(Visit(node.Expression), destinationType);
 
                     return Bind(memberInfo, valueExpression);
                 }
 
-                return node.Update(application.Map(Visit(node.Expression), node.Expression.Type));
+                return node.Update(PrivateMap(Visit(node.Expression), node.Expression.Type));
+            }
+        }
+
+        private class MapExpressionVisitor : ExpressionVisitor
+        {
+            private readonly IMapApplication application;
+            private readonly Expression[] originalParameters;
+            private readonly Expression[] parameters;
+
+            public MapExpressionVisitor(IMapApplication application, Expression[] originalParameters, Expression[] parameters)
+            {
+                this.application = application;
+                this.originalParameters = originalParameters;
+                this.parameters = parameters;
+            }
+
+            public override Expression Visit(Expression node)
+            {
+                var indexOf = Array.IndexOf(originalParameters, node);
+
+                if (indexOf > -1)
+                {
+                    return parameters[indexOf];
+                }
+
+                if (node.NodeType == NodeTypeMap)
+                {
+                    return application.Map(Visit(node.Reduce()), node.Type);
+                }
+
+                return base.Visit(node);
             }
         }
 
@@ -414,7 +537,7 @@ namespace Inkslab.Map
                     var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
                     var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
 
-                    if (sourceTypeDefinition == this.sourceTypeDefinition && destinationTypeDefinition == this.destinationTypeDefinition)
+                    if (destinationTypeDefinition == this.destinationTypeDefinition && this.sourceTypeDefinition.IsLike(sourceTypeDefinition, TypeLikeKind.IsGenericTypeDefinition))
                     {
                         var sourceGenericArguments = sourceType.GetGenericArguments();
                         var destinationGenericArguments = destinationType.GetGenericArguments();
@@ -690,26 +813,31 @@ namespace Inkslab.Map
 
             private class MapperSlot : IInstanceMapSlot
             {
-                private readonly Type destinationType;
                 private readonly Expression body;
                 private readonly ParameterExpression parameter;
 
-                public MapperSlot(Type destinationType, Expression body, ParameterExpression parameter)
+                public MapperSlot(Expression body, ParameterExpression parameter)
                 {
-                    this.destinationType = destinationType;
                     this.body = body;
                     this.parameter = parameter;
                 }
 
                 public Expression Map(Expression source, IMapApplication application)
                 {
-                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, application, new[] { parameter }, new[] { source });
+                    var visitor = new MapExpressionVisitor(application, new[] { parameter }, new[] { source });
 
                     return visitor.Visit(body);
                 }
             }
 
-            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType) => new MapperSlot(destinationType, body, parameter);
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
+            {
+                var source = Parameter(sourceType);
+
+                var visitor = new PrepareMapExpressionVisitor(parameter.Type, body.Type, sourceType, destinationType, new[] { parameter }, new[] { source });
+
+                return new MapperSlot(visitor.Visit(body), source);
+            }
         }
 
         private class InstanceEnumerableFactory : IInstanceFactory
@@ -727,28 +855,54 @@ namespace Inkslab.Map
 
             private class MapperSlot : IInstanceMapSlot
             {
-                private readonly Type destinationType;
                 private readonly Expression body;
                 private readonly ParameterExpression parameter;
-                private readonly ParameterExpression parameterOfSet;
 
-                public MapperSlot(Type destinationType, Expression body, ParameterExpression parameter, ParameterExpression parameterOfSet)
+                public MapperSlot(Expression body, ParameterExpression parameter)
                 {
-                    this.destinationType = destinationType;
                     this.body = body;
                     this.parameter = parameter;
-                    this.parameterOfSet = parameterOfSet;
                 }
 
                 public Expression Map(Expression source, IMapApplication application)
                 {
-                    var visitor = new MapExpressionVisitor(parameter.Type, body.Type, source.Type, destinationType, application, new[] { parameter, parameterOfSet }, new[] { source, source });
+                    var visitor = new MapExpressionVisitor(application, new[] { parameter }, new[] { source });
 
                     return visitor.Visit(body);
                 }
             }
 
-            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType) => new MapperSlot(destinationType, body, parameter, parameterOfSet);
+            public IInstanceMapSlot CreateMap(Type sourceType, Type destinationType)
+            {
+                var source = Parameter(sourceType);
+
+                var destinationListType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
+
+                var originalSetCf = new ConvertIfExpression(parameterOfSet.Type);
+
+                var prepareVisitor = new ReplaceExpressionVisitor(parameterOfSet, originalSetCf);
+
+                //? 准备。
+                var prepareBodyEx = prepareVisitor.Visit(body);
+
+                var destinationSetCf = new ConvertIfExpression(destinationListType);
+
+                //? 表达式更换。
+                var visitor = new PrepareMapExpressionVisitor(parameter.Type, prepareBodyEx.Type, sourceType, destinationType, new Expression[] { parameter, originalSetCf }, new Expression[] { source, destinationSetCf });
+
+                var bodyEx = visitor.Visit(prepareBodyEx);
+
+                //? 集合变量。
+                var destinationSetVar = Variable(destinationListType);
+
+                var completeVisitor = new ReplaceExpressionVisitor(destinationSetCf, destinationSetVar);
+
+                var completeBodyEx = completeVisitor.Visit(bodyEx);
+
+                var completeEx = Block(new ParameterExpression[] { destinationSetVar }, Assign(destinationSetVar, PrivateMap(source, destinationListType)), completeBodyEx);
+
+                return new MapperSlot(completeEx, source);
+            }
         }
 
         private static bool TryAnalysisInstanceExpression(Expression node, out Expression validExpression)

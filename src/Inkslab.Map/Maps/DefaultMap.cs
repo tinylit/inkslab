@@ -134,6 +134,20 @@ namespace Inkslab.Map.Maps
 
             var destinationItemType = genericArguments[0];
 
+            if (destinationType.IsAbstract)
+            {
+                var destinationCollectionType = typeof(ICollection<>).MakeGenericType(destinationItemType);
+
+                if (!destinationCollectionType.IsAssignableFrom(destinationType))
+                {
+                    return false;
+                }
+
+                destinationRs = FinishingExpression(destinationType, destinationItemType.MakeArrayType(), destinationPrt, sourcePrt, application, customAddFn.MakeGenericMethod(destinationType, destinationItemType), true);
+
+                return true;
+            }
+
             var addFn = destinationType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[] { destinationItemType }, null);
 
             if (addFn is null)
@@ -141,14 +155,22 @@ namespace Inkslab.Map.Maps
                 return false;
             }
 
-            var destinationArrayType = destinationItemType.MakeArrayType();
-
-            destinationRs = FinishingExpression(destinationType, destinationArrayType, destinationPrt, sourcePrt, application, addFn);
+            destinationRs = FinishingExpression(destinationType, destinationItemType.MakeArrayType(), destinationPrt, sourcePrt, application, addFn, false);
 
             return true;
         }
 
-        private static Expression FinishingExpression(Type destinationType, Type destinationMultiType, MemberExpression destinationPrt, Expression sourcePrt, IMapApplication application, MethodInfo addFn)
+        private static readonly MethodInfo customAddFn = typeof(DefaultMap).GetMethod(nameof(Add), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+
+        private static void Add<TCollection, TItem>(TCollection collection, TItem[] items) where TCollection : ICollection<TItem>
+        {
+            for (int i = 0; i < items.Length; i++)
+            {
+                collection.Add(items[i]);
+            }
+        }
+
+        private static Expression FinishingExpression(Type destinationType, Type destinationMultiType, MemberExpression destinationPrt, Expression sourcePrt, IMapApplication application, MethodInfo addFn, bool isMulti)
         {
             var sourceEx = Variable(sourcePrt.Type, "source");
 
@@ -160,9 +182,11 @@ namespace Inkslab.Map.Maps
 
             var destinationTest = NotEqual(destinationEx, destinationType.IsValueType ? Default(destinationType) : Constant(null, destinationType));
 
-            var coreEx = VirtualAddRange(destinationEx, addFn, destinationArr);
+            var coreEx = isMulti
+                ? Call(addFn, destinationEx, destinationArr)
+                : VirtualAddRange(destinationEx, addFn, destinationArr);
 
-            var bodyExp = Block(new ParameterExpression[] { destinationArr }, Assign(destinationArr, application.Map(sourceEx, destinationMultiType)), coreEx);
+            var bodyExp = Block(new ParameterExpression[] { destinationArr }, Assign(destinationArr, application.Map(sourceEx, destinationMultiType)), IfThen(AndAlso(NotEqual(destinationArr, Constant(null, destinationMultiType)), GreaterThan(ArrayLength(destinationArr), Constant(0))), coreEx));
 
             return Block(new ParameterExpression[] { sourceEx, destinationEx }, Assign(sourceEx, sourcePrt), Assign(destinationEx, destinationPrt), IfThen(AndAlso(sourceTest, destinationTest), bodyExp));
         }
