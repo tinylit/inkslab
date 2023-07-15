@@ -227,12 +227,12 @@ namespace Inkslab.Map
 
         private static Expression PrivateMap(Expression node, Type destinationType)
         {
-            if (node.Type.IsSimple())
+            if (destinationType == node.Type && node.Type.IsSimple())
             {
                 return node;
             }
 
-            if (destinationType.IsAssignableFrom(node.Type))
+            if (!node.Type.IsValueType && !destinationType.IsValueType && destinationType.IsAssignableFrom(node.Type))
             {
                 if (IsSecurityNode(node))
                 {
@@ -262,17 +262,19 @@ namespace Inkslab.Map
 
             while (node is MethodCallExpression methodCall)
             {
-                if (methodCall.Arguments.Count > (methodCall.Method.IsStatic ? 1 : 0))
-                {
-                    break;
-                }
+                bool isStatic = methodCall.Method.IsStatic;
 
-                node = methodCall.Object ?? methodCall.Arguments[0];
+                node = isStatic ? methodCall.Arguments[0] : methodCall.Object;
 
                 if (node.NodeType == NodeTypeConvertIf)
                 {
-                    return true;
+                    throw new InvalidCastException("表达式“NewEnumerable<TSourceEnumerable, TDestinationEnumerable>((x, y) => {TDestinationEnumerable})”中，参数“y”不是使用方法二次处理！");
                 }
+            }
+
+            if (node is MemberExpression member)
+            {
+                return IsSecurityNode(member.Expression);
             }
 
             return false;
