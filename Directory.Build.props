@@ -124,6 +124,7 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Map' ">
 			<PropertyGroup>
+				<Version>1.2.1.5</Version>
 				<Description>A convention-based object-object mapper.</Description>
 			</PropertyGroup>
 
