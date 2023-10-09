@@ -23,7 +23,7 @@ namespace Inkslab.Settings
         public DefaultSettings(NamingType namingCase) => this.namingCase = namingCase;
 
         /// <summary>
-        /// 严格模式。若启用严格模式，找不到对应的属性时，抛异常；否则，返回空字符串。默认：false。
+        /// 严格模式。若启用严格模式，找不到对应的属性时，抛异常；否则，返回“null”。默认：false。
         /// </summary>
         public bool Strict { get; set; }
 

@@ -29,14 +29,10 @@ namespace Inkslab.Json
             /// </summary>
             /// <param name="propertyName">属性名称。</param>
             /// <returns></returns>
-            protected override string ResolvePropertyName(string propertyName)
-            {
-                return _camelCase switch
-                {
-                    NamingType.CamelCase or NamingType.UrlCase or NamingType.PascalCase => propertyName.ToNamingCase(_camelCase),
-                    _ => base.ResolvePropertyName(propertyName),
-                };
-            }
+            protected override string ResolvePropertyName(string propertyName) 
+                => _camelCase == NamingType.Normal 
+                    ? base.ResolvePropertyName(propertyName) 
+                    : propertyName.ToNamingCase(_camelCase);
 
             /// <summary>
             /// 属性。
@@ -92,7 +88,7 @@ namespace Inkslab.Json
                 resolvers.Add(namingType, new JsonContractResolver(namingType));
             }
         }
-        
+
         private readonly JsonSerializerSettings settings;
 
         /// <summary>

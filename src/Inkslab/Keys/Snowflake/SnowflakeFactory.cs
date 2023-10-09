@@ -13,12 +13,12 @@ namespace Inkslab.Keys.Snowflake
         /// <summary>
         /// 默认机器ID。
         /// </summary>
-        public static int DEFAULT_WORKER_ID = 0;
+        public const int DEFAULT_WORKER_ID = 0;
 
         /// <summary>
         /// 默认机房ID。
         /// </summary>
-        public static int DEFAULT_DATACENTER_ID = 0;
+        public const int DEFAULT_DATACENTER_ID = 0;
 
         /// <summary>
         /// 构造函数。

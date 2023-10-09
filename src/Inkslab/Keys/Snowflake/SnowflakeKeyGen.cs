@@ -15,14 +15,16 @@ namespace Inkslab.Keys.Snowflake
 
             public override int DataCenterId => (int)(Value >> datacenterIdShift & maxDatacenterId);
 
-            public override DateTime ToUniversalTime() => UtcBase.AddMilliseconds(Value >> timestampLeftShift);
+            public override DateTime ToUniversalTime() => UnixEpoch.AddMilliseconds(Value >> timestampLeftShift);
         }
 
-        private static readonly DateTime UtcBase = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+        private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
         private readonly long workerId = 0L; // 这个就是代表了机器id
         private readonly long datacenterId = 0L; // 这个就是代表了机房id
 
         private /* static */ long sequence = 0L; // 代表当前毫秒内已经生成了多少个主键
+
+        private readonly Random random = new Random();
 
         /// <summary>
         /// 构造函数。
@@ -85,14 +87,17 @@ namespace Inkslab.Keys.Snowflake
                     // 这个意思是说一个毫秒内最多只能有4096个数字，无论你传递多少进来，
                     //这个位运算保证始终就是在4096这个范围内，避免你自己传递个sequence超过了4096这个范围
                     sequence = (sequence + 1L) & sequenceMask;
+
                     if (sequence == 0L)
                     {
+                        sequence = random.Next(128);
+
                         timestamp = NextGen(lastTimestamp);
                     }
                 }
                 else
                 {
-                    sequence = 0L;
+                    sequence = random.Next(128);
                 }
 
                 lastTimestamp = timestamp;
@@ -111,7 +116,7 @@ namespace Inkslab.Keys.Snowflake
         /// <returns></returns>
         public Key Create(long id) => new SnowflakeKey(id);
 
-        private static long TimeGen() => (long)(DateTime.UtcNow - UtcBase).TotalMilliseconds;
+        private static long TimeGen() => (long)(DateTime.UtcNow - UnixEpoch).TotalMilliseconds;
 
         private static long NextGen(long lastTimestamp)
         {

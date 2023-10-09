@@ -19,11 +19,13 @@ namespace System
     /// </summary>
     public static class StringExtentions
     {
-        private static readonly Regex PatternCamelCase = new Regex("_[a-z]", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex PatternCamelCase = new Regex("(_|-)[a-zA-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
 
-        private static readonly Regex PatternPascalCase = new Regex("(^|_)[a-z]", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex PatternPascalCase = new Regex("(^[a-z])|(_|-)[a-zA-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
 
-        private static readonly Regex PatternUrlCamelCase = new Regex("[A-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex PatternSnakeCase = new Regex("[A-Z]|(-[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
+
+        private static readonly Regex PatternKebabCase = new Regex("[A-Z]|(_[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
 
         /// <summary>
         /// 命名。
@@ -51,30 +53,17 @@ namespace System
 
                     if (char.IsUpper(name[0]))
                     {
-#if NETSTANDARD2_1_OR_GREATER
-                        string value = name[1..];
-#else
+#if NET_Traditional
                         string value = name.Substring(1);
+#else
+                        string value = name[1..];
 #endif
 
-                        return string.Concat(char.ToString(char.ToLower(name[0])), PatternCamelCase.Replace(value, x =>
-                        {
-                            return char.ToUpper(x.Value[1]).ToString();
-                        }));
+                        return string.Concat(char.ToString(char.ToLower(name[0])), PatternCamelCase.Replace(value, x => char.ToUpper(x.Value[1]).ToString()));
                     }
 
                     return PatternCamelCase.Replace(name, x => char.ToUpper(x.Value[1]).ToString());
 
-                case NamingType.UrlCase:
-                    return PatternUrlCamelCase.Replace(name, x =>
-                    {
-                        if (x.Index == 0)
-                        {
-                            return x.Value.ToLower();
-                        }
-
-                        return string.Concat("_", x.Value.ToLower());
-                    });
                 case NamingType.PascalCase:
                     return PatternPascalCase.Replace(name, x =>
                     {
@@ -85,8 +74,41 @@ namespace System
 
                         return char.ToUpper(x.Value[1]).ToString();
                     });
+
+                case NamingType.SnakeCase:
+                    return PatternSnakeCase.Replace(name, x =>
+                    {
+                        if (x.Index == 0)
+                        {
+                            return x.Value.ToLower();
+                        }
+
+                        if (x.Value.Length == 2)
+                        {
+                            return string.Concat("_", char.ToLower(x.Value[1]).ToString());
+                        }
+
+                        return string.Concat("_", x.Value.ToLower());
+                    });
+
+                case NamingType.KebabCase:
+                    return PatternKebabCase.Replace(name, x =>
+                    {
+                        if (x.Index == 0)
+                        {
+                            return x.Value.ToLower();
+                        }
+
+                        if (x.Value.Length == 2)
+                        {
+                            return string.Concat("-", char.ToLower(x.Value[1]).ToString());
+                        }
+
+                        return string.Concat("-", x.Value.ToLower());
+                    });
+
                 default:
-                    throw new NotSupportedException();
+                    throw new NotImplementedException();
             }
         }
 
@@ -94,20 +116,25 @@ namespace System
         /// 帕斯卡命名法。 
         /// </summary>
         /// <param name="name">名称。</param>
-        /// <returns></returns>
         public static string ToPascalCase(this string name) => ToNamingCase(name, NamingType.PascalCase);
+
+        /// <summary> 
+        /// 蛇形命名。
+        /// </summary>
+        /// <param name="name">名称。</param>
+        public static string ToSnakeCase(this string name) => ToNamingCase(name, NamingType.SnakeCase);
 
         /// <summary>
         /// 驼峰命名。
         /// </summary>
         /// <param name="name">名称。</param>
-        /// <returns></returns>
         public static string ToCamelCase(this string name) => ToNamingCase(name, NamingType.CamelCase);
 
-        /// <summary> url命名法。</summary>
+        /// <summary> 
+        /// 短横线命名。
+        /// </summary>
         /// <param name="name">名称。</param>
-        /// <returns></returns>
-        public static string ToUrlCase(this string name) => ToNamingCase(name, NamingType.UrlCase);
+        public static string ToKebabCase(this string name) => ToNamingCase(name, NamingType.KebabCase);
 
         /// <summary>
         /// 是否为NULL。

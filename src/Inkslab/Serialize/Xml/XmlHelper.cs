@@ -1,5 +1,4 @@
-﻿using System;
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
@@ -47,10 +46,7 @@ namespace Inkslab.Serialize.Xml
         {
             if (obj is null) return null;
 
-            if (encoding is null)
-            {
-                encoding = Encoding.UTF8;
-            }
+            encoding ??= Encoding.UTF8;
 
             using (var stream = new MemoryStream())
             {
@@ -77,10 +73,7 @@ namespace Inkslab.Serialize.Xml
             if (string.IsNullOrEmpty(xml))
                 return default;
 
-            if (encoding is null)
-            {
-                encoding = Encoding.UTF8;
-            }
+            encoding ??= Encoding.UTF8;
 
             try
             {
