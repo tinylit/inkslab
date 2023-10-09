@@ -22,6 +22,16 @@ namespace Inkslab
         /// </summary>
         public XStartup() : this(AssemblyFinder.FindAll())
         {
+
+        }
+
+        /// <summary>
+        /// 启动（满足指定条件的程序集）<see cref="AssemblyFinder.Find(string)"/>。
+        /// </summary>
+        /// <param name="pattern">DLL过滤规则。</param>
+        public XStartup(string pattern) : this(AssemblyFinder.Find(pattern))
+        {
+
         }
 
         /// <summary>

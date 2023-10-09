@@ -113,6 +113,18 @@ NuGet 包
 
      XmlB y = XmlHelper.XmlDeserialize<XmlB>(xml);
     ```
+  * 自定义程序集查找器。
+    - 自定义【IDirectory】。
+        ```c#
+            public class CustomDirectory : IDirectory
+            {
+                public string[] GetFiles(string path, string searchPattern) => Directory.GetFiles(path, searchPattern);
+            }
+        ```
+    - 注入到单列池中。
+        ```c#
+            SingletonPools.TryAdd<IDirectory, CustomDirectory>();
+        ```
 
   * 配置文件助手。
     - 使用方式：
