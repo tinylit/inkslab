@@ -201,10 +201,7 @@ namespace System.Collections.Generic
 
             bool slotFlag = true;
 
-            if (comparer is null)
-            {
-                comparer = EqualityComparer<TKey>.Default;
-            }
+            comparer ??= EqualityComparer<TKey>.Default;
 
             var keySlots = new Slot<TKey>[outerResults.Count];
 
@@ -292,10 +289,7 @@ namespace System.Collections.Generic
 
             bool slotFlag = true;
 
-            if (comparer is null)
-            {
-                comparer = EqualityComparer<TKey>.Default;
-            }
+            comparer ??= EqualityComparer<TKey>.Default;
 
             var keySlots = new Slot<TKey>[outerResults.Count];
 
@@ -392,10 +386,7 @@ namespace System.Collections.Generic
                 yield break;
             }
 
-            if (comparer is null)
-            {
-                comparer = EqualityComparer<TKey>.Default;
-            }
+            comparer ??= EqualityComparer<TKey>.Default;
 
             var keySlots = new Slot<TKey>[outerResults.Count];
 
@@ -510,10 +501,7 @@ namespace System.Collections.Generic
 
             bool slotFlag = true;
 
-            if (comparer is null)
-            {
-                comparer = EqualityComparer<TKey>.Default;
-            }
+            comparer ??= EqualityComparer<TKey>.Default;
 
             var keySlots = new Slot<TKey>[outerResults.Count];
 
@@ -615,10 +603,7 @@ namespace System.Collections.Generic
 
             bool slotFlag = true;
 
-            if (comparer is null)
-            {
-                comparer = EqualityComparer<TKey>.Default;
-            }
+            comparer ??= EqualityComparer<TKey>.Default;
 
             var keySlots = new Slot<TKey>[innerResults.Count];
 

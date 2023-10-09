@@ -25,7 +25,7 @@ namespace Inkslab.Tests
 
             for (int k = 0; k < 100000; k++)
             {
-                var r = "{测试中文}：{i}+{j}={i + j}".StringSugar(new
+                var r = "${{测试中文}}：${{i}}+${{j}}=${{i + j}}".StringSugar(new
                 {
                     i,
                     j,
@@ -49,13 +49,13 @@ namespace Inkslab.Tests
             int j = 2;
             var 测试中文 = "方程式";
 
-            var q = $"{测试中文}：{i}+{j},{i:D},{date:yyyy-MM-dd},{测试中文 + date.ToString("yyyy")}";//{测试中文 + date:yyyy} 有bug，生成内容为“方程式2023/7/8 10:24”, 与预期的“方程式2023”不符合。
+            var q = $"{测试中文}：{i}+{j},{i:D},{date:yyyy MM dd},{测试中文 + date.ToString("yyyy")}";//{测试中文 + date:yyyy} 有bug，生成内容为“方程式2023/7/8 10:24”, 与预期的“方程式2023”不符合。
 
             Stopwatch stopwatch = Stopwatch.StartNew();
 
             for (int k = 0; k < 100000; k++)
             {
-                var r = "{测试中文}：{i}+{j},{i:D},{date:yyyy-MM-dd},{测试中文 + date:yyyy}".StringSugar(new
+                var r = "${{测试中文}}：${{i}}+${{j}},${{i:D}},${{ date:yyyy MM dd }},${{ 测试中文 + date:yyyy }}".StringSugar(new
                 {
                     i,
                     j,
@@ -79,15 +79,23 @@ namespace Inkslab.Tests
         [InlineData("namingCase", NamingType.Normal, "namingCase")]
         [InlineData("NamingCase", NamingType.Normal, "NamingCase")]
         [InlineData("naming_case", NamingType.Normal, "naming_case")]
+        [InlineData("naming-case", NamingType.Normal, "naming-case")]
         [InlineData("namingCase", NamingType.PascalCase, "NamingCase")]
         [InlineData("NamingCase", NamingType.PascalCase, "NamingCase")]
         [InlineData("naming_case", NamingType.PascalCase, "NamingCase")]
+        [InlineData("naming-case", NamingType.PascalCase, "NamingCase")]
         [InlineData("namingCase", NamingType.CamelCase, "namingCase")]
         [InlineData("NamingCase", NamingType.CamelCase, "namingCase")]
         [InlineData("naming_case", NamingType.CamelCase, "namingCase")]
-        [InlineData("namingCase", NamingType.UrlCase, "naming_case")]
-        [InlineData("NamingCase", NamingType.UrlCase, "naming_case")]
-        [InlineData("naming_case", NamingType.UrlCase, "naming_case")]
+        [InlineData("naming-case", NamingType.CamelCase, "namingCase")]
+        [InlineData("namingCase", NamingType.SnakeCase, "naming_case")]
+        [InlineData("NamingCase", NamingType.SnakeCase, "naming_case")]
+        [InlineData("naming_case", NamingType.SnakeCase, "naming_case")]
+        [InlineData("naming-case", NamingType.SnakeCase, "naming_case")]
+        [InlineData("namingCase", NamingType.KebabCase, "naming-case")]
+        [InlineData("NamingCase", NamingType.KebabCase, "naming-case")]
+        [InlineData("naming_case", NamingType.KebabCase, "naming-case")]
+        [InlineData("naming-case", NamingType.KebabCase, "naming-case")]
         public void NamingTest(string name, NamingType namingType, string naming)
         {
             var r = name.ToNamingCase(namingType);

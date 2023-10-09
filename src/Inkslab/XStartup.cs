@@ -104,21 +104,21 @@ namespace Inkslab
         /// <inheritdoc />
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (disposing && !disposedValue)
             {
                 types.Clear();
-
-                if (disposing)
-                {
-                    GC.SuppressFinalize(this);
-                }
 
                 disposedValue = true;
             }
         }
 
         /// <inheritdoc />
-        public void Dispose() => Dispose(true);
+        public void Dispose()
+        {
+            Dispose(true);
+
+            GC.SuppressFinalize(this);
+        }
         #endregion
     }
 }

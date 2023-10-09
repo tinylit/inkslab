@@ -14,8 +14,6 @@ namespace Inkslab
     {
         private static readonly string assemblyPath;
 
-        private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
-
         private static readonly LFU<string, Assembly> assemblyLoads = new LFU<string, Assembly>(x =>
         {
             try
@@ -41,21 +39,61 @@ namespace Inkslab
 
         private class DirectoryDefault : IDirectory
         {
-            public string[] GetFiles(string path, string searchPattern) => Directory.GetFiles(path, searchPattern);
+            private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
+
+            public string[] GetFiles(string path, string searchPattern)
+            {
+                bool flag = true;
+
+                for (int i = 0, length = searchPattern.Length - 4; i < length; i++)
+                {
+                    char c = searchPattern[i];
+
+                    if (c == '*' || c == '.')
+                    {
+                        continue;
+                    }
+
+                    flag = false;
+
+                    break;
+                }
+
+                var files = Directory.GetFiles(path, searchPattern);
+
+                if (flag)
+                {
+                    var results = new List<string>(files.Length);
+
+                    foreach (var file in files)
+                    {
+                        if (patternSni.IsMatch(file))
+                        {
+                            continue;
+                        }
+
+                        results.Add(file);
+                    }
+
+                    return results.ToArray();
+                }
+
+                return files;
+            }
         }
 
         /// <summary>
         /// 所有程序集。
         /// </summary>
         /// <returns></returns>
-        public static IEnumerable<Assembly> FindAll() => Find("*.dll");
+        public static IReadOnlyList<Assembly> FindAll() => Find("*.dll");
 
         /// <summary>
         /// 满足指定条件的程序集。
         /// </summary>
         /// <param name="pattern">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
         /// <returns></returns>
-        public static IEnumerable<Assembly> Find(string pattern)
+        public static IReadOnlyList<Assembly> Find(string pattern)
         {
             if (pattern is null)
             {
@@ -72,40 +110,21 @@ namespace Inkslab
                 pattern += ".dll";
             }
 
-            bool flag = true;
-
-            for (int i = 0, length = pattern.Length - 4; i < length; i++)
-            {
-                char c = pattern[i];
-
-                if (c == '*' || c == '.')
-                {
-                    continue;
-                }
-
-                flag = false;
-
-                break;
-            }
-
             var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
 
             var files = directory.GetFiles(assemblyPath, pattern);
 
+            var results = new List<Assembly>(files.Length);
+
             if (files.Length == 0)
             {
-                yield break;
+                return results;
             }
 
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
             foreach (var file in files)
             {
-                if (flag && patternSni.IsMatch(file))
-                {
-                    continue;
-                }
-
                 bool loading = true;
 
                 foreach (var assembly in assemblies)
@@ -119,15 +138,19 @@ namespace Inkslab
                     {
                         loading = false;
 
-                        yield return assembly;
+                        results.Add(assembly);
+
+                        break;
                     }
                 }
 
                 if (loading)
                 {
-                    yield return assemblyLoads.Get(file);
+                    results.Add(assemblyLoads.Get(file));
                 }
             }
+
+            return results;
         }
     }
 }

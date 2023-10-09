@@ -637,7 +637,7 @@ namespace Inkslab.Net
                 return requestable;
             }
 
-            public TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
+            public TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
             {
                 if (param is null)
                 {
@@ -700,7 +700,7 @@ namespace Inkslab.Net
 
             public IRequestable AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param, dateFormatString);
 
-            public IRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
+            public IRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
 
             public IRequestable AssignHeader(string header, string value)
             {
@@ -915,7 +915,7 @@ namespace Inkslab.Net
 
                 public IRequestableBase AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param, dateFormatString);
 
-                public IRequestableBase AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
+                public IRequestableBase AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
 
                 public IRequestableBase AssignHeader(string header, string value)
                 {
