@@ -27,6 +27,11 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
+            if (sourceType == destinationType)
+            {
+                return sourceExpression;
+            }
+
             var convertMethod = typeof(Convert).GetMethod("To" + destinationType.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null);
 
             return Call(convertMethod, sourceExpression);

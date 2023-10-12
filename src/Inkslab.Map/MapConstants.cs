@@ -77,11 +77,6 @@ namespace Inkslab.Map
         public readonly static MethodInfo IsEmptyMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.IsEmpty), StaticDeclaredOnlyBindingFlags);
 
         /// <summary>
-        /// <see cref="StringExtentions.ToNamingCase(string, NamingType)"/> 方法。
-        /// </summary>
-        public readonly static MethodInfo ToNamingCaseMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.ToNamingCase), StaticDeclaredOnlyBindingFlags);
-
-        /// <summary>
         /// <see cref="Enumerable.Cast{TResult}(IEnumerable)"/> 方法。
         /// </summary>
         public readonly static MethodInfo CastMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast), StaticDeclaredOnlyBindingFlags);
