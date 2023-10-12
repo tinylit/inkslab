@@ -55,12 +55,29 @@ namespace Inkslab.Map.Maps
 
             foreach (var propertyInfo in propertyInfos)
             {
+                var propertyType = propertyInfo.PropertyType;
+
                 var destinationProp = Property(destinationExpression, propertyInfo);
 
-                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyInfo.PropertyType)), Constant(propertyInfo.Name.ToPascalCase())));
+                if (propertyType.IsPrimitive ||
+                    propertyType.IsEnum ||
+                    propertyType.IsValueType && (
+                        propertyType == typeof(decimal)
+                        || propertyType == typeof(DateTime)
+                        || propertyType == typeof(Guid)
+                        || propertyType == typeof(TimeSpan)
+                        || propertyType == typeof(DateTimeOffset))
+                    || propertyType == typeof(Version))
+                {
+                    switchCases.Add(SwitchCase(IfThenElse(TypeIs(sourceValueProp, MapConstants.StirngType), Assign(destinationProp, application.Map(TypeAs(sourceValueProp, MapConstants.StirngType), propertyType)), Assign(destinationProp, application.Map(sourceValueProp, propertyType))), Constant(propertyInfo.Name.ToLower())));
+                }
+                else
+                {
+                    switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyType)), Constant(propertyInfo.Name.ToLower())));
+                }
             }
 
-            var bodyExp = Switch(MapConstants.VoidType, Call(MapConstants.ToNamingCaseMtd, sourceKeyProp, Constant(NamingType.PascalCase)), null, null, switchCases);
+            var bodyExp = Switch(MapConstants.VoidType, Call(sourceKeyProp, MapConstants.ToLowerMtd), null, null, switchCases);
 
             return Block(new ParameterExpression[]
              {
