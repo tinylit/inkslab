@@ -59,22 +59,7 @@ namespace Inkslab.Map.Maps
 
                 var destinationProp = Property(destinationExpression, propertyInfo);
 
-                if (propertyType.IsPrimitive ||
-                    propertyType.IsEnum ||
-                    propertyType.IsValueType && (
-                        propertyType == typeof(decimal)
-                        || propertyType == typeof(DateTime)
-                        || propertyType == typeof(Guid)
-                        || propertyType == typeof(TimeSpan)
-                        || propertyType == typeof(DateTimeOffset))
-                    || propertyType == typeof(Version))
-                {
-                    switchCases.Add(SwitchCase(IfThenElse(TypeIs(sourceValueProp, MapConstants.StirngType), Assign(destinationProp, application.Map(TypeAs(sourceValueProp, MapConstants.StirngType), propertyType)), Assign(destinationProp, application.Map(sourceValueProp, propertyType))), Constant(propertyInfo.Name.ToLower())));
-                }
-                else
-                {
-                    switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyType)), Constant(propertyInfo.Name.ToLower())));
-                }
+                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyType)), Constant(propertyInfo.Name.ToLower())));
             }
 
             var bodyExp = Switch(MapConstants.VoidType, Call(sourceKeyProp, MapConstants.ToLowerMtd), null, null, switchCases);

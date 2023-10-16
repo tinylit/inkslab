@@ -60,12 +60,12 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public DateTimeKind D4 { get; set; }
+        public DateTimeKind? D4 { get; set; }
 
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public long I5 { get; set; } = long.MaxValue;
+        public long? I5 { get; set; } = long.MaxValue;
     }
 
     /// <summary>
@@ -855,10 +855,11 @@ namespace Inkslab.Map.Tests
                 ["i5"] = "7042011313840586752",
                 ["p3"] = "2023-10-12",
                 ["p2"] = "test",
-                ["p1"] = DateTimeKind.Utc
+                ["p1"] = DateTimeKind.Utc,
+                ["d4"] = "1"
             };
 
-            var c1 = instance.Map<C1>(dic);
+            var c1 = instance.Map<C2>(dic);
 
             Assert.True(c1.I5 > 0L);
         }

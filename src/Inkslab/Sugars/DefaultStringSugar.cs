@@ -13,13 +13,13 @@ namespace Inkslab.Sugars
 
     /// <summary>
     /// <see cref="IStringSugar"/> 默认实现。
-    /// 支持属性空字符串【空字符串运算符（A?B 或 A??B），当属性A为“null”时，返回B内容，否则返回A内容】、属性内容合并(A+B)，属性非“null”合并【空试探合并符(A?+B)，当属性A为“null”时，返回null，否则返回A+B的内容】，末尾表达式支持指定“format”，如：${{Datetime:yyyy-MM}}、${{Enum:D}}等。
+    /// 支持属性空字符串【空字符串运算符（A?B 或 A??B），当属性A为“null”时，返回B内容，否则返回A内容】、属性内容合并(A+B)，属性非“null”合并【空试探合并符(A?+B)，当属性A为“null”时，返回null，否则返回A+B的内容】，末尾表达式支持指定“format”，如：${Datetime:yyyy-MM}、${Enum:D}等。
     /// </summary>
     public class DefaultStringSugar : IStringSugar
     {
         private static readonly Type objectType = typeof(object);
         private static readonly MethodInfo toStringMtd = objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
-        private static readonly Regex regularExpression = new Regex("\\$\\{\\{[\\x20\\t\\r\\n\\f]*((?<pre>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)[\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*)?(?<name>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)(:(?<format>[^\\}]+?))?[\\x20\\t\\r\\n\\f]*\\}\\}", RegexOptions.Multiline);
+        private static readonly Regex regularExpression = new Regex("\\$\\{[\\x20\\t\\r\\n\\f]*((?<pre>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)[\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*)?(?<name>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)(:(?<format>[^\\}]+?))?[\\x20\\t\\r\\n\\f]*\\}", RegexOptions.Multiline);
 
         private readonly static HashSet<Type> simpleTypes = new HashSet<Type>()
         {

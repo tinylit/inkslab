@@ -25,7 +25,7 @@ namespace Inkslab.Tests
 
             for (int k = 0; k < 100000; k++)
             {
-                var r = "${{测试中文}}：${{i}}+${{j}}=${{i + j}}".StringSugar(new
+                var r = "${测试中文}：${i}+${j}=${i + j}".StringSugar(new
                 {
                     i,
                     j,
@@ -55,7 +55,7 @@ namespace Inkslab.Tests
 
             for (int k = 0; k < 100000; k++)
             {
-                var r = "${{测试中文}}：${{i}}+${{j}},${{i:D}},${{ date:yyyy MM dd }},${{ 测试中文 + date:yyyy }}".StringSugar(new
+                var r = "${测试中文}：${i}+${j},${i:D},${ date:yyyy MM dd },${ 测试中文 + date:yyyy }".StringSugar(new
                 {
                     i,
                     j,
