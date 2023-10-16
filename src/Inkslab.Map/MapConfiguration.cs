@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Security.AccessControl;
 
 namespace Inkslab.Map
 {
@@ -210,6 +211,11 @@ namespace Inkslab.Map
             }
             else if (conversionType == MapConstants.ObjectType)
             {
+                if (sourceType == conversionType)
+                {
+                    return sourceExpression;
+                }
+
                 if (sourceType.IsValueType)
                 {
                     return Convert(Map(sourceExpression, sourceType, application), destinationType);
@@ -225,32 +231,7 @@ namespace Inkslab.Map
 
             if (sourceType == MapConstants.ObjectType)
             {
-                if (destinationType.IsValueType)
-                {
-                    if (AllowPropagationNullValues)
-                    {
-                        return Convert(sourceExpression, destinationType);
-                    }
-
-                    return Convert(IgnoreIfNull(sourceExpression), destinationType);
-                }
-
-                if (IsDepthMapping)
-                {
-                    if (AllowPropagationNullValues)
-                    {
-                        return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(conversionType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, conversionType, application));
-                    }
-
-                    return Map(Convert(IgnoreIfNull(sourceExpression), destinationType), destinationType, destinationType, conversionType, application);
-                }
-
-                if (AllowPropagationNullValues)
-                {
-                    return Convert(sourceExpression, destinationType);
-                }
-
-                return Convert(IgnoreIfNull(sourceExpression), destinationType);
+                return MapAnyOfObject(sourceExpression, sourceType, conversionType, application);
             }
 
             if (sourceType.IsValueType || conversionType.IsValueType)
@@ -294,6 +275,76 @@ namespace Inkslab.Map
             }
 
             return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType, application);
+        }
+
+        private Expression MapAnyOfObject(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        {
+            if (destinationType.IsNullable())
+            {
+                var conversionType = Nullable.GetUnderlyingType(destinationType);
+
+                return Condition(TypeIs(sourceExpression, conversionType),
+                        TypeAs(sourceExpression, destinationType),
+                        Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
+                    );
+            }
+
+            if (destinationType.IsEnum)
+            {
+                var conversionType = Enum.GetUnderlyingType(destinationType);
+
+                return Condition(TypeIs(sourceExpression, conversionType),
+                        Map(Convert(sourceExpression, conversionType), destinationType, application),
+                        Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
+                    );
+            }
+
+            if (destinationType.IsPrimitive ||
+                destinationType.IsValueType && (
+                    destinationType == typeof(decimal)
+                    || destinationType == typeof(DateTime)
+                    || destinationType == typeof(Guid)
+                    || destinationType == typeof(TimeSpan)
+                    || destinationType == typeof(DateTimeOffset))
+                || destinationType == typeof(Version))
+            {
+                return Condition(TypeIs(sourceExpression, MapConstants.StirngType),
+                        Map(TypeAs(sourceExpression, MapConstants.StirngType), destinationType, application),
+                        MapAnyByConvert(sourceExpression, sourceType, destinationType, application)
+                    );
+            }
+
+            return MapAnyByConvert(sourceExpression, sourceType, destinationType, application);
+        }
+
+        private Expression MapAnyByConvert(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        {
+            if (destinationType.IsValueType)
+            {
+                if (AllowPropagationNullValues)
+                {
+                    return Convert(sourceExpression, destinationType);
+                }
+
+                return Convert(IgnoreIfNull(sourceExpression), destinationType);
+            }
+
+            if (IsDepthMapping)
+            {
+                if (AllowPropagationNullValues)
+                {
+                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, destinationType, application));
+                }
+
+                return Map(Convert(IgnoreIfNull(sourceExpression), destinationType), destinationType, destinationType, destinationType, application);
+            }
+
+            if (AllowPropagationNullValues)
+            {
+                return Convert(sourceExpression, destinationType);
+            }
+
+            return Convert(IgnoreIfNull(sourceExpression), destinationType);
         }
 
         /// <summary>
