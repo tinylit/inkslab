@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.1.5</Version>
+		<Version>1.2.1.8</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -55,6 +55,13 @@
 			<PropertyGroup>
 				<Description>A lightweight infrastructure.</Description>
 			</PropertyGroup>
+
+			<ItemGroup>
+				<None Include="..\..\*.md">
+					<Pack>True</Pack>
+					<PackagePath>\</PackagePath>
+				</None>
+			</ItemGroup>
 		</When>
 	</Choose>
 
@@ -124,7 +131,6 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Map' ">
 			<PropertyGroup>
-				<Version>1.2.1.5</Version>
 				<Description>A convention-based object-object mapper.</Description>
 			</PropertyGroup>
 

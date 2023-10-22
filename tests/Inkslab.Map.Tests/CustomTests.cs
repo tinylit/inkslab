@@ -60,12 +60,12 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public DateTimeKind D4 { get; set; }
+        public DateTimeKind? D4 { get; set; }
 
         /// <summary>
         /// <inheritdoc/>.
         /// </summary>
-        public long I5 { get; set; } = long.MaxValue;
+        public long? I5 { get; set; } = long.MaxValue;
     }
 
     /// <summary>
@@ -839,6 +839,51 @@ namespace Inkslab.Map.Tests
             });
 
             Assert.True(destinationList.C4s.Count == 1);
+        }
+
+        /// <summary>
+        /// 字典映射对象。
+        /// </summary>
+        [Fact]
+        public void MapFromDictinary()
+        {
+            using var instance = new MapperInstance();
+
+            //! 仅支持字符串到基础类型的智能转换，其它类型均为直接强转。
+            var dic = new Dictionary<string, object>
+            {
+                ["i5"] = "7042011313840586752",
+                ["p3"] = "2023-10-12",
+                ["p2"] = "test",
+                ["p1"] = DateTimeKind.Utc,
+                ["d4"] = "1"
+            };
+
+            var c1 = instance.Map<C2>(dic);
+
+            Assert.True(c1.I5 > 0L);
+        }
+
+        /// <summary>
+        /// 对象映射字典。
+        /// </summary>
+        [Fact]
+        public void MapToDictinary()
+        {
+            using var instance = new MapperInstance();
+
+            var sourceC1 = new C1
+            {
+                P1 = 1,
+                P2 = "Test",
+                P3 = DateTime.Now,
+                I5 = 10000
+            };
+
+            //! 仅支持字符串到基础类型的智能转换，其它类型均为直接强转。
+            var dic = instance.Map<Dictionary<string, object>>(sourceC1);
+
+            Assert.True(Convert.ToInt64(dic["I5"]) == sourceC1.I5);
         }
     }
 }

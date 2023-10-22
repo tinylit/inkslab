@@ -88,47 +88,47 @@ namespace Inkslab.Serialize.Xml
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>是否相同。</returns>
-        public bool Equals(CData other) => value.Equals(other.value);
+        public readonly bool Equals(CData other) => value.Equals(other.value);
 
         /// <summary>
         /// 比较。
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>比较结果。</returns>
-        public int CompareTo(CData other) => value.CompareTo(other.value);
+        public readonly int CompareTo(CData other) => value.CompareTo(other.value);
 
         /// <summary>
         /// 比较。
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>比较结果。</returns>
-        public int CompareTo(string other) => value.CompareTo(other);
+        public readonly int CompareTo(string other) => value.CompareTo(other);
 
         /// <summary>
         /// 相同。
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>是否相同。</returns>
-        public bool Equals(string other) => value.Equals(other);
+        public readonly bool Equals(string other) => value.Equals(other);
 
         /// <summary>
         /// 生成字符串。
         /// </summary>
         /// <returns>返回当前值。</returns>
-        public override string ToString() => value;
+        public override readonly string ToString() => value;
 
-        System.Xml.Schema.XmlSchema IXmlSerializable.GetSchema() => null;
+        readonly System.Xml.Schema.XmlSchema IXmlSerializable.GetSchema() => null;
 
         void IXmlSerializable.ReadXml(System.Xml.XmlReader reader) => value = reader.ReadElementString();
 
-        void IXmlSerializable.WriteXml(System.Xml.XmlWriter writer) => writer.WriteCData(value);
+        readonly void IXmlSerializable.WriteXml(System.Xml.XmlWriter writer) => writer.WriteCData(value);
 
         /// <summary>
         /// 重写比较器。
         /// </summary>
         /// <param name="obj">对象。</param>
         /// <returns>是否相同。</returns>
-        public override bool Equals(object obj)
+        public override readonly bool Equals(object obj)
         {
             if (obj is CData data)
             {
@@ -147,6 +147,6 @@ namespace Inkslab.Serialize.Xml
         /// 重写哈希值。
         /// </summary>
         /// <returns>哈希值。</returns>
-        public override int GetHashCode() => value is null ? 0 : value.GetHashCode();
+        public override readonly int GetHashCode() => value is null ? 0 : value.GetHashCode();
     }
 }

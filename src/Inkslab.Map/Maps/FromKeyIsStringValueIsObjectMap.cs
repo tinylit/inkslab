@@ -55,12 +55,14 @@ namespace Inkslab.Map.Maps
 
             foreach (var propertyInfo in propertyInfos)
             {
+                var propertyType = propertyInfo.PropertyType;
+
                 var destinationProp = Property(destinationExpression, propertyInfo);
 
-                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyInfo.PropertyType)), Constant(propertyInfo.Name.ToPascalCase())));
+                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyType)), Constant(propertyInfo.Name.ToLower())));
             }
 
-            var bodyExp = Switch(MapConstants.VoidType, Call(MapConstants.ToNamingCaseMtd, sourceKeyProp, Constant(NamingType.PascalCase)), null, null, switchCases);
+            var bodyExp = Switch(MapConstants.VoidType, Call(sourceKeyProp, MapConstants.ToLowerMtd), null, null, switchCases);
 
             return Block(new ParameterExpression[]
              {

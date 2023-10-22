@@ -117,5 +117,65 @@ namespace Inkslab.Keys
         /// <param name="format">标准或自定义日期和时间格式字符串。</param>
         /// <returns></returns>
         public string ToUniversalTimeString(string format) => ToUniversalTime().ToString(format);
+
+        /// <inheritdoc/>
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(this, obj))
+            {
+                return true;
+            }
+
+            if (obj is Key key)
+            {
+                return Equals(key);
+            }
+
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public override int GetHashCode() => Value.GetHashCode();
+
+        /// <inheritdoc/>
+        public static bool operator ==(Key left, Key right)
+        {
+            if (left is null)
+            {
+                return right is null;
+            }
+
+            return left.Equals(right);
+        }
+
+        /// <inheritdoc/>
+        public static bool operator !=(Key left, Key right)
+        {
+            return !(left == right);
+        }
+
+        /// <inheritdoc/>
+        public static bool operator <(Key left, Key right)
+        {
+            return left is null ? right is not null : left.CompareTo(right) < 0;
+        }
+
+        /// <inheritdoc/>
+        public static bool operator <=(Key left, Key right)
+        {
+            return left is null || left.CompareTo(right) <= 0;
+        }
+
+        /// <inheritdoc/>
+        public static bool operator > (Key left, Key right)
+        {
+            return left is not null && left.CompareTo(right) > 0;
+        }
+
+        /// <inheritdoc/>
+        public static bool operator >=(Key left, Key right)
+        {
+            return left is null ? right is null : left.CompareTo(right) >= 0;
+        }
     }
 }

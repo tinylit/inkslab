@@ -91,6 +91,6 @@ namespace Inkslab.Net
         /// <param name="dateFormatString">日期格式化。</param>
         /// <param name="namingType">命名规范。</param>
         /// <returns>请求能力。</returns>
-        TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.UrlCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class;
+        TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.KebabCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class;
     }
 }

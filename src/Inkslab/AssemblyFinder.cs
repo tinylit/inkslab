@@ -16,8 +16,6 @@ namespace Inkslab
     {
         private static readonly string assemblyPath;
 
-        private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
-
         private static readonly LFU<string, Assembly> assemblyLoads = new LFU<string, Assembly>(x =>
         {
             try
@@ -43,7 +41,47 @@ namespace Inkslab
 
         private class DirectoryDefault : IDirectory
         {
-            public string[] GetFiles(string path, string searchPattern) => Directory.GetFiles(path, searchPattern);
+            private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
+
+            public string[] GetFiles(string path, string searchPattern)
+            {
+                bool flag = true;
+
+                for (int i = 0, length = searchPattern.Length - 4; i < length; i++)
+                {
+                    char c = searchPattern[i];
+
+                    if (c == '*' || c == '.')
+                    {
+                        continue;
+                    }
+
+                    flag = false;
+
+                    break;
+                }
+
+                var files = Directory.GetFiles(path, searchPattern);
+
+                if (flag)
+                {
+                    var results = new List<string>(files.Length);
+
+                    foreach (var file in files)
+                    {
+                        if (patternSni.IsMatch(file))
+                        {
+                            continue;
+                        }
+
+                        results.Add(file);
+                    }
+
+                    return results.ToArray();
+                }
+
+                return files;
+            }
         }
 
         private static string[] GetFiles(IDirectory directory, string assemblyPath, string pattern)

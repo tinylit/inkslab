@@ -113,6 +113,18 @@ NuGet 包
 
      XmlB y = XmlHelper.XmlDeserialize<XmlB>(xml);
     ```
+  * 自定义程序集查找器。
+    - 自定义【IDirectory】。
+        ```c#
+            public class CustomDirectory : IDirectory
+            {
+                public string[] GetFiles(string path, string searchPattern) => Directory.GetFiles(path, searchPattern);
+            }
+        ```
+    - 注入到单列池中。
+        ```c#
+            SingletonPools.TryAdd<IDirectory, CustomDirectory>();
+        ```
 
   * 配置文件助手。
     - 使用方式：
@@ -385,7 +397,7 @@ NuGet 包
 ### 字符串语法糖。
 
 ```c#
-string value = "{a + b}".PropSugar(new { A = 1, B = 2 }, NamingType.CamelCase); //=> value = "3"。
+string value = "${a + b}".PropSugar(new { A = 1, B = 2 }, NamingType.CamelCase); //=> value = "3"。
 ```
 
 * 语法说明：
