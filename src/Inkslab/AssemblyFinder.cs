@@ -101,44 +101,7 @@ namespace Inkslab
                 pattern += ".dll";
             }
 
-            bool flag = true;
-
-            for (int i = 0, length = pattern.Length - 4; i < length; i++)
-            {
-                char c = pattern[i];
-
-                if (c == '*' || c == '.')
-                {
-                    continue;
-                }
-
-                flag = false;
-
-                break;
-            }
-
-            var files = directory.GetFiles(assemblyPath, pattern);
-
-            if (flag)
-            {
-                var results = new List<string>(files.Length);
-
-                for (int i = 0, len = files.Length; i < len; i++)
-                {
-                    var file = files[i];
-
-                    if (patternSni.IsMatch(file))
-                    {
-                        continue;
-                    }
-
-                    results.Add(file);
-                }
-
-                return results.ToArray();
-            }
-
-            return files;
+            return directory.GetFiles(assemblyPath, pattern);
         }
 
         private static List<Assembly> GetAssemblies(IEnumerable<string> files, int length)
