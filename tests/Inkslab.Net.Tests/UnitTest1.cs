@@ -17,15 +17,13 @@ namespace Inkslab.Net.Tests
             SingletonPools.TryAdd<IJsonHelper, DefaultJsonHelper>();
         }
 
-        private static readonly IRequestFactory requestFactory = new RequestFactory();
-
         /// <summary>
         /// Get «Î«Û°£
         /// </summary>
         [Fact]
         public async Task Get()
         {
-            var requestable = requestFactory.CreateRequestable("http://www.baidu.com/");
+            var requestable = RequestFactory.Create("http://www.baidu.com/");
 
             var value = await requestable.AppendQueryString(new
             {
@@ -71,7 +69,7 @@ namespace Inkslab.Net.Tests
         [Fact]
         public async Task Download()
         {
-            var requestable = requestFactory.CreateRequestable("https://download.visualstudio.microsoft.com/download/pr/53f250a1-318f-4350-8bda-3c6e49f40e76/e8cbbd98b08edd6222125268166cfc43/dotnet-sdk-3.0.100-win-x64.exe");
+            var requestable = RequestFactory.Create("https://download.visualstudio.microsoft.com/download/pr/53f250a1-318f-4350-8bda-3c6e49f40e76/e8cbbd98b08edd6222125268166cfc43/dotnet-sdk-3.0.100-win-x64.exe");
 
             using var stream = await requestable
                .When(status => status == System.Net.HttpStatusCode.Unauthorized)
@@ -89,7 +87,7 @@ namespace Inkslab.Net.Tests
         [Fact]
         public async Task Post()
         {
-            //var requestable = requestFactory.CreateRequestable("http://localhost:5000/api/di-test");
+            //var requestable = RequestFactory.Create("http://localhost:5000/api/di-test");
 
             //var value = await requestable
             //    .AssignHeader("Authorization", "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ4NjdGNzEwMEM1OENDRDFBNUUzMzVFNEEzN0RGNTUwIiwidHlwIjoiSldUIn0.eyJuYmYiOjE2NzgwNjU2MjAsImV4cCI6MTY3ODQyNTYyMCwiaXNzIjoiaHR0cHM6Ly93d3cuaHlzemJiLmNvbSIsImF1ZCI6WyJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIiwiempzLm9zcy5hcGkiXSwiY2xpZW50X2lkIjoiSHlzTWFsbCIsInN1YiI6IjUwMjIzZjIzLTdlNzMtNDE1Yy04YzExLTlhOGJjMTcwNzQxZiIsImF1dGhfdGltZSI6MTY3ODA2NTYyMCwiaWRwIjoibG9jYWwiLCJuYW1lIjoicm9vdCIsIm5pY2tuYW1lIjoiIiwicm9sZSI6IkFkbWluaXN0cmF0b3IiLCJ0aW1lc3RhbXAiOiI2MzgxMzY5MTIyMDA1NTYxNjciLCJqdGkiOiJCQjIzNDQ4RTEyN0MwNzFFOEM0ODVDNjZFMTE4NTE2QiIsImlhdCI6MTY3ODA2NTYyMCwic2NvcGUiOiJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIG9wZW5pZCBwcm9maWxlIHpqcy5vc3MuYXBpIG9mZmxpbmVfYWNjZXNzIiwiYW1yIjpbImN1c3RvbSJdfQ.JqiZIDL-BLJXgHrhSRvwR8wmcE78zz--KqCJO4VgT7DTJTuOrphL1s8vEIFsmyXtKQkp7TsJXWfiORbE3D8Iinz-EoDLcqJefSvsmmRFJq75fRwN3C1nUdBF0aY-uTp7iIJ4ofMICGKS6vaDsWsKn5HlzowdOG5-6F8Dh1H4Ff1Nq01i2Ya_8mfJgO2cAcoTrGIeYF__PT9jgfBD9cBxUOiEuUabrMR0d7A7xu-GjzO2DQDihZ5pknUJL6O-7VlBW2XfWJfN1Lk2yCWYomZLRbzV6O9_L5jZwggENNdeNTx38lYltDGdaPwKstfLDe8oc3hrhcYIxeUoiYC8JAVoOA")
