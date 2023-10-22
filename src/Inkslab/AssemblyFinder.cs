@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using static System.Net.WebRequestMethods;
 
 namespace Inkslab
 {
@@ -82,18 +84,7 @@ namespace Inkslab
             }
         }
 
-        /// <summary>
-        /// 所有程序集。
-        /// </summary>
-        /// <returns></returns>
-        public static IReadOnlyList<Assembly> FindAll() => Find("*.dll");
-
-        /// <summary>
-        /// 满足指定条件的程序集。
-        /// </summary>
-        /// <param name="pattern">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
-        /// <returns></returns>
-        public static IReadOnlyList<Assembly> Find(string pattern)
+        private static string[] GetFiles(IDirectory directory, string assemblyPath, string pattern)
         {
             if (pattern is null)
             {
@@ -110,16 +101,12 @@ namespace Inkslab
                 pattern += ".dll";
             }
 
-            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
+            return directory.GetFiles(assemblyPath, pattern);
+        }
 
-            var files = directory.GetFiles(assemblyPath, pattern);
-
-            var results = new List<Assembly>(files.Length);
-
-            if (files.Length == 0)
-            {
-                return results;
-            }
+        private static List<Assembly> GetAssemblies(IEnumerable<string> files, int length)
+        {
+            var results = new List<Assembly>(length);
 
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
@@ -139,8 +126,6 @@ namespace Inkslab
                         loading = false;
 
                         results.Add(assembly);
-
-                        break;
                     }
                 }
 
@@ -151,6 +136,58 @@ namespace Inkslab
             }
 
             return results;
+        }
+
+        /// <summary>
+        /// 所有程序集。
+        /// </summary>
+        /// <returns>程序集。</returns>
+        public static IReadOnlyList<Assembly> FindAll() => Find("*.dll");
+
+        /// <summary>
+        /// 满足指定条件的程序集。
+        /// </summary>
+        /// <param name="pattern">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
+        /// <returns>程序集。</returns>
+        public static IReadOnlyList<Assembly> Find(string pattern)
+        {
+            if (pattern is null)
+            {
+                throw new ArgumentNullException(nameof(pattern));
+            }
+
+            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
+
+            var files = GetFiles(directory, assemblyPath, pattern);
+
+            return GetAssemblies(files, files.Length);
+        }
+
+        /// <summary>
+        /// 满足指定条件的程序集。
+        /// </summary>
+        /// <param name="patterns">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
+        /// <returns>程序集。</returns>
+        public static IReadOnlyList<Assembly> Find(params string[] patterns)
+        {
+            if (patterns is null)
+            {
+                throw new ArgumentNullException(nameof(patterns));
+            }
+
+            var files = new HashSet<string>();
+
+            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
+
+            for (int i = 0; i < patterns.Length; i++)
+            {
+                foreach (var file in GetFiles(directory, assemblyPath, patterns[i]))
+                {
+                    files.Add(file);
+                }
+            }
+
+            return GetAssemblies(files, files.Count);
         }
     }
 }

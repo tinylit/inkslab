@@ -16,10 +16,9 @@ namespace Inkslab.Sugars
         /// <summary>
         /// 创建语法糖。
         /// </summary>
-        /// <typeparam name="TSource">数据源类型。</typeparam>
         /// <param name="source">数据源对象。</param>
         /// <param name="settings">语法糖设置。</param>
         /// <returns>处理 <see cref="RegularExpression"/> 语法的语法糖。</returns>
-        ISugar CreateSugar<TSource>(TSource source, DefaultSettings settings);
+        ISugar CreateSugar(object source, DefaultSettings settings);
     }
 }

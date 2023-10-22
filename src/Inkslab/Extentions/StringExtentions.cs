@@ -200,153 +200,24 @@ namespace System
         /// <returns></returns>
         public static IOptions<T> Options<T>(this string configName, T defaultValue = default) where T : class => ConfigHelper.Options(configName, defaultValue);
 #endif
-
-        private static MethodInfo GetMethodInfo(Func<string, string, string, string> func) => func.Method;
-
-        private static readonly MethodInfo ChangeTypeMethod = typeof(Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) });
-        private static readonly MethodInfo ConcatMethod = GetMethodInfo(string.Concat);
-        private static readonly Type SettingsType = typeof(DefaultSettings);
-        private static readonly MethodInfo ResolvePropertyNameMethod = SettingsType.GetMethod("ResolvePropertyName");
-        private static readonly MethodInfo ConvertMethod = SettingsType.GetMethod("Convert", new Type[] { typeof(PropertyInfo), typeof(object) });
-
-        private static class Nested<T>
-        {
-            private static bool Compare(string arg1, string arg2) => string.Equals(arg1, arg2, StringComparison.OrdinalIgnoreCase);
-
-            static Nested()
-            {
-                var type = typeof(T);
-
-                MethodInfo comparison = typeof(Nested<T>).GetMethod(nameof(Compare), BindingFlags.NonPublic | BindingFlags.Static);
-
-                var defaultCst = Constant(string.Empty);
-
-                var parameterExp = Parameter(type, "source");
-
-                var nameExp = Parameter(typeof(string), "name");
-
-                var settingsExp = Parameter(SettingsType, "settings");
-
-                var preserveUnknownExp = Property(settingsExp, "PreserveUnknownPropertyToken");
-
-                var nullValueExp = Property(settingsExp, "NullValue");
-
-                var sysConvertMethod = typeof(Convert).GetMethod("ChangeType", new Type[] { typeof(object), typeof(Type) });
-
-                var namingMethod = typeof(StringExtentions).GetMethod(nameof(ToNamingCase), BindingFlags.Public | BindingFlags.Static);
-
-                var propertyInfos = type.GetProperties();
-
-                var enumerCaseConvert = propertyInfos
-                    .Where(x => x.CanRead)
-                    .Select(info =>
-                    {
-                        Type memberType = info.PropertyType;
-
-                        ConstantExpression nameCst = Constant(info.Name);
-
-                        MemberExpression propertyExp = Property(parameterExp, info.Name);
-
-                        var namingCst = Call(settingsExp, ResolvePropertyNameMethod, nameCst);
-
-                        if (memberType.IsValueType)
-                        {
-                            Expression valueExp = Expression.Convert(propertyExp, typeof(object));
-
-                            if (memberType.IsNullable())
-                            {
-                                return SwitchCase(Condition(Equal(valueExp, Constant(null, memberType)), nullValueExp, Call(settingsExp, ConvertMethod, Constant(info), valueExp)), namingCst);
-                            }
-
-                            if (memberType.IsEnum)
-                            {
-                                return SwitchCase(Call(settingsExp, ConvertMethod, Constant(info), Call(ChangeTypeMethod, valueExp, Constant(Enum.GetUnderlyingType(memberType)))), namingCst);
-                            }
-
-                            return SwitchCase(Call(settingsExp, ConvertMethod, Constant(info), valueExp), namingCst);
-                        }
-
-                        return SwitchCase(Condition(Equal(propertyExp, Constant(null, memberType)), nullValueExp, Call(settingsExp, ConvertMethod, Constant(info), propertyExp)), namingCst);
-                    });
-
-                var bodyExp = Call(null, ConcatMethod, Constant("{"), nameExp, Constant("}"));
-
-                var switchConvertExp = Switch(Call(settingsExp, ResolvePropertyNameMethod, nameExp), Condition(preserveUnknownExp, bodyExp, defaultCst), null, enumerCaseConvert);
-
-                var lamdaConvert = Lambda<Func<T, string, DefaultSettings, string>>(switchConvertExp, parameterExp, nameExp, settingsExp);
-
-                Convert = lamdaConvert.Compile();
-
-                var switchIgnoreCaseConvertExp = Switch(Call(settingsExp, ResolvePropertyNameMethod, nameExp), Condition(preserveUnknownExp, bodyExp, defaultCst), comparison, enumerCaseConvert);
-
-                var lamdaIgnoreCaseConvert = Lambda<Func<T, string, DefaultSettings, string>>(switchConvertExp, parameterExp, nameExp, settingsExp);
-
-                IgnoreCaseConvert = lamdaIgnoreCaseConvert.Compile();
-
-                var enumerCasePropertyValueGetter = propertyInfos
-                    .Where(x => x.CanRead)
-                    .Select(info =>
-                    {
-                        Type memberType = info.PropertyType;
-
-                        var nameCst = Constant(info.Name);
-
-                        var propertyExp = Property(parameterExp, info.Name);
-
-                        var namingCst = Call(settingsExp, ResolvePropertyNameMethod, nameCst);
-
-                        var valueExp = Expression.Convert(propertyExp, typeof(object));
-
-                        if (memberType.IsEnum)
-                        {
-                            return SwitchCase(Call(ChangeTypeMethod, valueExp, Constant(Enum.GetUnderlyingType(memberType))), namingCst);
-                        }
-
-                        return SwitchCase(valueExp, namingCst);
-                    });
-
-                var switchPropertyValueGetterExp = Switch(Call(settingsExp, ResolvePropertyNameMethod, nameExp), Constant(null, typeof(object)), null, enumerCasePropertyValueGetter);
-
-                var lamdaPropertyValueGetter = Lambda<Func<T, string, DefaultSettings, object>>(switchPropertyValueGetterExp, parameterExp, nameExp, settingsExp);
-
-                PropertyValueGetter = lamdaPropertyValueGetter.Compile();
-
-                var switchIgnoreCasePropertyValueGetterExp = Switch(Call(settingsExp, ResolvePropertyNameMethod, nameExp), Constant(null, typeof(object)), comparison, enumerCasePropertyValueGetter);
-
-                var lamdaIgnoreCasePropertyValueGetter = Lambda<Func<T, string, DefaultSettings, object>>(switchIgnoreCasePropertyValueGetterExp, parameterExp, nameExp, settingsExp);
-
-                IgnoreCasePropertyValueGetter = lamdaIgnoreCasePropertyValueGetter.Compile();
-            }
-
-
-            public static readonly Func<T, string, DefaultSettings, string> Convert;
-
-            public static readonly Func<T, string, DefaultSettings, object> PropertyValueGetter;
-
-            public static readonly Func<T, string, DefaultSettings, string> IgnoreCaseConvert;
-
-            public static readonly Func<T, string, DefaultSettings, object> IgnoreCasePropertyValueGetter;
-        }
-
+        
         /// <summary>
         /// 属性格式化语法糖(语法规则由“<see cref="IStringSugar"/>”的实现决定，默认实现为“<seealse cref="DefaultStringSugar"/>”)。
         /// </summary>
-        /// <typeparam name="T">数据类型。</typeparam>
         /// <param name="value">字符串。</param>
         /// <param name="source">资源。</param>
         /// <param name="namingType">比较的命名方式。</param>
         /// <returns></returns>
-        public static string StringSugar<T>(this string value, T source, NamingType namingType = NamingType.Normal) where T : class => StringSugar(value, source, new DefaultSettings(namingType));
+        public static string StringSugar(this string value, object source, NamingType namingType = NamingType.Normal) => StringSugar(value, source, new DefaultSettings(namingType));
 
         /// <summary>
         /// 属性格式化语法糖(语法规则由“<see cref="IStringSugar"/>”的实现决定，默认实现为“<seealse cref="DefaultStringSugar"/>”)。
         /// </summary>
-        /// <typeparam name="T">数据类型。</typeparam>
         /// <param name="value">字符串。</param>
         /// <param name="source">资源。</param>
         /// <param name="settings">属性配置。</param>
         /// <returns></returns>
-        public static string StringSugar<T>(this string value, T source, DefaultSettings settings) where T : class
+        public static string StringSugar(this string value, object source, DefaultSettings settings)
         {
             if (source is null)
             {
