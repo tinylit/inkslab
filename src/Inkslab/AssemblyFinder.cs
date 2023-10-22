@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using static System.Net.WebRequestMethods;
 
 namespace Inkslab
 {
@@ -44,18 +46,7 @@ namespace Inkslab
             public string[] GetFiles(string path, string searchPattern) => Directory.GetFiles(path, searchPattern);
         }
 
-        /// <summary>
-        /// 所有程序集。
-        /// </summary>
-        /// <returns></returns>
-        public static IEnumerable<Assembly> FindAll() => Find("*.dll");
-
-        /// <summary>
-        /// 满足指定条件的程序集。
-        /// </summary>
-        /// <param name="pattern">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
-        /// <returns></returns>
-        public static IEnumerable<Assembly> Find(string pattern)
+        private static string[] GetFiles(IDirectory directory, string assemblyPath, string pattern)
         {
             if (pattern is null)
             {
@@ -88,24 +79,38 @@ namespace Inkslab
                 break;
             }
 
-            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
-
             var files = directory.GetFiles(assemblyPath, pattern);
 
-            if (files.Length == 0)
+            if (flag)
             {
-                yield break;
+                var results = new List<string>(files.Length);
+
+                for (int i = 0, len = files.Length; i < len; i++)
+                {
+                    var file = files[i];
+
+                    if (patternSni.IsMatch(file))
+                    {
+                        continue;
+                    }
+
+                    results.Add(file);
+                }
+
+                return results.ToArray();
             }
+
+            return files;
+        }
+
+        private static List<Assembly> GetAssemblies(IEnumerable<string> files, int length)
+        {
+            var results = new List<Assembly>(length);
 
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
             foreach (var file in files)
             {
-                if (flag && patternSni.IsMatch(file))
-                {
-                    continue;
-                }
-
                 bool loading = true;
 
                 foreach (var assembly in assemblies)
@@ -119,15 +124,69 @@ namespace Inkslab
                     {
                         loading = false;
 
-                        yield return assembly;
+                        results.Add(assembly);
                     }
                 }
 
                 if (loading)
                 {
-                    yield return assemblyLoads.Get(file);
+                    results.Add(assemblyLoads.Get(file));
                 }
             }
+
+            return results;
+        }
+
+        /// <summary>
+        /// 所有程序集。
+        /// </summary>
+        /// <returns>程序集。</returns>
+        public static IReadOnlyList<Assembly> FindAll() => Find("*.dll");
+
+        /// <summary>
+        /// 满足指定条件的程序集。
+        /// </summary>
+        /// <param name="pattern">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
+        /// <returns>程序集。</returns>
+        public static IReadOnlyList<Assembly> Find(string pattern)
+        {
+            if (pattern is null)
+            {
+                throw new ArgumentNullException(nameof(pattern));
+            }
+
+            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
+
+            var files = GetFiles(directory, assemblyPath, pattern);
+
+            return GetAssemblies(files, files.Length);
+        }
+
+        /// <summary>
+        /// 满足指定条件的程序集。
+        /// </summary>
+        /// <param name="patterns">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
+        /// <returns>程序集。</returns>
+        public static IReadOnlyList<Assembly> Find(params string[] patterns)
+        {
+            if (patterns is null)
+            {
+                throw new ArgumentNullException(nameof(patterns));
+            }
+
+            var files = new HashSet<string>();
+
+            var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
+
+            for (int i = 0; i < patterns.Length; i++)
+            {
+                foreach (var file in GetFiles(directory, assemblyPath, patterns[i]))
+                {
+                    files.Add(file);
+                }
+            }
+
+            return GetAssemblies(files, files.Count);
         }
     }
 }

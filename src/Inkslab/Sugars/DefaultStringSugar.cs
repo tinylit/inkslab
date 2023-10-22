@@ -34,8 +34,10 @@ namespace Inkslab.Sugars
             typeof(float),
             typeof(double)
         };
-        private readonly static System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>> operationOfAdditionCachings = new System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>>();
-        private readonly static System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>> formatCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>>();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>> operationOfAdditionCachings = new System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>>();
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>> formatCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>>();
+
+        private static System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, DefaultSettings, object>> sugarCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, DefaultSettings, object>>();
 
         /// <summary>
         /// <inheritdoc/>
@@ -45,11 +47,95 @@ namespace Inkslab.Sugars
         /// <summary>
         /// 创建语法糖。
         /// </summary>
-        /// <typeparam name="TSource">数据源类型。</typeparam>
         /// <param name="source">数据源对象。</param>
         /// <param name="settings">语法糖设置。</param>
         /// <returns>处理 <see cref="RegularExpression"/> 语法的语法糖。</returns>
-        public virtual ISugar CreateSugar<TSource>(TSource source, DefaultSettings settings) => new StringSugar<TSource>(source, settings);
+        public ISugar CreateSugar(object source, DefaultSettings settings) => new StringSugar(source, settings, sugarCachings.GetOrAdd(source.GetType(), type =>
+        {
+            var objectType = typeof(object);
+
+            var settingsType = typeof(DefaultSettings);
+
+            var defaultCst = Constant(null, objectType);
+
+            var sourceExp = Parameter(objectType, "obj");
+
+            var parameterExp = Variable(type, "source");
+
+            var nameExp = Parameter(typeof(string), "name");
+
+            var settingsExp = Parameter(settingsType, "settings");
+
+            var strictExp = Property(settingsExp, "Strict");
+
+            var nullValueExp = Property(settingsExp, "NullValue");
+
+            var namingCaseExp = Property(settingsExp, "NamingCase");
+
+            var sysConvertMethod = typeof(Convert).GetMethod(nameof(System.Convert.ChangeType), new Type[] { objectType, typeof(Type) });
+
+            var toNamingCaseMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.ToNamingCase), BindingFlags.Public | BindingFlags.Static);
+
+            var propertyInfos = type.GetProperties();
+
+            var namingTypeCases = new List<SwitchCase>(4);
+
+            var defaultBodyExp = Block(IfThen(strictExp, Throw(New(typeof(MissingMemberException)))), defaultCst);
+
+            foreach (NamingType namingType in Enum.GetValues(typeof(NamingType)))
+            {
+                if (namingType == NamingType.Normal)
+                {
+                    continue;
+                }
+
+                var namingTypeConverts = propertyInfos
+                    .Where(x => x.CanRead)
+                    .Select(propertyInfo =>
+                    {
+                        MemberExpression propertyExp = Property(parameterExp, propertyInfo);
+
+                        ConstantExpression nameCst = Constant(propertyInfo.Name.ToNamingCase(namingType));
+
+                        if (propertyInfo.PropertyType.IsValueType)
+                        {
+                            return SwitchCase(Convert(propertyExp, typeof(object)), nameCst);
+                        }
+
+                        return SwitchCase(propertyExp, nameCst);
+                    });
+
+                var namingTypeCst = Constant(namingType);
+
+                var namingTypeBodyExp = Switch(objectType, Call(null, toNamingCaseMtd, nameExp, namingTypeCst), defaultBodyExp, null, namingTypeConverts);
+
+                namingTypeCases.Add(SwitchCase(namingTypeBodyExp, namingTypeCst));
+            }
+
+            var normalCaseConverts = propertyInfos
+                    .Where(x => x.CanRead)
+                    .Select(propertyInfo =>
+                    {
+                        MemberExpression propertyExp = Property(parameterExp, propertyInfo);
+
+                        ConstantExpression nameCst = Constant(propertyInfo.Name);
+
+                        if (propertyInfo.PropertyType.IsValueType)
+                        {
+                            return SwitchCase(Convert(propertyExp, typeof(object)), nameCst);
+                        }
+
+                        return SwitchCase(propertyExp, nameCst);
+                    });
+
+            var normalCaseBodyExp = Switch(objectType, nameExp, defaultBodyExp, null, normalCaseConverts);
+
+            var switchConvertExp = Switch(objectType, namingCaseExp, normalCaseBodyExp, null, namingTypeCases);
+
+            var lamdaConvert = Lambda<Func<object, string, DefaultSettings, object>>(Block(new ParameterExpression[] { parameterExp }, Assign(parameterExp, Convert(sourceExp, type)), switchConvertExp), sourceExp, nameExp, settingsExp);
+
+            return lamdaConvert.Compile();
+        }));
 
         /// <summary>
         /// 加法运算。
@@ -202,6 +288,70 @@ namespace Inkslab.Sugars
             }
 
             return Expression.Add(leftExp, rightExp);
+        }
+
+        private class StringSugar : AdapterSugar<StringSugar>
+        {
+            private readonly object source;
+            private readonly DefaultSettings settings;
+            private readonly Func<object, string, DefaultSettings, object> valueGetter;
+
+            public StringSugar(object source, DefaultSettings settings, Func<object, string, DefaultSettings, object> valueGetter)
+            {
+                this.source = source ?? throw new ArgumentNullException(nameof(source));
+                this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+                this.valueGetter = valueGetter ?? throw new ArgumentNullException(nameof(valueGetter));
+            }
+
+
+            [Mismatch("token")]//? 不匹配 token。
+            public string Single(string name, string format) => settings.Convert(DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
+
+            [Mismatch("token")]//? 不匹配 token。
+            public string Single(string name) => settings.Convert(valueGetter.Invoke(source, name, settings));
+
+            public string Combination(string pre, string token, string name, string format)
+            {
+                object result = valueGetter.Invoke(source, pre, settings);
+
+                if (result is null)
+                {
+                    if (token == "?+")
+                    {
+                        goto label_core;
+                    }
+                }
+                else if (token == "?" || token == "??")
+                {
+                    goto label_core;
+                }
+
+                result = Add(result, DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
+label_core:
+                return settings.Convert(result);
+            }
+
+            public string Combination(string pre, string token, string name)
+            {
+                object result = valueGetter.Invoke(source, pre, settings);
+
+                if (result is null)
+                {
+                    if (token == "?+")
+                    {
+                        goto label_core;
+                    }
+                }
+                else if (token == "?" || token == "??")
+                {
+                    goto label_core;
+                }
+
+                result = Add(result, valueGetter.Invoke(source, name, settings));
+label_core:
+                return settings.Convert(result);
+            }
+
         }
 
         private class StringSugar<TSource> : AdapterSugar<StringSugar<TSource>>

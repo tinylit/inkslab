@@ -24,6 +24,17 @@ namespace Inkslab.Net
     using static Expression;
 
     /// <summary>
+    /// 请求初始化。
+    /// </summary>
+    public class RequestInitialize : IRequestInitialize
+    {
+        /// <inheritdoc/>
+        public void Initialize(IRequestableBase requestable)
+        {
+        }
+    }
+
+    /// <summary>
     /// 请求工厂。
     /// </summary>
     public class RequestFactory : IRequestFactory
@@ -132,6 +143,7 @@ namespace Inkslab.Net
             [".yml"] = new MediaTypeHeaderValue("text/yaml"),
             [".zip"] = new MediaTypeHeaderValue("application/zip")
         };
+        private readonly IRequestInitialize initialize;
 
         private static Func<object, string, List<KeyValuePair<string, object>>> MakeTypeResults(Type type)
         {
@@ -278,6 +290,7 @@ namespace Inkslab.Net
 
             public abstract Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default);
         }
+
         private interface IToContent
         {
             HttpContent Content { get; }
@@ -1108,6 +1121,7 @@ namespace Inkslab.Net
                 throw throwError.Invoke(msgData);
             }
         }
+
         private class RequestableDataVerifyError<T, TResult, TError> : Requestable<TResult>, IRequestableDataVerifyFail<T, TResult> where TError : Exception
         {
             private readonly Requestable<T> requestable;
@@ -1135,6 +1149,7 @@ namespace Inkslab.Net
                 throw throwError.Invoke(msgData);
             }
         }
+
         private class RequestableDataVerifyFail<T, TResult> : Requestable<TResult>, IRequestableDataVerifyFail<T, TResult>
         {
             private readonly Requestable<T> requestable;
@@ -1196,7 +1211,6 @@ namespace Inkslab.Net
                 return new RequestableDataVerifyError<T, TResult, TError>(requestable, dataVerify, dataVerifySuccess, throwError);
             }
         }
-
 
         private class JsonDeserializeRequestable<T> : Requestable<T>, IJsonDeserializeRequestable<T>, IRequestableExtend<T>
         {
@@ -1333,6 +1347,21 @@ namespace Inkslab.Net
             }
         }
 
+        private RequestFactory() : this(new RequestInitialize())
+        {
+
+        }
+
+        /// <summary>
+        /// 请求工厂。
+        /// </summary>
+        /// <param name="initialize">请求初始化。</param>
+        /// <exception cref="ArgumentNullException">参数 <paramref name="initialize"/> 为“null”。</exception>
+        public RequestFactory(IRequestInitialize initialize)
+        {
+            this.initialize = initialize ?? throw new ArgumentNullException(nameof(initialize));
+        }
+
         /// <summary>
         /// 创建请求能力。
         /// </summary>
@@ -1377,9 +1406,7 @@ namespace Inkslab.Net
         /// 初始化。
         /// </summary>
         /// <param name="requestable">基础请求能力。</param>
-        protected virtual void Initialize(IRequestableBase requestable)
-        {
-        }
+        protected virtual void Initialize(IRequestableBase requestable) => initialize.Initialize(requestable);
 
         /// <summary>
         /// 发送请求。
