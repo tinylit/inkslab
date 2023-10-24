@@ -1,8 +1,8 @@
 ﻿using Inkslab.Annotations;
 using Inkslab.Settings;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -17,9 +17,10 @@ namespace Inkslab.Sugars
     /// </summary>
     public class DefaultStringSugar : IStringSugar
     {
-        private static readonly Type objectType = typeof(object);
-        private static readonly MethodInfo toStringMtd = objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
-        private static readonly Regex regularExpression = new Regex("\\$\\{[\\x20\\t\\r\\n\\f]*((?<pre>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)[\\x20\\t\\r\\n\\f]*(?<token>(\\??[?+]))[\\x20\\t\\r\\n\\f]*)?(?<name>([_a-zA-Z]\\w*)|[\\u4e00-\\u9fa5]+)(:(?<format>[^\\}]+?))?[\\x20\\t\\r\\n\\f]*\\}", RegexOptions.Multiline);
+        private static readonly Type enumType = typeof(Enum);
+        private static readonly MethodInfo enumToStringMtd = enumType.GetMethod(nameof(ToString), Type.EmptyTypes);
+        private static readonly MethodInfo enumToStringFormatMtd = enumType.GetMethod(nameof(ToString), new Type[] { typeof(string) });
+        private static readonly Regex regularExpression = new Regex("\\$\\{[\\x20\\t\\r\\n\\f]*((?<pre>[\\w\\u4e00-\\u9fa5]+(\\.[\\w\\u4e00-\\u9fa5]+)*)[\\x20\\t\\r\\n\\f]*(?<token>\\??[?+])[\\x20\\t\\r\\n\\f]*)?(?<name>[\\w\\u4e00-\\u9fa5]+(\\.[\\w\\u4e00-\\u9fa5]+)*)(:(?<format>[^\\}]+?))?[\\x20\\t\\r\\n\\f]*\\}", RegexOptions.Multiline);
 
         private readonly static HashSet<Type> simpleTypes = new HashSet<Type>()
         {
@@ -34,10 +35,41 @@ namespace Inkslab.Sugars
             typeof(float),
             typeof(double)
         };
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>> operationOfAdditionCachings = new System.Collections.Concurrent.ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>>();
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>> formatCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, string>>();
+        private static readonly ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>> operationOfAdditionCachings = new ConcurrentDictionary<Tuple<Type, Type>, Func<object, object, object>>();
+        private static readonly ConcurrentDictionary<Type, Func<object, string, string>> formatCachings = new ConcurrentDictionary<Type, Func<object, string, string>>();
 
-        private static System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, DefaultSettings, object>> sugarCachings = new System.Collections.Concurrent.ConcurrentDictionary<Type, Func<object, string, DefaultSettings, object>>();
+        private static readonly ConcurrentDictionary<Type, SyntaxPool> sugarCachings = new ConcurrentDictionary<Type, SyntaxPool>();
+
+        private static readonly ParameterExpression parameterOfSource;
+        private static readonly ParameterExpression parameterOfSettings;
+        private static readonly ParameterExpression parameterOfSugar;
+
+        private static readonly MemberExpression undo;
+
+        private static readonly MemberExpression strict;
+        private static readonly MemberExpression nullValue;
+        private static readonly MemberExpression preserveSyntax;
+
+        private static readonly MethodInfo convertMtd;
+
+        static DefaultStringSugar()
+        {
+            var objectType = typeof(object);
+            var sugarType = typeof(StringSugar);
+            var settinsType = typeof(DefaultSettings);
+
+            parameterOfSource = Parameter(typeof(object), "source");
+            parameterOfSettings = Parameter(settinsType, "settings");
+            parameterOfSugar = Parameter(sugarType, "sugar");
+
+            undo = Property(parameterOfSugar, nameof(StringSugar.Undo));
+
+            strict = Property(parameterOfSettings, nameof(DefaultSettings.Strict));
+            nullValue = Property(parameterOfSettings, nameof(DefaultSettings.NullValue));
+            preserveSyntax = Property(parameterOfSettings, nameof(DefaultSettings.PreserveSyntax));
+
+            convertMtd = settinsType.GetMethod(nameof(DefaultSettings.Convert), new Type[] { objectType });
+        }
 
         /// <summary>
         /// <inheritdoc/>
@@ -50,190 +82,30 @@ namespace Inkslab.Sugars
         /// <param name="source">数据源对象。</param>
         /// <param name="settings">语法糖设置。</param>
         /// <returns>处理 <see cref="RegularExpression"/> 语法的语法糖。</returns>
-        public ISugar CreateSugar(object source, DefaultSettings settings) => new StringSugar(source, settings, sugarCachings.GetOrAdd(source.GetType(), type =>
+        public ISugar CreateSugar(object source, DefaultSettings settings) => new StringSugar(source, settings, sugarCachings.GetOrAdd(source.GetType(), sourceType => new SyntaxPool(sourceType)));
+
+        private static Expression MakeAdd(Expression left, Expression right)
         {
-            var objectType = typeof(object);
+            var leftType = left.Type;
+            var rightType = right.Type;
 
-            var settingsType = typeof(DefaultSettings);
-
-            var defaultCst = Constant(null, objectType);
-
-            var sourceExp = Parameter(objectType, "obj");
-
-            var parameterExp = Variable(type, "source");
-
-            var nameExp = Parameter(typeof(string), "name");
-
-            var settingsExp = Parameter(settingsType, "settings");
-
-            var strictExp = Property(settingsExp, "Strict");
-
-            var nullValueExp = Property(settingsExp, "NullValue");
-
-            var namingCaseExp = Property(settingsExp, "NamingCase");
-
-            var sysConvertMethod = typeof(Convert).GetMethod(nameof(System.Convert.ChangeType), new Type[] { objectType, typeof(Type) });
-
-            var toNamingCaseMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.ToNamingCase), BindingFlags.Public | BindingFlags.Static);
-
-            var propertyInfos = type.GetProperties();
-
-            var namingTypeCases = new List<SwitchCase>(4);
-
-            var defaultBodyExp = Block(IfThen(strictExp, Throw(New(typeof(MissingMemberException)))), defaultCst);
-
-            foreach (NamingType namingType in Enum.GetValues(typeof(NamingType)))
+            if (leftType.IsNullable())
             {
-                if (namingType == NamingType.Normal)
-                {
-                    continue;
-                }
+                leftType = Nullable.GetUnderlyingType(leftType);
 
-                var namingTypeConverts = propertyInfos
-                    .Where(x => x.CanRead)
-                    .Select(propertyInfo =>
-                    {
-                        MemberExpression propertyExp = Property(parameterExp, propertyInfo);
-
-                        ConstantExpression nameCst = Constant(propertyInfo.Name.ToNamingCase(namingType));
-
-                        if (propertyInfo.PropertyType.IsValueType)
-                        {
-                            return SwitchCase(Convert(propertyExp, typeof(object)), nameCst);
-                        }
-
-                        return SwitchCase(propertyExp, nameCst);
-                    });
-
-                var namingTypeCst = Constant(namingType);
-
-                var namingTypeBodyExp = Switch(objectType, Call(null, toNamingCaseMtd, nameExp, namingTypeCst), defaultBodyExp, null, namingTypeConverts);
-
-                namingTypeCases.Add(SwitchCase(namingTypeBodyExp, namingTypeCst));
+                left = Condition(Equal(left, Constant(null, left.Type)), Default(leftType), Convert(left, leftType));
             }
 
-            var normalCaseConverts = propertyInfos
-                    .Where(x => x.CanRead)
-                    .Select(propertyInfo =>
-                    {
-                        MemberExpression propertyExp = Property(parameterExp, propertyInfo);
-
-                        ConstantExpression nameCst = Constant(propertyInfo.Name);
-
-                        if (propertyInfo.PropertyType.IsValueType)
-                        {
-                            return SwitchCase(Convert(propertyExp, typeof(object)), nameCst);
-                        }
-
-                        return SwitchCase(propertyExp, nameCst);
-                    });
-
-            var normalCaseBodyExp = Switch(objectType, nameExp, defaultBodyExp, null, normalCaseConverts);
-
-            var switchConvertExp = Switch(objectType, namingCaseExp, normalCaseBodyExp, null, namingTypeCases);
-
-            var lamdaConvert = Lambda<Func<object, string, DefaultSettings, object>>(Block(new ParameterExpression[] { parameterExp }, Assign(parameterExp, Convert(sourceExp, type)), switchConvertExp), sourceExp, nameExp, settingsExp);
-
-            return lamdaConvert.Compile();
-        }));
-
-        /// <summary>
-        /// 加法运算。
-        /// </summary>
-        /// <param name="left">左对象。</param>
-        /// <param name="right">右对象。</param>
-        /// <returns>运算结果。</returns>
-        public static object Add(object left, object right)
-        {
-            if (left is null)
+            if (rightType.IsNullable())
             {
-                return right;
+                rightType = Nullable.GetUnderlyingType(rightType);
+
+                right = Condition(Equal(right, Constant(null, right.Type)), Default(rightType), Convert(right, rightType));
             }
 
-            if (right is null)
-            {
-                return left;
-            }
-
-            return operationOfAdditionCachings.GetOrAdd(Tuple.Create(left.GetType(), right.GetType()), tuple => MakeAddition(tuple.Item1, tuple.Item2)).Invoke(left, right);
-        }
-
-        /// <summary>
-        /// <paramref name="source"/>.ToString(<paramref name="format"/>).
-        /// </summary>
-        /// <param name="source">对象。</param>
-        /// <param name="format">格式化。</param>
-        /// <returns>格式化字符串。</returns>
-        public static string Format(object source, string format)
-        {
-            if (source is null)
-            {
-                return null;
-            }
-
-            if (format.IsEmpty())
-            {
-                return source.ToString();
-            }
-
-            var sourceType = source.GetType();
-
-            if (sourceType.IsNullable())
-            {
-                sourceType = Nullable.GetUnderlyingType(sourceType);
-            }
-
-            return formatCachings.GetOrAdd(sourceType.IsEnum ? typeof(Enum) : sourceType, destinationType =>
-             {
-                 var formatFn = destinationType.GetMethod(nameof(ToString), new Type[] { typeof(string) }) ?? throw new MissingMethodException($"未找到“{destinationType.Name}.ToString(string format)”方法！");
-
-                 var sourceExp = Parameter(typeof(object));
-                 var formatExp = Parameter(typeof(string));
-
-                 var bodyExp = Call(Convert(sourceExp, destinationType), formatFn, formatExp);
-
-                 var lambdaExp = Lambda<Func<object, string, string>>(bodyExp, sourceExp, formatExp);
-
-                 return lambdaExp.Compile();
-             })
-             .Invoke(source, format);
-        }
-
-        private static Func<object, object, object> MakeAddition(Type left, Type right)
-        {
-            var objectType = typeof(object);
-
-            var leftExp = Parameter(objectType);
-            var rightExp = Parameter(objectType);
-
-            if (left.IsNullable())
-            {
-                left = Nullable.GetUnderlyingType(left);
-            }
-
-            if (right.IsNullable())
-            {
-                right = Nullable.GetUnderlyingType(right);
-            }
-
-            var leftRealExp = Parameter(left);
-            var rightRealExp = Parameter(right);
-
-            var expressions = new List<Expression>
-            {
-                Assign(leftRealExp, Convert(leftExp, left)),
-                Assign(rightRealExp, Convert(rightExp, right))
-            };
-
-            var bodyExp = left == right
-                ? Same(left, leftRealExp, rightRealExp)
-                : Diff(left, right, leftRealExp, rightRealExp);
-
-            expressions.Add(bodyExp.Type.IsValueType ? Convert(bodyExp, objectType) : bodyExp);
-
-            var lambdaExp = Lambda<Func<object, object, object>>(Block(new ParameterExpression[2] { leftRealExp, rightRealExp }, expressions), leftExp, rightExp);
-
-            return lambdaExp.Compile();
+            return leftType == rightType
+                ? Same(leftType, left, right)
+                : Diff(leftType, rightType, left, right);
         }
 
         private static Expression Same(Type type, Expression left, Expression right)
@@ -255,7 +127,7 @@ namespace Inkslab.Sugars
                 return Call(null, type.GetMethod(nameof(string.Concat), new Type[] { type, type }), left, right);
             }
 
-            return Expression.Add(left, right);
+            return Add(left, right);
         }
 
         private static Expression BooleanAdd(Expression left, Expression right) => AndAlso(left, right);
@@ -279,230 +151,350 @@ namespace Inkslab.Sugars
 
             if (leftType == typeof(string))
             {
-                return Same(leftType, leftExp, Call(rightExp, rightType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? toStringMtd));
+                return Same(leftType, leftExp, Call(parameterOfSettings, convertMtd, rightExp));
             }
 
             if (rightType == typeof(string))
             {
-                return Same(rightType, Call(leftExp, leftType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? toStringMtd), rightExp);
+                return Same(rightType, Call(parameterOfSettings, convertMtd, leftExp), rightExp);
             }
 
-            return Expression.Add(leftExp, rightExp);
+            if (leftType.IsEnum || rightType.IsEnum)
+            {
+                return MakeAdd(leftType.IsEnum
+                    ? Convert(leftExp, Enum.GetUnderlyingType(leftType))
+                    : leftExp, rightType.IsEnum
+                    ? Convert(rightExp, Enum.GetUnderlyingType(rightType))
+                    : rightExp);
+            }
+
+            return Add(leftExp, rightExp);
+        }
+
+        private static Expression ToStringAuto(Expression instance)
+        {
+            var instanceType = instance.Type;
+
+            if (instanceType == typeof(string))
+            {
+                return instance;
+            }
+
+            if (instanceType.IsEnum)
+            {
+                return Call(Convert(instance, enumType), enumToStringMtd);
+            }
+
+            if (instanceType.IsMini())
+            {
+                var toStringMtd = instanceType.GetMethod(nameof(ToString), Type.EmptyTypes);
+
+                if (toStringMtd is null)
+                {
+                    return Call(parameterOfSettings, convertMtd, Convert(instance, typeof(object)));
+                }
+
+                return Call(instance, toStringMtd);
+            }
+
+            if (instanceType.IsValueType)
+            {
+                return Call(parameterOfSettings, convertMtd, Convert(instance, typeof(object)));
+            }
+
+            return Call(parameterOfSettings, convertMtd, instance);
+        }
+
+        private sealed class Syntax
+        {
+        }
+
+        private class SyntaxPool
+        {
+            private readonly Type sourceType;
+            private readonly ConcurrentDictionary<string, Expression> blockCachings = new ConcurrentDictionary<string, Expression>(StringComparer.InvariantCultureIgnoreCase);
+            private readonly ConcurrentDictionary<string, Func<StringSugar, object, DefaultSettings, string>> sugarCachings = new ConcurrentDictionary<string, Func<StringSugar, object, DefaultSettings, string>>(StringComparer.InvariantCultureIgnoreCase);
+
+            private static readonly ConstructorInfo invalidOperationErrorCtor = typeof(InvalidOperationException).GetConstructor(new Type[] { typeof(string) });
+            private static readonly ConstructorInfo missingMemberErrorCtor = typeof(MissingMemberException).GetConstructor(new Type[] { typeof(string), typeof(string) });
+            private static readonly ConstructorInfo missingMethodErrorCtor = typeof(MissingMethodException).GetConstructor(new Type[] { typeof(string) });
+
+            private readonly ParameterExpression instanceVariable;
+
+            public SyntaxPool(Type sourceType)
+            {
+                this.sourceType = sourceType;
+
+                instanceVariable = Variable(sourceType, "instance");
+            }
+
+
+            private Expression MakeExpression(string name) => blockCachings.GetOrAdd(name, expression =>
+            {
+                string[] names = expression.Split('.');
+
+                Expression instance = instanceVariable;
+
+                foreach (string name in names)
+                {
+                    if (TryGetMemberExpression(name, ref instance))
+                    {
+                        continue;
+                    }
+
+                    return Block(typeof(string), IfThenElse(strict, Throw(New(missingMemberErrorCtor, Constant(instance.Type.Name), Constant(expression))), Assign(undo, preserveSyntax)), Constant(null, typeof(string)));
+                }
+
+                return instance;
+            });
+
+            private Expression MakeExpression(string name, string format) => blockCachings.GetOrAdd($"{name}:{format}", expression =>
+            {
+                var indexOf = expression.IndexOf(':');
+
+                var valueExp = MakeExpression(expression.Substring(0, indexOf));
+
+                var formatExp = Constant(expression.Substring(indexOf + 1));
+
+                var destinationType = valueExp.Type;
+
+                bool nullable = destinationType.IsNullable();
+
+                if (nullable)
+                {
+                    destinationType = Nullable.GetUnderlyingType(destinationType);
+                }
+                else
+                {
+                    nullable = destinationType.IsClass;
+                }
+
+                var valueVar = Variable(valueExp.Type);
+
+                var variables = new List<ParameterExpression>(2)
+                {
+                    valueVar,
+                    instanceVariable
+                };
+
+                var expressions = new List<Expression>
+                {
+                    Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)),
+                    Assign(valueVar, valueExp)
+                };
+
+                if (destinationType.IsEnum)
+                {
+                    if (nullable)
+                    {
+                        expressions.Add(Condition(Equal(valueVar, Constant(null, valueVar.Type)), nullValue, Call(Convert(Convert(valueVar, destinationType), enumType), enumToStringFormatMtd, formatExp)));
+                    }
+                    else
+                    {
+                        expressions.Add(Call(Convert(valueVar, enumType), enumToStringFormatMtd, formatExp));
+                    }
+                }
+                else
+                {
+                    var formatMtd = destinationType.GetMethod(nameof(ToString), new Type[] { typeof(string) });
+
+                    if (formatMtd is null)
+                    {
+                        expressions.Add(IfThen(strict, Throw(New(missingMethodErrorCtor, Constant($"未找到“{destinationType.Name}.ToString(string format)”方法！")))));
+                        expressions.Add(ToStringAuto(valueVar));
+                    }
+                    else if (nullable)
+                    {
+                        expressions.Add(Condition(Equal(valueVar, Constant(null, valueVar.Type)), nullValue, Call(destinationType.IsValueType ? Convert(valueVar, destinationType) : valueVar, formatMtd, formatExp)));
+                    }
+                    else
+                    {
+                        expressions.Add(Call(valueVar, formatMtd, formatExp));
+                    }
+                }
+
+                return Block(new ParameterExpression[] { instanceVariable, valueVar }, expressions);
+            });
+
+            private Expression MakeExpressionByToken(Expression prevExp, string token, Expression nextExp)
+            {
+                var prevType = prevExp.Type;
+
+                var nextType = nextExp.Type;
+
+                var prevVar = Variable(prevType);
+
+                var variables = new List<ParameterExpression>
+                    {
+                        instanceVariable,
+                        prevVar
+                    };
+                var expressions = new List<Expression>
+                    {
+                        Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)),
+                        Assign(prevVar, prevExp)
+                    };
+
+                if (token == "?" || token == "??" || token == "?+")
+                {
+                    if (prevType.IsClass || prevType.IsNullable())
+                    {
+                        var nextVar = Variable(nextType);
+
+                        variables.Add(nextVar);
+
+                        expressions.Add(Assign(nextVar, nextExp));
+
+                        if (token == "?+")
+                        {
+                            expressions.Add(Condition(Equal(prevVar, Constant(null, prevType)), nullValue, ToStringAuto(MakeAdd(prevVar, nextVar))));
+                        }
+                        else
+                        {
+                            expressions.Add(Condition(Equal(prevVar, Constant(null, prevType)), ToStringAuto(nextVar), ToStringAuto(prevVar)));
+                        }
+                    }
+                    else
+                    {
+                        expressions.Add(IfThen(strict, Throw(New(invalidOperationErrorCtor, Constant($"运算符“{token}”无法应用于“{prevType.Name}”和“{nextType.Name}”类型的操作！")))));
+
+                        expressions.Add(ToStringAuto(prevVar));
+                    }
+                }
+                else
+                {
+                    var nextVar = Variable(nextType);
+
+                    variables.Add(nextVar);
+
+                    expressions.Add(Assign(nextVar, nextExp));
+
+                    expressions.Add(ToStringAuto(MakeAdd(prevVar, nextVar)));
+                }
+
+                return Block(variables, expressions);
+            }
+
+            public string GetValue(StringSugar sugar, object source, DefaultSettings settings, string pre, string token, string name, string format)
+            {
+                var valueGetter = sugarCachings.GetOrAdd($"{pre}-{token}-{name}:{format}", expression =>
+                {
+                    var indexOf = expression.IndexOf(':');
+
+                    var format = expression.Substring(indexOf + 1);
+
+                    var names = expression.Substring(0, indexOf).Split('-');
+
+                    var prevExp = MakeExpression(names[0]);
+
+                    var token = names[1];
+
+                    var nextExp = MakeExpression(names[2], format);
+
+                    var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(MakeExpressionByToken(prevExp, token, nextExp), parameterOfSugar, parameterOfSource, parameterOfSettings);
+
+                    return lambdaExp.Compile();
+                });
+
+                return valueGetter.Invoke(sugar, source, settings);
+            }
+
+            public string GetValue(StringSugar sugar, object source, DefaultSettings settings, string pre, string token, string name)
+            {
+                var valueGetter = sugarCachings.GetOrAdd($"{pre}-{token}-{name}", expression =>
+                {
+                    var names = expression.Split('-');
+
+                    var prevExp = MakeExpression(names[0]);
+
+                    var token = names[1];
+
+                    var nextExp = MakeExpression(names[2]);
+
+                    var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(MakeExpressionByToken(prevExp, token, nextExp), parameterOfSugar, parameterOfSource, parameterOfSettings);
+
+                    return lambdaExp.Compile();
+                });
+
+                return valueGetter.Invoke(sugar, source, settings);
+            }
+
+            public string GetValue(StringSugar sugar, object source, DefaultSettings settings, string name, string format)
+            {
+                var valueGetter = sugarCachings.GetOrAdd($"{name}:{format}", _ =>
+                {
+                    var bodyExp = MakeExpression(name, format);
+
+                    var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(Block(new ParameterExpression[] { instanceVariable }, Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)), bodyExp), parameterOfSugar, parameterOfSource, parameterOfSettings);
+
+                    return lambdaExp.Compile();
+                });
+
+                return valueGetter.Invoke(sugar, source, settings);
+            }
+
+            public string GetValue(StringSugar sugar, object source, DefaultSettings settings, string name)
+            {
+                var valueGetter = sugarCachings.GetOrAdd(name, _ =>
+                 {
+                     var valueExp = MakeExpression(name);
+
+                     var bodyExp = Block(new ParameterExpression[] { instanceVariable }, Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)), Call(parameterOfSettings, convertMtd, Convert(valueExp, typeof(object))));
+
+                     var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(bodyExp, parameterOfSugar, parameterOfSource, parameterOfSettings);
+
+                     return lambdaExp.Compile();
+                 });
+
+                return valueGetter.Invoke(sugar, source, settings);
+            }
+
+            private static bool TryGetMemberExpression(string name, ref Expression instance)
+            {
+                var propertyInfo = instance.Type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
+
+                if (propertyInfo is null)
+                {
+                    var fieldInfo = instance.Type.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase | BindingFlags.FlattenHierarchy);
+
+                    if (fieldInfo is null)
+                    {
+                        return false;
+                    }
+
+                    instance = Field(instance, fieldInfo);
+
+                    return true;
+                }
+
+                instance = Property(instance, propertyInfo);
+
+                return true;
+            }
         }
 
         private class StringSugar : AdapterSugar<StringSugar>
         {
             private readonly object source;
             private readonly DefaultSettings settings;
-            private readonly Func<object, string, DefaultSettings, object> valueGetter;
+            private readonly SyntaxPool syntaxPool;
 
-            public StringSugar(object source, DefaultSettings settings, Func<object, string, DefaultSettings, object> valueGetter)
+            public StringSugar(object source, DefaultSettings settings, SyntaxPool syntaxPool)
             {
                 this.source = source ?? throw new ArgumentNullException(nameof(source));
                 this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
-                this.valueGetter = valueGetter ?? throw new ArgumentNullException(nameof(valueGetter));
-            }
-
-
-            [Mismatch("token")]//? 不匹配 token。
-            public string Single(string name, string format) => settings.Convert(DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
-
-            [Mismatch("token")]//? 不匹配 token。
-            public string Single(string name) => settings.Convert(valueGetter.Invoke(source, name, settings));
-
-            public string Combination(string pre, string token, string name, string format)
-            {
-                object result = valueGetter.Invoke(source, pre, settings);
-
-                if (result is null)
-                {
-                    if (token == "?+")
-                    {
-                        goto label_core;
-                    }
-                }
-                else if (token == "?" || token == "??")
-                {
-                    goto label_core;
-                }
-
-                result = Add(result, DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
-label_core:
-                return settings.Convert(result);
-            }
-
-            public string Combination(string pre, string token, string name)
-            {
-                object result = valueGetter.Invoke(source, pre, settings);
-
-                if (result is null)
-                {
-                    if (token == "?+")
-                    {
-                        goto label_core;
-                    }
-                }
-                else if (token == "?" || token == "??")
-                {
-                    goto label_core;
-                }
-
-                result = Add(result, valueGetter.Invoke(source, name, settings));
-label_core:
-                return settings.Convert(result);
-            }
-
-        }
-
-        private class StringSugar<TSource> : AdapterSugar<StringSugar<TSource>>
-        {
-            static StringSugar()
-            {
-                var type = typeof(TSource);
-
-                var objectType = typeof(object);
-
-                var settingsType = typeof(DefaultSettings);
-
-                var defaultCst = Constant(null, objectType);
-
-                var parameterExp = Parameter(type, "source");
-
-                var nameExp = Parameter(typeof(string), "name");
-
-                var settingsExp = Parameter(settingsType, "settings");
-
-                var strictExp = Property(settingsExp, nameof(DefaultSettings.Strict));
-
-                var nullValueExp = Property(settingsExp, nameof(DefaultSettings.NullValue));
-
-                var namingCaseExp = Property(settingsExp, nameof(DefaultSettings.NamingCase));
-
-                var sysConvertMethod = typeof(Convert).GetMethod(nameof(System.Convert.ChangeType), new Type[] { objectType, typeof(Type) });
-
-                var toNamingCaseMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.ToNamingCase), BindingFlags.Public | BindingFlags.Static);
-
-                var propertyInfos = type.GetProperties();
-
-                var namingTypeCases = new List<SwitchCase>(4);
-
-                var missingMemberErrorCtor = typeof(MissingMemberException).GetConstructor(new Type[] { typeof(string), typeof(string) });
-
-                var defaultBodyExp = Block(IfThen(strictExp, Throw(New(missingMemberErrorCtor, Constant(type.Name), nameExp))), defaultCst);
-
-                foreach (NamingType namingType in Enum.GetValues(typeof(NamingType)))
-                {
-                    if (namingType == NamingType.Normal)
-                    {
-                        continue;
-                    }
-
-                    var namingTypeConverts = propertyInfos
-                        .Where(x => x.CanRead)
-                        .Select(propertyInfo =>
-                        {
-                            MemberExpression propertyExp = Property(parameterExp, propertyInfo);
-
-                            ConstantExpression nameCst = Constant(propertyInfo.Name.ToNamingCase(namingType));
-
-                            if (propertyInfo.PropertyType.IsValueType)
-                            {
-                                return SwitchCase(Convert(propertyExp, typeof(object)), nameCst);
-                            }
-
-                            return SwitchCase(propertyExp, nameCst);
-                        });
-
-                    var namingTypeCst = Constant(namingType);
-
-                    var namingTypeBodyExp = Switch(objectType, Call(null, toNamingCaseMtd, nameExp, namingTypeCst), defaultBodyExp, null, namingTypeConverts);
-
-                    namingTypeCases.Add(SwitchCase(namingTypeBodyExp, namingTypeCst));
-                }
-
-                var normalCaseConverts = propertyInfos
-                        .Where(x => x.CanRead)
-                        .Select(propertyInfo =>
-                        {
-                            MemberExpression propertyExp = Property(parameterExp, propertyInfo);
-
-                            ConstantExpression nameCst = Constant(propertyInfo.Name);
-
-                            if (propertyInfo.PropertyType.IsValueType)
-                            {
-                                return SwitchCase(Convert(propertyExp, typeof(object)), nameCst);
-                            }
-
-                            return SwitchCase(propertyExp, nameCst);
-                        });
-
-                var normalCaseBodyExp = Switch(objectType, nameExp, defaultBodyExp, null, normalCaseConverts);
-
-                var switchConvertExp = Switch(objectType, namingCaseExp, normalCaseBodyExp, null, namingTypeCases);
-
-                var lamdaConvert = Lambda<Func<TSource, string, DefaultSettings, object>>(switchConvertExp, parameterExp, nameExp, settingsExp);
-
-                valueGetter = lamdaConvert.Compile();
-            }
-
-            private static readonly Func<TSource, string, DefaultSettings, object> valueGetter;
-
-            private readonly TSource source;
-            private readonly DefaultSettings settings;
-
-            public StringSugar(TSource source, DefaultSettings settings)
-            {
-                this.source = source ?? throw new ArgumentNullException(nameof(source));
-                this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+                this.syntaxPool = syntaxPool ?? throw new ArgumentNullException(nameof(syntaxPool));
             }
 
             [Mismatch("token")]//? 不匹配 token。
-            public string Single(string name, string format) => settings.Convert(DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
+            public string Single(string name, string format) => syntaxPool.GetValue(this, source, settings, name, format);
 
             [Mismatch("token")]//? 不匹配 token。
-            public string Single(string name) => settings.Convert(valueGetter.Invoke(source, name, settings));
+            public string Single(string name) => syntaxPool.GetValue(this, source, settings, name);
 
-            public string Combination(string pre, string token, string name, string format)
-            {
-                object result = valueGetter.Invoke(source, pre, settings);
+            public string Combination(string pre, string token, string name, string format) => syntaxPool.GetValue(this, source, settings, pre, token, name, format);
 
-                if (result is null)
-                {
-                    if (token == "?+")
-                    {
-                        goto label_core;
-                    }
-                }
-                else if (token == "?" || token == "??")
-                {
-                    goto label_core;
-                }
-
-                result = Add(result, DefaultStringSugar.Format(valueGetter.Invoke(source, name, settings), format));
-label_core:
-                return settings.Convert(result);
-            }
-
-            public string Combination(string pre, string token, string name)
-            {
-                object result = valueGetter.Invoke(source, pre, settings);
-
-                if (result is null)
-                {
-                    if (token == "?+")
-                    {
-                        goto label_core;
-                    }
-                }
-                else if (token == "?" || token == "??")
-                {
-                    goto label_core;
-                }
-
-                result = Add(result, valueGetter.Invoke(source, name, settings));
-label_core:
-                return settings.Convert(result);
-            }
+            public string Combination(string pre, string token, string name) => syntaxPool.GetValue(this, source, settings, pre, token, name);
         }
     }
 }

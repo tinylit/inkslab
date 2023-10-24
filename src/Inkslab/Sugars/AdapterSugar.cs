@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 namespace Inkslab.Sugars
@@ -56,8 +55,8 @@ namespace Inkslab.Sugars
             var captureType = typeof(Capture);
             var captureCollectionType = typeof(CaptureCollection);
 
+            var captureValueProp = captureType.GetProperty("Value");
             var matchGroupsProp = matchType.GetProperty("Groups");
-            var groupValueProp = groupType.GetProperty("Value");
             var groupSuccessProp = groupType.GetProperty("Success");
             var groupCapturesProp = groupType.GetProperty("Captures");
 
@@ -130,7 +129,7 @@ namespace Inkslab.Sugars
                     {
                         conditions.Add(Property(groupExp, groupSuccessProp));
 
-                        arguments.Add(Property(groupExp, groupValueProp));
+                        arguments.Add(Property(groupExp, captureValueProp));
 
                         continue;
                     }
@@ -191,7 +190,9 @@ namespace Inkslab.Sugars
 
                 expressions.Add(Call(contextExp, methodInfo, arguments));
 
-                var lamdaExp = Lambda<Func<T, Match, string>>(Block(variables, expressions), contextExp, parameterExp);
+                var bodyExp = Block(variables, expressions);
+
+                var lamdaExp = Lambda<Func<T, Match, string>>(bodyExp, contextExp, parameterExp);
 
                 var convertFn = lamdaExp.Compile();
 
@@ -200,17 +201,36 @@ namespace Inkslab.Sugars
         }
 
         /// <summary>
+        /// 撤销。
+        /// </summary>
+        public bool Undo { get; set; }
+
+        /// <summary>
         /// 格式化。
         /// </summary>
         /// <param name="match"></param>
         /// <returns></returns>
         public string Format(Match match)
         {
+            if (Undo)
+            {
+                return match.Value;
+            }
+
             foreach (Adapter mvc in adapterCachings)
             {
                 if (mvc.CanConvert(match))
                 {
-                    return mvc.Convert((T)this, match);
+                    try
+                    {
+                        string value = mvc.Convert((T)this, match);
+
+                        return Undo ? match.Value : value;
+                    }
+                    finally
+                    {
+                        Undo = false;
+                    }
                 }
             }
 

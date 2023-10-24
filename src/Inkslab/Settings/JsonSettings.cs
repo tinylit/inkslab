@@ -10,14 +10,6 @@ namespace Inkslab.Settings
         private const string DoubleQuotationMarks = "\"";
 
         /// <summary>
-        /// 构造函数。
-        /// </summary>
-        /// <param name="namingCase">命名规则。</param>
-        public JsonSettings(NamingType namingCase) : base(namingCase)
-        {
-        }
-
-        /// <summary>
         /// ‘null’值处理。
         /// </summary>
         /// <returns></returns>

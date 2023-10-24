@@ -9,34 +9,26 @@ namespace Inkslab.Settings
     /// </summary>
     public class DefaultSettings
     {
-        private readonly NamingType namingCase;
-
         /// <summary>
         /// 默认日期格式。
         /// </summary>
         public const string DefaultDateFormatString = "yyyy'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFK";
 
         /// <summary>
-        /// 构造函数。
+        /// 严格模式。若启用严格模式，找不到对应的属性时，抛异常；否则，按照 <see cref="PreserveSyntax"/> 规则返回。默认：true。
         /// </summary>
-        /// <param name="namingCase">命名规则。</param>
-        public DefaultSettings(NamingType namingCase) => this.namingCase = namingCase;
+        public bool Strict { get; set; } = true;
 
         /// <summary>
-        /// 严格模式。若启用严格模式，找不到对应的属性时，抛异常；否则，返回“null”。默认：false。
+        /// 当成员丢失时，保留语法。保留语法，则返回原始语法，否则，返回 “null”。默认：false。
         /// </summary>
-        public bool Strict { get; set; }
+        public bool PreserveSyntax { get; set; }
 
         /// <summary>
         /// ‘null’值处理。
         /// </summary>
         /// <returns></returns>
         public virtual string NullValue => string.Empty;
-
-        /// <summary>
-        /// 命名规范。默认：否。
-        /// </summary>
-        public NamingType NamingCase => namingCase;
 
         private string dateFormatString;
 
@@ -53,57 +45,41 @@ namespace Inkslab.Settings
         /// 数据解决。
         /// </summary>
         /// <param name="value">内容。</param>
-        /// <param name="packaging">包装数据。</param>
         /// <returns></returns>
-        public string Convert(object value, bool packaging = true)
+        public virtual string Convert(object value)
         {
             if (value is null)
             {
-                if (packaging)
-                {
-                    return NullValue;
-                }
-
-                return null;
+                return NullValue;
             }
 
             switch (value)
             {
                 case string text:
-                    return packaging ? ValuePackaging(text, typeof(string)) : text;
+                    return ValuePackaging(text, typeof(string));
                 case DateTime date:
-                    return packaging ? ValuePackaging(date.ToString(DateFormatString), typeof(DateTime)) : date.ToString(DateFormatString);
+                    return ValuePackaging(date.ToString(DateFormatString), typeof(DateTime));
                 case IEnumerable enumerable:
                     {
                         var enumerator = enumerable.GetEnumerator();
 
                         if (!enumerator.MoveNext())
                         {
-                            if (packaging)
-                            {
-                                return NullValue;
-                            }
-
-                            return null;
+                            return NullValue;
                         }
 
                         while (enumerator.Current is null)
                         {
                             if (!enumerator.MoveNext())
                             {
-                                if (packaging)
-                                {
-                                    return NullValue;
-                                }
-
-                                return null;
+                                return NullValue;
                             }
                         }
 
                         var sb = new StringBuilder();
 
-                        sb.Append("[")
-                            .Append(Convert(enumerator.Current, true));
+                        sb.Append('[')
+                            .Append(Convert(enumerator.Current));
 
                         while (enumerator.MoveNext())
                         {
@@ -112,15 +88,15 @@ namespace Inkslab.Settings
                                 continue;
                             }
 
-                            sb.Append(",")
-                                .Append(Convert(enumerator.Current, true));
+                            sb.Append(',')
+                                .Append(Convert(enumerator.Current));
                         }
 
-                        return sb.Append("]")
+                        return sb.Append(']')
                             .ToString();
                     }
                 default:
-                    return packaging ? ValuePackaging(value.ToString(), value.GetType()) : value.ToString();
+                    return ValuePackaging(value.ToString(), value.GetType());
             }
         }
 

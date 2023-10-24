@@ -397,22 +397,22 @@ NuGet 包
 ### 字符串语法糖。
 
 ```c#
-string value = "${a + b}".PropSugar(new { A = 1, B = 2 }, NamingType.CamelCase); //=> value = "3"。
+string value = "${a + b}".PropSugar(new { A = 1, B = 2 }); //=> value = "3"。
 ```
 
 * 语法说明：
 
-  - 空运算符：A?B、A ?? B
+  - 空运算符：A ? B、A ?? B
 
     当A为`null`时，返回B，否则返回A。
 
-  - 合并运算符：A+B
+  - 合并运算符：A + B
 
     当A和B可以参与运算时，返回运算结果。否则转成字符串拼接。
 
-  - 试空合并运算符：A?+B
+  - 试空合并运算符：A ?+ B
 
-    当A为`null`时，返回B，否则按照【合并运算符】计算A+B的结果。
+    当A为`null`时，返回`null`，否则按照【合并运算符】计算A+B的结果。
 
 标星历程图。
 

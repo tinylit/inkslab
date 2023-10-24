@@ -200,15 +200,14 @@ namespace System
         /// <returns></returns>
         public static IOptions<T> Options<T>(this string configName, T defaultValue = default) where T : class => ConfigHelper.Options(configName, defaultValue);
 #endif
-        
+
         /// <summary>
         /// 属性格式化语法糖(语法规则由“<see cref="IStringSugar"/>”的实现决定，默认实现为“<seealse cref="DefaultStringSugar"/>”)。
         /// </summary>
         /// <param name="value">字符串。</param>
         /// <param name="source">资源。</param>
-        /// <param name="namingType">比较的命名方式。</param>
         /// <returns></returns>
-        public static string StringSugar(this string value, object source, NamingType namingType = NamingType.Normal) => StringSugar(value, source, new DefaultSettings(namingType));
+        public static string StringSugar(this string value, object source) => StringSugar(value, source, Singleton<DefaultSettings>.Instance);
 
         /// <summary>
         /// 属性格式化语法糖(语法规则由“<see cref="IStringSugar"/>”的实现决定，默认实现为“<seealse cref="DefaultStringSugar"/>”)。
