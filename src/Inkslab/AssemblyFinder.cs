@@ -2,10 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
-using static System.Net.WebRequestMethods;
 
 namespace Inkslab
 {
@@ -104,9 +102,9 @@ namespace Inkslab
             return directory.GetFiles(assemblyPath, pattern);
         }
 
-        private static List<Assembly> GetAssemblies(IEnumerable<string> files, int length)
+        private static List<Assembly> GetAssemblies(IEnumerable<string> files, int capacity)
         {
-            var results = new List<Assembly>(length);
+            var results = new List<Assembly>(capacity);
 
             Assembly[] assemblies = AppDomain.CurrentDomain.GetAssemblies();
 

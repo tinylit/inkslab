@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Inkslab.Settings;
+using System;
 using System.Diagnostics;
 using Xunit;
 
@@ -64,6 +65,76 @@ namespace Inkslab.Tests
                 });
 
                 Assert.True(r == q);
+            }
+
+            stopwatch.Stop();
+        }
+
+        /// <summary>
+        /// 语法糖测试。
+        /// </summary>
+        [Fact]
+        public void StringPreserveSyntaxTest()
+        {
+            DateTimeKind? i = DateTimeKind.Utc;
+            var date = new DateTime(2023, 10, 23);
+            int j = 2;
+            var 测试中文 = "方程式";
+
+            DefaultSettings settings = new DefaultSettings
+            {
+                Strict = false,
+                PreserveSyntax = true
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            for (int k = 0; k < 100000; k++)
+            {
+                var r = "${测试中文}：${i}+${j},${i:D},${ date:yyyy MM dd },${ 测试中文 + date:yyyy } ${ TestEnglish }".StringSugar(new
+                {
+                    i,
+                    j,
+                    date,
+                    测试中文
+                }, settings);
+
+                Assert.Equal("方程式：Utc+2,1,2023 10 23,方程式2023 ${ TestEnglish }", r);
+            }
+
+            stopwatch.Stop();
+        }
+
+        /// <summary>
+        /// 语法糖测试。
+        /// </summary>
+        [Fact]
+        public void StringPropertySyntaxTest()
+        {
+            DateTimeKind? i = DateTimeKind.Utc;
+            var date = DateTime.Now;
+            int j = 2;
+            var 测试中文 = "方程式";
+
+            DefaultSettings settings = new DefaultSettings
+            {
+                Strict = false,
+                PreserveSyntax = true
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            for (int k = 0; k < 100000; k++)
+            {
+                var r = "${测试中文}：${i}+${j},${i:D},${ date.Ticks },${ 测试中文 + date:yyyy }".StringSugar(new
+                {
+                    i,
+                    j,
+                    date,
+                    测试中文
+                }, settings);
+
+                Assert.Equal($"方程式：Utc+2,1,{date.Ticks},方程式2023", r);
             }
 
             stopwatch.Stop();
