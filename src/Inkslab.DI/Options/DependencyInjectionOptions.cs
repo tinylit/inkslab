@@ -34,8 +34,6 @@ namespace Inkslab.DI.Options
 #endif
         }
 
-        private readonly Type ignoreAttrite = typeof(IgnoreAttribute);
-
         /// <summary>
         /// 最大依赖注入深度，默认：8。
         /// </summary>
@@ -115,7 +113,7 @@ namespace Inkslab.DI.Options
         /// </summary>
         /// <param name="serviceType">服务类型。</param>
         /// <returns>是否过滤。</returns>
-        public virtual bool Ignore(Type serviceType) => serviceType.IsNotPublic || serviceType.IsNested || serviceType.IsDefined(ignoreAttrite, true);
+        public virtual bool Ignore(Type serviceType) => serviceType.IsNotPublic || serviceType.IsNested || serviceType.IsIgnore();
 
         /// <summary>
         /// 解决冲突实现类。

@@ -1,4 +1,4 @@
-﻿using Inkslab.DI.Collections;
+﻿using Microsoft.Extensions.DependencyInjection;
 
 namespace Inkslab.DI
 {

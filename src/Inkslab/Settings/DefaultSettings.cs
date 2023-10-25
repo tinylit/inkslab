@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Inkslab.Serialize.Json;
+using System;
 using System.Collections;
 using System.Text;
 
@@ -46,40 +47,69 @@ namespace Inkslab.Settings
         /// </summary>
         /// <param name="value">内容。</param>
         /// <returns></returns>
-        public virtual string Convert(object value)
+        public string Convert(object value)
         {
-            if (value is null)
-            {
-                return NullValue;
-            }
-
             switch (value)
             {
-                case string text:
-                    return ValuePackaging(text, typeof(string));
-                case DateTime date:
-                    return ValuePackaging(date.ToString(DateFormatString), typeof(DateTime));
+                case null: return NullValue;
+                case string text: return ValuePackaging(text, typeof(string));
+                case IEnumerable: return ToString(value);
+                default:
+                    {
+                        var valueType = value.GetType();
+
+                        if (valueType.IsEnum)
+                        {
+                            return ValuePackaging(ToString(value), valueType);
+                        }
+
+                        if (valueType.IsMini())
+                        {
+                            return value.ToString();
+                        }
+
+                        if (valueType.IsSimple())
+                        {
+                            return ValuePackaging(ToString(value), valueType);
+                        }
+
+                        return ToString(value);
+                    }
+            }
+        }
+
+        /// <summary>
+        /// 转字符串。
+        /// </summary>
+        /// <param name="value">内容。</param>
+        public virtual string ToString(object value)
+        {
+            switch (value)
+            {
+                case null: return null;
+                case string text: return text;
+                case DateTime date: return date.ToString(DateFormatString);
                 case IEnumerable enumerable:
                     {
                         var enumerator = enumerable.GetEnumerator();
 
                         if (!enumerator.MoveNext())
                         {
-                            return NullValue;
+                            return null;
                         }
 
                         while (enumerator.Current is null)
                         {
                             if (!enumerator.MoveNext())
                             {
-                                return NullValue;
+                                return null;
                             }
                         }
 
                         var sb = new StringBuilder();
 
                         sb.Append('[')
-                            .Append(Convert(enumerator.Current));
+                            .Append(ToString(enumerator.Current));
 
                         while (enumerator.MoveNext())
                         {
@@ -89,14 +119,23 @@ namespace Inkslab.Settings
                             }
 
                             sb.Append(',')
-                                .Append(Convert(enumerator.Current));
+                                .Append(ToString(enumerator.Current));
                         }
 
                         return sb.Append(']')
                             .ToString();
                     }
                 default:
-                    return ValuePackaging(value.ToString(), value.GetType());
+                    {
+                        var valueType = value.GetType();
+
+                        if (valueType.IsSimple())
+                        {
+                            return value.ToString();
+                        }
+
+                        return JsonHelper.ToJson(value);
+                    }
             }
         }
 

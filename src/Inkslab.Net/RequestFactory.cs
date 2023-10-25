@@ -1347,7 +1347,10 @@ namespace Inkslab.Net
             }
         }
 
-        private RequestFactory() : this(new RequestInitialize())
+        /// <summary>
+        /// 请求工厂。
+        /// </summary>
+        protected RequestFactory() : this(new RequestInitialize())
         {
 
         }

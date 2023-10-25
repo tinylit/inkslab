@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using XServiceCollection = Inkslab.DI.Collections.IServiceCollection;
 
 namespace Inkslab.DI
 {
@@ -24,6 +23,13 @@ namespace Inkslab.DI
         /// <param name="pattern">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
         /// <returns>依赖注入。</returns>
         IDependencyInjectionServices SeekAssemblies(string pattern = "*");
+
+        /// <summary>
+        /// 查找程序集。
+        /// </summary>
+        /// <param name="patterns">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
+        /// <returns>依赖注入。</returns>
+        IDependencyInjectionServices SeekAssemblies(params string[] patterns);
 
         /// <summary>
         /// 程序集。
@@ -47,7 +53,7 @@ namespace Inkslab.DI
         IDependencyInjectionServices RemoveAssemblies(Predicate<Assembly> match);
 
         /// <summary>
-        /// 查找并调用限定程序集中，所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(XServiceCollection)"/> 注入约定。
+        /// 查找并调用限定程序集中，所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(IServiceCollection)"/> 注入约定。
         /// </summary>
         IDependencyInjectionServices ConfigureByDefined();
 

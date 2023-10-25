@@ -23,12 +23,12 @@ namespace Inkslab.Settings
         /// <returns></returns>
         protected override string ValuePackaging(string value, Type typeToConvert)
         {
-            if (typeToConvert.IsMini() && Regexs.IsNumber.IsMatch(value))
+            if (typeToConvert.IsSimple())
             {
-                return value;
+                return string.Concat(DoubleQuotationMarks, value, DoubleQuotationMarks);
             }
 
-            return string.Concat(DoubleQuotationMarks, value, DoubleQuotationMarks);
+            return value;
         }
     }
 }
