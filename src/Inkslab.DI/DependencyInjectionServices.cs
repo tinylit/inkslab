@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using XServiceCollection = Inkslab.DI.Collections.IServiceCollection;
 
 namespace Inkslab.DI
 {
@@ -21,6 +20,7 @@ namespace Inkslab.DI
         }
 
         public ICollection<Assembly> Assemblies { get => assemblies; }
+
         public IDependencyInjectionServices SeekAssemblies(string pattern = "*")
         {
             if (pattern is null)
@@ -29,6 +29,23 @@ namespace Inkslab.DI
             }
 
             var assemblies = AssemblyFinder.Find(pattern);
+
+            foreach (var assembly in assemblies)
+            {
+                this.assemblies.Add(assembly);
+            }
+
+            return this;
+        }
+
+        public IDependencyInjectionServices SeekAssemblies(params string[] patterns)
+        {
+            if (patterns is null)
+            {
+                throw new ArgumentNullException(nameof(patterns));
+            }
+
+            var assemblies = AssemblyFinder.Find(patterns);
 
             foreach (var assembly in assemblies)
             {
@@ -51,7 +68,7 @@ namespace Inkslab.DI
 
             return this;
         }
-        
+
         public IDependencyInjectionServices AddAssembly(Assembly assembly)
         {
             if (assembly is null)
@@ -91,11 +108,10 @@ namespace Inkslab.DI
                 .Where(x => !x.IsValueType && !x.IsAbstract)
                 .ToList();
 
-            DiConfigureServices(new Collections.ServiceCollection(services), assembliyTypes);
+            DiConfigureServices(services, assembliyTypes);
 
             return this;
         }
-
 
         public IServiceCollection ConfigureByAuto(DependencyInjectionOptions options)
         {
@@ -115,7 +131,7 @@ namespace Inkslab.DI
             return services;
         }
 
-        private static void DiConfigureServices(XServiceCollection services, List<Type> assembliyTypes)
+        private static void DiConfigureServices(IServiceCollection services, List<Type> assembliyTypes)
         {
             var configureServices = new List<IConfigureServices>();
 
@@ -416,19 +432,7 @@ namespace Inkslab.DI
 
                     var attrbute = (ServiceLifetimeAttribute)(implementationType.GetCustomAttribute(typeof(ServiceLifetimeAttribute), false) ?? serviceType.GetCustomAttribute(typeof(ServiceLifetimeAttribute), false));
 
-                    switch (attrbute?.Lifetime ?? options.Lifetime)
-                    {
-                        case ServiceLifetime.Singleton:
-                            services.AddSingleton(serviceType, implementationType);
-                            break;
-                        case ServiceLifetime.Transient:
-                            services.AddTransient(serviceType, implementationType);
-                            break;
-                        case ServiceLifetime.Scoped:
-                        default:
-                            services.AddScoped(serviceType, implementationType);
-                            break;
-                    }
+                    services.Add(new ServiceDescriptor(serviceType, implementationType, attrbute?.Lifetime ?? options.Lifetime));
 
                     if (isMulti) //? 注入一个支持。
                     {

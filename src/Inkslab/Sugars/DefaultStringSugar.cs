@@ -51,6 +51,7 @@ namespace Inkslab.Sugars
         private static readonly MemberExpression preserveSyntax;
 
         private static readonly MethodInfo convertMtd;
+        private static readonly MethodInfo toStringMtd;
 
         static DefaultStringSugar()
         {
@@ -69,6 +70,7 @@ namespace Inkslab.Sugars
             preserveSyntax = Property(parameterOfSettings, nameof(DefaultSettings.PreserveSyntax));
 
             convertMtd = settinsType.GetMethod(nameof(DefaultSettings.Convert), new Type[] { objectType });
+            toStringMtd = settinsType.GetMethod(nameof(DefaultSettings.ToString), new Type[] { objectType });
         }
 
         /// <summary>
@@ -151,12 +153,12 @@ namespace Inkslab.Sugars
 
             if (leftType == typeof(string))
             {
-                return Same(leftType, leftExp, Call(parameterOfSettings, convertMtd, rightExp));
+                return Same(leftType, leftExp, Call(parameterOfSettings, toStringMtd, rightExp));
             }
 
             if (rightType == typeof(string))
             {
-                return Same(rightType, Call(parameterOfSettings, convertMtd, leftExp), rightExp);
+                return Same(rightType, Call(parameterOfSettings, toStringMtd, leftExp), rightExp);
             }
 
             if (leftType.IsEnum || rightType.IsEnum)
@@ -191,11 +193,23 @@ namespace Inkslab.Sugars
 
                 if (toStringMtd is null)
                 {
-                    return Call(parameterOfSettings, convertMtd, Convert(instance, typeof(object)));
+                    return Call(parameterOfSettings, toStringMtd, Convert(instance, typeof(object)));
                 }
 
                 return Call(instance, toStringMtd);
             }
+
+            if (instanceType.IsValueType)
+            {
+                return Call(parameterOfSettings, toStringMtd, Convert(instance, typeof(object)));
+            }
+
+            return Call(parameterOfSettings, toStringMtd, instance);
+        }
+
+        private static Expression ConvertAuto(Expression instance)
+        {
+            var instanceType = instance.Type;
 
             if (instanceType.IsValueType)
             {
@@ -252,9 +266,16 @@ namespace Inkslab.Sugars
             {
                 var indexOf = expression.IndexOf(':');
 
+#if NET_Traditional
+
                 var valueExp = MakeExpression(expression.Substring(0, indexOf));
 
                 var formatExp = Constant(expression.Substring(indexOf + 1));
+#else
+                var valueExp = MakeExpression(expression[..indexOf]);
+
+                var formatExp = Constant(expression[(indexOf + 1)..]);
+#endif
 
                 var destinationType = valueExp.Type;
 
@@ -347,18 +368,18 @@ namespace Inkslab.Sugars
 
                         if (token == "?+")
                         {
-                            expressions.Add(Condition(Equal(prevVar, Constant(null, prevType)), nullValue, ToStringAuto(MakeAdd(prevVar, nextVar))));
+                            expressions.Add(Condition(Equal(prevVar, Constant(null, prevType)), nullValue, ConvertAuto(MakeAdd(prevVar, nextVar))));
                         }
                         else
                         {
-                            expressions.Add(Condition(Equal(prevVar, Constant(null, prevType)), ToStringAuto(nextVar), ToStringAuto(prevVar)));
+                            expressions.Add(Condition(Equal(prevVar, Constant(null, prevType)), ConvertAuto(nextVar), ConvertAuto(prevVar)));
                         }
                     }
                     else
                     {
                         expressions.Add(IfThen(strict, Throw(New(invalidOperationErrorCtor, Constant($"运算符“{token}”无法应用于“{prevType.Name}”和“{nextType.Name}”类型的操作！")))));
 
-                        expressions.Add(ToStringAuto(prevVar));
+                        expressions.Add(ConvertAuto(prevVar));
                     }
                 }
                 else
@@ -369,7 +390,7 @@ namespace Inkslab.Sugars
 
                     expressions.Add(Assign(nextVar, nextExp));
 
-                    expressions.Add(ToStringAuto(MakeAdd(prevVar, nextVar)));
+                    expressions.Add(ConvertAuto(MakeAdd(prevVar, nextVar)));
                 }
 
                 return Block(variables, expressions);
@@ -381,9 +402,15 @@ namespace Inkslab.Sugars
                 {
                     var indexOf = expression.IndexOf(':');
 
+#if NET_Traditional
                     var format = expression.Substring(indexOf + 1);
 
                     var names = expression.Substring(0, indexOf).Split('-');
+#else
+                    var format = expression[(indexOf + 1)..];
+
+                    var names = expression[..indexOf].Split('-');
+#endif
 
                     var prevExp = MakeExpression(names[0]);
 
@@ -423,9 +450,11 @@ namespace Inkslab.Sugars
             {
                 var valueGetter = sugarCachings.GetOrAdd($"{name}:{format}", _ =>
                 {
-                    var bodyExp = MakeExpression(name, format);
+                    var valueExp = MakeExpression(name, format);
 
-                    var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(Block(new ParameterExpression[] { instanceVariable }, Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)), bodyExp), parameterOfSugar, parameterOfSource, parameterOfSettings);
+                    var bodyExp = Block(new ParameterExpression[] { instanceVariable }, Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)), ConvertAuto(valueExp));
+
+                    var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(bodyExp, parameterOfSugar, parameterOfSource, parameterOfSettings);
 
                     return lambdaExp.Compile();
                 });
@@ -439,7 +468,7 @@ namespace Inkslab.Sugars
                  {
                      var valueExp = MakeExpression(name);
 
-                     var bodyExp = Block(new ParameterExpression[] { instanceVariable }, Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)), Call(parameterOfSettings, convertMtd, Convert(valueExp, typeof(object))));
+                     var bodyExp = Block(new ParameterExpression[] { instanceVariable }, Assign(instanceVariable, Convert(parameterOfSource, instanceVariable.Type)), ConvertAuto(valueExp));
 
                      var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(bodyExp, parameterOfSugar, parameterOfSource, parameterOfSettings);
 
