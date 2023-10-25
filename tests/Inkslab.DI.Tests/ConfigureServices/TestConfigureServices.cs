@@ -1,5 +1,5 @@
-﻿using Inkslab.DI.Collections;
-using Inkslab.DI.Tests.DependencyInjections;
+﻿using Inkslab.DI.Tests.DependencyInjections;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Inkslab.DI.Tests.ConfigureServices
 {
