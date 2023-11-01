@@ -12,7 +12,7 @@ namespace Inkslab.Map.Expressions
     /// <summary>
     /// 配置。
     /// </summary>
-    public abstract class ProfileExpression<TMapper, TConfiguration> : Profile, IMapApplication, IConfiguration, IProfile where TMapper : ProfileExpression<TMapper, TConfiguration> where TConfiguration : class, IMapConfiguration, IConfiguration
+    public abstract class ProfileExpression<TMapper, TConfiguration> : Profile, IMapApplication, IConfiguration, IProfile, IMap where TMapper : ProfileExpression<TMapper, TConfiguration> where TConfiguration : class, IMapConfiguration, IConfiguration
     {
         private readonly TConfiguration configuration;
 
@@ -30,6 +30,10 @@ namespace Inkslab.Map.Expressions
             this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
+        bool IMap.IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType);
+
+        Expression IMap.ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application) => Map(sourceExpression, destinationType, application);
+
         /// <inheritdoc/>
         public override bool IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType) || configuration.IsMatch(sourceType, destinationType);
 
@@ -42,17 +46,7 @@ namespace Inkslab.Map.Expressions
         /// <param name="destinationType">目标类型。</param>
         /// <returns>目标类型 <paramref name="destinationType"/> 的计算结果。</returns>
         /// <exception cref="InvalidCastException">无法转换。</exception>
-        protected virtual Expression Map(Expression sourceExpression, Type destinationType)
-        {
-            var sourceType = sourceExpression.Type;
-
-            if (base.IsMatch(sourceType, destinationType))
-            {
-                return Map(sourceExpression, destinationType, this);
-            }
-
-            return configuration.Map(sourceExpression, destinationType, this);
-        }
+        protected virtual Expression Map(Expression sourceExpression, Type destinationType) => configuration.Map(sourceExpression, destinationType, this);
 
         /// <summary>
         /// 映射。

@@ -40,8 +40,10 @@ namespace Inkslab.Map.Maps
             || destinationType.IsEnum && EnumTypes.Contains(sourceType);
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
+            Type sourceType = sourceExpression.Type;
+
             if (sourceType.IsEnum && destinationType.IsEnum)
             {
                 var destinationExpression = Variable(destinationType);

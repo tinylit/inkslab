@@ -26,8 +26,10 @@ namespace Inkslab.Map.Maps
         public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && destinationType.IsEnum;
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
+            Type sourceType = sourceExpression.Type;
+
             List<SwitchCase> switchCases = new List<SwitchCase>();
 
             foreach (var memberInfo in destinationType.GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))

@@ -24,17 +24,16 @@ namespace Inkslab.Map
         /// <inheritdoc/>
         /// </summary>
         /// <param name="sourceExpression"><inheritdoc/></param>
-        /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <param name="application"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public virtual Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public virtual Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             var instanceExpression = CreateNew(destinationType);
 
             var destinationExpression = Variable(destinationType, "instanceNew");
 
-            var bodyExp = ToSolve(sourceExpression, sourceType, destinationExpression, destinationType, application);
+            var bodyExp = ToSolve(sourceExpression, sourceExpression.Type, destinationExpression, destinationType, application);
 
             return Block(destinationType, new ParameterExpression[] { destinationExpression }, new Expression[] { Assign(destinationExpression, instanceExpression), bodyExp, destinationExpression });
         }

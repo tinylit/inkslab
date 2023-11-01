@@ -25,8 +25,10 @@ namespace Inkslab.Map.Maps
         public bool IsMatch(Type sourceType, Type destinationType) => IsKeyValue(sourceType) && IsKeyValue(destinationType);
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
+            Type sourceType = sourceExpression.Type;
+
             var conversionGenericArguments = destinationType.GetGenericArguments();
 
             if (sourceType == destinationType && Array.TrueForAll(conversionGenericArguments, x => x.IsValueType))

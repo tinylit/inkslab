@@ -5,6 +5,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Security.AccessControl;
 
 namespace Inkslab.Map
@@ -178,9 +179,14 @@ namespace Inkslab.Map
         /// <inheritdoc/>
         public Expression Map(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
-            var conversionType = destinationType;
-
             var sourceType = sourceExpression.Type;
+
+            if (application is IMap map && map.IsMatch(sourceType, destinationType))
+            {
+                return Ignore(map.ToSolve(sourceExpression, destinationType, application));
+            }
+
+            var conversionType = destinationType;
 
             if (conversionType.IsInterface)
             {
@@ -229,17 +235,27 @@ namespace Inkslab.Map
                 throw new InvalidCastException($"无法从源【{sourceType}】分析到目标【{destinationType}】的可实列化类型！");
             }
 
+            return MapCore(sourceExpression, sourceType, conversionType, application);
+        }
+
+        private Expression MapCore(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        {
+            if (application is IMap map && map.IsMatch(sourceType, destinationType))
+            {
+                return Ignore(map.ToSolve(sourceExpression, destinationType, application));
+            }
+
             if (sourceType == MapConstants.ObjectType)
             {
-                return MapAnyOfObject(sourceExpression, sourceType, conversionType, application);
+                return MapAnyOfObject(sourceExpression, sourceType, destinationType, application);
             }
 
-            if (sourceType.IsValueType || conversionType.IsValueType)
+            if (sourceType.IsValueType || destinationType.IsValueType)
             {
-                return MapAnyOfValueType(sourceExpression, sourceType, destinationType, conversionType, application);
+                return MapAnyOfValueType(sourceExpression, sourceType, destinationType, application);
             }
 
-            if (sourceType == conversionType && sourceType == MapConstants.StirngType)
+            if (sourceType == destinationType && sourceType == MapConstants.StirngType)
             {
                 if (AllowPropagationNullValues)
                 {
@@ -249,16 +265,16 @@ namespace Inkslab.Map
                 return IgnoreIfNull(sourceExpression, true);
             }
 
-            if (conversionType.IsAssignableFrom(sourceType))
+            if (destinationType.IsAssignableFrom(sourceType))
             {
                 if (IsDepthMapping)
                 {
                     if (AllowPropagationNullValues)
                     {
-                        return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(conversionType), Map(sourceExpression, sourceType, destinationType, conversionType, application));
+                        return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), Map(sourceExpression, sourceType, destinationType, application));
                     }
 
-                    return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType, application);
+                    return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, application);
                 }
 
                 if (AllowPropagationNullValues)
@@ -271,10 +287,10 @@ namespace Inkslab.Map
 
             if (AllowPropagationNullValues)
             {
-                return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(conversionType), Map(sourceExpression, sourceType, destinationType, conversionType, application));
+                return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), Map(sourceExpression, sourceType, destinationType, application));
             }
 
-            return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType, application);
+            return Map(IgnoreIfNull(sourceExpression), sourceType, destinationType, application);
         }
 
         private Expression MapAnyOfObject(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
@@ -285,7 +301,7 @@ namespace Inkslab.Map
 
                 return Condition(TypeIs(sourceExpression, conversionType),
                         TypeAs(sourceExpression, destinationType),
-                        Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
+                        New(destinationType.GetConstructor(new Type[] { conversionType }), MapAnyOfObject(sourceExpression, sourceType, conversionType, application))
                     );
             }
 
@@ -333,10 +349,10 @@ namespace Inkslab.Map
             {
                 if (AllowPropagationNullValues)
                 {
-                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, destinationType, application));
+                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), Map(Convert(sourceExpression, destinationType), destinationType, destinationType, application));
                 }
 
-                return Map(Convert(IgnoreIfNull(sourceExpression), destinationType), destinationType, destinationType, destinationType, application);
+                return Map(Convert(IgnoreIfNull(sourceExpression), destinationType), destinationType, destinationType, application);
             }
 
             if (AllowPropagationNullValues)
@@ -350,9 +366,9 @@ namespace Inkslab.Map
         /// <summary>
         /// 含值类型。
         /// </summary>
-        private Expression MapAnyOfValueType(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType, IMapApplication application)
+        private Expression MapAnyOfValueType(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
-            if (sourceType == conversionType)
+            if (sourceType == destinationType)
             {
                 if (AllowPropagationNullValues || !sourceType.IsNullable())
                 {
@@ -370,90 +386,108 @@ namespace Inkslab.Map
 
                     if (AllowPropagationNullValues)
                     {
-                        if (conversionType.IsNullable())
+                        if (destinationType.IsNullable())
                         {
-                            var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+                            var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
-                            var destinationExpression = MapGeneral(Property(sourceExpression, "Value"), sourceType, destinationType, underlyingDestinationType, application);
+                            var destinationExpression = MapAnyOfValueType(Property(sourceExpression, "Value"), sourceType, underlyingDestinationType, application);
 
-                            return Condition(Property(sourceExpression, "HasValue"), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression), DefaultValue(conversionType));
+                            return Condition(Property(sourceExpression, "HasValue"), New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression), DefaultValue(destinationType));
                         }
 
-                        return Condition(Property(sourceExpression, "HasValue"), MapGeneral(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, conversionType, application), DefaultValue(conversionType));
+                        return Condition(Property(sourceExpression, "HasValue"), MapAnyOfValueType(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, application), DefaultValue(destinationType));
                     }
 
-                    if (conversionType.IsNullable())
+                    if (destinationType.IsNullable())
                     {
-                        var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+                        var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
-                        var destinationExpression = MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType, application);
+                        var destinationExpression = MapGeneral(IgnoreIfNull(sourceExpression), sourceType, underlyingDestinationType, application);
 
-                        return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
+                        return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
                     }
 
-                    return MapGeneral(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, conversionType, application);
+                    return MapAnyOfValueType(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, application);
                 }
 
                 //? 非可空的值类型，不存在 null 值，不存在【AllowPropagationNullValues】的约束，均可映射。
-                if (conversionType.IsNullable())
+                if (destinationType.IsNullable())
                 {
-                    var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+                    var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
                     var destinationExpression = sourceType == underlyingDestinationType
                             ? sourceExpression
-                            : MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType, application);
+                            : MapAnyOfValueType(sourceExpression, sourceType, underlyingDestinationType, application);
 
-                    return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
+                    return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
                 }
 
-                return MapGeneral(sourceExpression, sourceType, destinationType, conversionType, application);
+                return MapGeneral(sourceExpression, sourceType, destinationType, application);
             }
 
             if (AllowPropagationNullValues)
             {
-                if (conversionType.IsNullable())
+                if (destinationType.IsNullable())
                 {
-                    var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+                    var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
-                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(conversionType), New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, destinationType, underlyingDestinationType, application)));
+                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, underlyingDestinationType, application)));
                 }
 
-                return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(conversionType), MapGeneral(sourceExpression, sourceType, destinationType, conversionType, application));
+                return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), MapGeneral(sourceExpression, sourceType, destinationType, application));
             }
 
-            if (conversionType.IsNullable())
+            if (destinationType.IsNullable())
             {
-                var underlyingDestinationType = Nullable.GetUnderlyingType(conversionType);
+                var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
-                return New(conversionType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, underlyingDestinationType, application));
+                return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), sourceType, underlyingDestinationType, application));
             }
 
-            return MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, conversionType, application);
+            return MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, application);
         }
 
-        private Expression Map(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType, IMapApplication application)
+        private Expression Map(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
-            if (sourceType.IsClass && conversionType.IsClass)
+            var visitor = new IgnoreIfNullExpressionVisitor();
+
+            var sourceIgnore = visitor.Visit(sourceExpression);
+
+            if (visitor.HasIgnore)
+            {
+                var sourceVariable = Variable(sourceIgnore.Type);
+
+                var destinationExp = Ignore(MapIgnore(sourceVariable, sourceType, destinationType, application));
+
+                return IgnoreIfNull(Block(new ParameterExpression[] { sourceVariable }, Assign(sourceVariable, sourceIgnore), destinationExp), visitor.Test);
+            }
+
+            return Ignore(MapIgnore(sourceIgnore, sourceType, destinationType, application));
+        }
+
+        private Expression MapIgnore(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        {
+            if (sourceType.IsClass && destinationType.IsClass)
             {
                 foreach (var profile in profiles)
                 {
-                    if (profile.IsMatch(sourceType, conversionType))
+                    if (profile.IsMatch(sourceType, destinationType))
                     {
-                        return profile.Map(sourceExpression, conversionType, application);
+                        return profile.Map(sourceExpression, destinationType, application);
                     }
                 }
             }
 
-            return MapGeneral(sourceExpression, sourceType, destinationType, conversionType, application);
+            return MapGeneral(sourceExpression, sourceType, destinationType, application);
         }
 
-        private Expression MapGeneral(Expression sourceExpression, Type sourceType, Type destinationType, Type conversionType, IMapApplication application)
+        private Expression MapGeneral(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
             foreach (var map in maps)
             {
-                if (map.IsMatch(sourceType, conversionType))
+                if (map.IsMatch(sourceType, destinationType))
                 {
-                    return map.ToSolve(sourceExpression, sourceType, conversionType, application);
+                    return map.ToSolve(sourceExpression, destinationType, application);
                 }
             }
 
@@ -462,6 +496,289 @@ namespace Inkslab.Map
 
         private static Expression DefaultValue(Type destinationType) => destinationType.IsValueType ? Default(destinationType) : Constant(null, destinationType);
 
-        private static Expression IgnoreIfNull(Expression node, bool keepNullable = false) => IgnoreIfNullExpressionVisitor.IgnoreIfNull(node, keepNullable);
+        #region ExpressionVisitor
+
+        private static Expression Ignore(Expression node) => MapperExpressionVisitor.Instance.Visit(node);
+
+        private static Expression IgnoreIfNull(Expression node, bool keepNullable = false)
+        {
+            if (node.NodeType == IgnoreIf)
+            {
+                return node;
+            }
+
+            if (node.NodeType == ExpressionType.Parameter)
+            {
+                if (keepNullable || !node.Type.IsNullable())
+                {
+                    return node;
+                }
+
+                return Property(node, "Value");
+            }
+
+            Expression ignoreIf = node;
+
+            while (ignoreIf is MethodCallExpression methodCall)
+            {
+                if (methodCall.Arguments.Count > (methodCall.Method.IsStatic ? 1 : 0))
+                {
+                    break;
+                }
+
+                ignoreIf = methodCall.Object ?? methodCall.Arguments[0];
+            }
+
+            if (ignoreIf.Type.IsValueType)
+            {
+                if (node.Type.IsNullable())
+                {
+                    return new IgnoreIfNullExpression(node, Property(ignoreIf, "HasValue"), keepNullable);
+                }
+
+                return node;
+            }
+
+            return new IgnoreIfNullExpression(node, NotEqual(ignoreIf, Constant(null, ignoreIf.Type)), keepNullable);
+        }
+
+        private static Expression IgnoreIfNull(Expression node, Expression test) => new IgnoreIfNullExpression(node, test, true);
+
+        private class MapperExpressionVisitor : ExpressionVisitor
+        {
+            private MapperExpressionVisitor() { }
+
+            protected override Expression VisitBinary(BinaryExpression node)
+            {
+                var visitor = new IgnoreIfNullExpressionVisitor();
+
+                var body = visitor.Visit(node.Right);
+
+                if (visitor.HasIgnore)
+                {
+                    return IfThen(visitor.Test, node.Update(node.Left, node.Conversion, body));
+                }
+
+                return node;
+            }
+
+            protected override Expression VisitSwitch(SwitchExpression node) => node.Update(base.Visit(node.SwitchValue), node.Cases, node.DefaultBody);
+
+            protected override SwitchCase VisitSwitchCase(SwitchCase node)
+            {
+                var visitor = new IgnoreIfNullExpressionVisitor();
+
+                var testValues = new List<Expression>();
+
+                if (node.TestValues?.Count > 0)
+                {
+                    foreach (var item in node.TestValues)
+                    {
+                        testValues.Add(visitor.Visit(item));
+                    }
+                }
+
+                var body = visitor.Visit(node.Body);
+
+                if (visitor.HasIgnore)
+                {
+                    testValues.Insert(0, visitor.Test);
+                }
+
+                return node.Update(testValues, body);
+            }
+
+            protected override Expression VisitMemberInit(MemberInitExpression node)
+            {
+                var bindings = new List<MemberBinding>(node.Bindings.Count);
+                var expressionTests = new List<Tuple<Expression, MemberInfo, Expression>>();
+
+                foreach (MemberAssignment assignment in node.Bindings.Cast<MemberAssignment>())
+                {
+                    var visitor = new IgnoreIfNullExpressionVisitor();
+
+                    var body = visitor.Visit(assignment.Expression);
+
+                    if (visitor.HasIgnore)
+                    {
+                        expressionTests.Add(Tuple.Create(visitor.Test, assignment.Member, body));
+                    }
+                    else
+                    {
+                        bindings.Add(assignment);
+                    }
+                }
+
+                var instance = (NewExpression)base.VisitNew(node.NewExpression);
+
+                if (expressionTests.Count == 0)
+                {
+                    return node.Update(instance, bindings);
+                }
+
+                var instanceVar = Variable(instance.Type);
+
+                var expressions = new List<Expression>(expressionTests.Count + 1)
+                {
+                    Assign(instanceVar, node.Update(instance, bindings))
+                };
+
+                foreach (var tuple in expressionTests)
+                {
+                    expressions.Add(IfThen(tuple.Item1, Assign(MakeMemberAccess(instanceVar, tuple.Item2), tuple.Item3)));
+                }
+
+                return Block(new ParameterExpression[] { instanceVar }, expressions);
+            }
+
+            public static MapperExpressionVisitor Instance = new MapperExpressionVisitor();
+        }
+
+        /// <summary>
+        /// 忽略表达式枚举值。
+        /// </summary>
+        private const ExpressionType IgnoreIf = (ExpressionType)(-1);
+
+        /// <summary>
+        /// 为 null 时，忽略。
+        /// </summary>
+        private class IgnoreIfNullExpressionVisitor : ExpressionVisitor
+        {
+            private readonly HashSet<Expression> ignoreIfNull = new HashSet<Expression>();
+
+            public IgnoreIfNullExpressionVisitor()
+            {
+            }
+
+            /// <summary>
+            /// 是否含有忽略条件。
+            /// </summary>
+            public bool HasIgnore { private set; get; }
+
+            /// <summary>
+            /// 是否不为空。
+            /// </summary>
+            public Expression Test { private set; get; }
+
+            /// <inheritdoc/>
+            protected override Expression VisitSwitch(SwitchExpression node)
+            {
+                return node.Update(base.Visit(node.SwitchValue), node.Cases, node.DefaultBody);
+            }
+
+            /// <inheritdoc/>
+            protected override Expression VisitBinary(BinaryExpression node) => node;
+
+            /// <inheritdoc/>
+            protected override MemberAssignment VisitMemberAssignment(MemberAssignment node) => node;
+
+            /// <summary>
+            /// 访问为空忽略表达式。
+            /// </summary>
+            /// <param name="node">判空节点。</param>
+            /// <returns>新的表达式。</returns>
+            public Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
+            {
+                if (ignoreIfNull.Add(node.Test))
+                {
+                    if (HasIgnore)
+                    {
+                        Test = AndAlso(Test, node.Test);
+                    }
+                    else
+                    {
+                        HasIgnore = true;
+
+                        Test = node.Test;
+                    }
+                }
+
+                return node.CanReduce ? node.Reduce() : node;
+            }
+        }
+
+        /// <summary>
+        /// 忽略表达式。
+        /// </summary>
+        private class IgnoreIfNullExpression : Expression
+        {
+            private readonly Type type;
+            private readonly Expression node;
+            private readonly Expression test;
+            private readonly bool keepNullable;
+
+            /// <summary>
+            /// 构造函数。
+            /// </summary>
+            /// <param name="node">数据节点。</param>
+            /// <param name="test">条件节点。</param>
+            /// <param name="keepNullable">是否保持原可空类型。</param>
+            /// <exception cref="ArgumentNullException"></exception>
+            public IgnoreIfNullExpression(Expression node, Expression test, bool keepNullable)
+            {
+                this.node = node ?? throw new ArgumentNullException(nameof(node));
+                this.test = test ?? throw new ArgumentNullException(nameof(test));
+                this.keepNullable = keepNullable;
+
+                if (node.Type.IsNullable())
+                {
+                    type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type);
+                }
+                else
+                {
+                    type = node.Type;
+                }
+            }
+
+            /// <summary>
+            /// 非空条件。
+            /// </summary>
+            public Expression Test => test;
+
+            /// <summary>
+            /// 类型。
+            /// </summary>
+            public override Type Type => type;
+
+            /// <summary>
+            /// 节点类型。
+            /// </summary>
+            public override ExpressionType NodeType => IgnoreIf;
+
+            public override bool CanReduce => true;
+
+            public override Expression Reduce()
+            {
+                if (keepNullable)
+                {
+                    goto label_original;
+                }
+
+                if (node.Type.IsNullable())
+                {
+                    return Property(node, "Value");
+                }
+
+label_original:
+                return node;
+            }
+
+            /// <summary>
+            /// 分配为默认值。
+            /// </summary>
+            /// <param name="visitor">访问器。</param>
+            /// <returns></returns>
+            protected override Expression Accept(ExpressionVisitor visitor)
+            {
+                if (visitor is IgnoreIfNullExpressionVisitor ignoreVisitor)
+                {
+                    return ignoreVisitor.VisitIgnoreIfNull(this);
+                }
+
+                return visitor.Visit(Reduce());
+            }
+        }
+
+        #endregion
     }
 }

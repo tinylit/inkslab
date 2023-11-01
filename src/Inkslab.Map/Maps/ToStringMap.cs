@@ -19,9 +19,11 @@ namespace Inkslab.Map.Maps
         public bool IsMatch(Type sourceType, Type destinationType) => destinationType == MapConstants.StirngType;
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             Type objectType = MapConstants.ObjectType;
+
+            Type sourceType = sourceExpression.Type;
 
             var toStringMethod = sourceType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
 

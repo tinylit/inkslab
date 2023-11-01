@@ -20,8 +20,10 @@ namespace Inkslab.Map.Maps
         public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && (destinationType == typeof(Guid) || destinationType == typeof(Version) || destinationType == typeof(TimeSpan) || destinationType == typeof(DateTimeOffset));
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
+            Type sourceType = sourceExpression.Type;
+
             var parseMethod = destinationType.GetMethod("Parse", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null);
 
             return Call(null, parseMethod, sourceExpression);

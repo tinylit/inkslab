@@ -20,9 +20,9 @@ namespace Inkslab.Map.Maps
             => destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceType }, null) is not null;
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
-            var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceType }, null);
+            var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceExpression.Type }, null);
 
             return New(constructorInfo, sourceExpression);
         }

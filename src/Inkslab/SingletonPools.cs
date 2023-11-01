@@ -23,6 +23,14 @@ namespace Inkslab
         /// <summary>
         /// 添加服务。
         /// </summary>
+        /// <returns>是否添加成功。</returns>
+        public static bool TryAdd<TService>()
+            where TService : class
+        => Nested<TService>.TryAdd(() => Nested<TService, TService>.Instance);
+
+        /// <summary>
+        /// 添加服务。
+        /// </summary>
         /// <param name="instance">实现。</param>
         /// <typeparam name="TService">服务类型。</typeparam>
         /// <returns>是否添加成功。</returns>
@@ -34,7 +42,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(instance));
             }
 
-            return Nested<TService>.TryAdd(instance, true);
+            return Nested<TService>.TryAdd(instance);
         }
 
         /// <summary>
@@ -51,7 +59,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(factory));
             }
 
-            return Nested<TService>.TryAdd(factory, true);
+            return Nested<TService>.TryAdd(factory);
         }
 
         /// <summary>
@@ -95,49 +103,23 @@ namespace Inkslab
             private static volatile bool _useBaseTryAdd = true;
             private static volatile bool _uninitialized = true;
 
-            static Nested() => ServiceCachings[typeof(TService)] = typeof(Nested<TService>);
-
             protected static void AddDefaultImpl(Func<TService> factory)
             {
                 if (_uninitialized)
                 {
-                    TryAdd(factory);
+                    TryAddCore(factory);
                 }
             }
 
-            public static bool TryAdd(TService instance, bool defineService = false)
+            private static bool TryAddCore(Func<TService> factory, bool defineService = false)
             {
                 if (defineService || _useBaseTryAdd)
                 {
                     if (defineService)
                     {
                         _useBaseTryAdd = false;
-                    }
 
-                    _uninitialized &= false;
-
-                    if (!_lazy.IsValueCreated)
-                    {
-#if NETSTANDARD2_1_OR_GREATER
-                        _lazy = new Lazy<TService>(instance);
-#else
-                        _lazy = new Lazy<TService>(() => instance);
-#endif
-
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-
-            public static bool TryAdd(Func<TService> factory, bool defineService = false)
-            {
-                if (defineService || _useBaseTryAdd)
-                {
-                    if (defineService)
-                    {
-                        _useBaseTryAdd = false;
+                        ServiceCachings[typeof(TService)] = typeof(Nested<TService>);
                     }
 
                     _uninitialized &= false;
@@ -152,6 +134,10 @@ namespace Inkslab
 
                 return false;
             }
+
+            public static bool TryAdd(TService instance) => TryAdd(() => instance);
+
+            public static bool TryAdd(Func<TService> factory) => TryAddCore(factory, true);
 
             public static TService Instance => _lazy.Value;
         }

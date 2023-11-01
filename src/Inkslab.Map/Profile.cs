@@ -1243,7 +1243,7 @@ label_auto:
                 return Block(destinationType, variables, expressions);
             }
 
-            return ToSolve(sourceExpression, sourceExpression.Type, destinationType, application);
+            return ToSolve(sourceExpression, destinationType, application);
         }
 
         /// <summary>

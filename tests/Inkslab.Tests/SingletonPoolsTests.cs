@@ -79,8 +79,27 @@ namespace Inkslab.Tests
         /// 构造函数注入单例测试。
         /// </summary>
         [Fact]
+        public void TestCombinationAntiPollution()
+        {
+            //? 先获取 SimpleB 的单例。
+            var simpleB = SingletonPools.Singleton<SimpleB>();
+            var combinationC1 = SingletonPools.Singleton<CombinationC>();
+            var combinationC2 = SingletonPools.Singleton<CombinationC>();
+
+            Assert.False(simpleB is null);
+            // Assert.True(combinationC2.SimpleB is null); 因为 SingletonPools 是线程级的，并行测试时，可能受到 TestCombinationWithB 的干扰。
+            Assert.Equal(combinationC1, combinationC2);
+        }
+
+        /// <summary>
+        /// 构造函数注入单例测试。
+        /// </summary>
+        [Fact]
         public void TestCombinationWithB()
         {
+            //? 注册单列。
+            SingletonPools.TryAdd<SimpleB>();
+
             //? 先获取 SimpleB 的单例。
             var simpleB = SingletonPools.Singleton<SimpleB>();
             var combinationC1 = SingletonPools.Singleton<CombinationC>();
@@ -97,7 +116,7 @@ namespace Inkslab.Tests
         {
             //? 先获取 CombinationC 的单例。
             var combinationC1 = SingletonPools.Singleton<CombinationC>();
-            SingletonPools.Singleton<SimpleB>();
+            SingletonPools.TryAdd<SimpleB>();
             var combinationC2 = SingletonPools.Singleton<CombinationC>();
 
             //Assert.True(combinationC2.SimpleB is null); 单例池全局唯一，项目启动后，第一次获取就会生成唯一实例。为了避免CI/CD批处理异常注释了，如果需要证实，请去除注释，单独执行本方法。
