@@ -19,6 +19,6 @@ namespace Inkslab.Map.Maps
         public bool IsMatch(Type sourceType, Type destinationType) => destinationType.IsAssignableFrom(sourceType) && typeof(ICloneable).IsAssignableFrom(sourceType);
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application) => Convert(Call(sourceExpression, MapConstants.CloneMtd), destinationType);
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application) => Convert(Call(sourceExpression, MapConstants.CloneMtd), destinationType);
     }
 }

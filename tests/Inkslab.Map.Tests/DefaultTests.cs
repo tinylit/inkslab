@@ -91,6 +91,54 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
+    /// <inheritdoc/>.
+    /// </summary>
+    public class E
+    {
+        /// <summary>
+        /// A1.
+        /// </summary>
+        public long A1 { get; set; }
+        /// <summary>
+        /// A2.
+        /// </summary>
+        public string A2 { get; set; }
+        /// <summary>
+        /// A3.
+        /// </summary>
+        public DateTime? A3 { get; set; }
+
+        /// <summary>
+        /// A4
+        /// </summary>
+        public D A4 { get; set; }
+    }
+
+    /// <summary>
+    /// <inheritdoc/>.
+    /// </summary>
+    public class F
+    {
+        /// <summary>
+        /// A1.
+        /// </summary>
+        public long A1 { get; set; }
+        /// <summary>
+        /// A2.
+        /// </summary>
+        public string A2 { get; set; }
+        /// <summary>
+        /// A3.
+        /// </summary>
+        public DateTime? A3 { get; set; }
+
+        /// <summary>
+        /// A4
+        /// </summary>
+        public A A4 { get; set; } = new A();
+    }
+
+    /// <summary>
     /// Ä¬ÈÏ²âÊÔ¡£
     /// </summary>
     public class DefaultTests
@@ -335,6 +383,24 @@ namespace Inkslab.Map.Tests
             var destinationHashSet = Mapper.Map<HashSet<C>>(sourceList);
 
             Assert.True(destinationHashSet.Count == sourceList.Count);
+        }
+
+        /// <summary>
+        /// ²âÊÔÊôĞÔÎªnullµÄÓ³Éä¡£
+        /// </summary>
+        [Fact]
+        public void MapPropertyIsNull()
+        {
+            var e = new E
+            {
+                A1 = 1,
+                A2 = "2",
+                A3 = DateTime.Now
+            };
+
+            var f = Mapper.Map<F>(e);
+
+            Assert.False(f.A4 is null);
         }
     }
 }

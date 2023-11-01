@@ -39,14 +39,7 @@ namespace Inkslab.Map.Maps
         {
             var expressions = new List<Expression>();
 
-            foreach (var node in ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, application))
-            {
-                var visitor = new IgnoreIfNullExpressionVisitor();
-
-                var bodyExp = visitor.Visit(node);
-
-                expressions.Add(visitor.HasIgnore ? IfThen(visitor.Test, bodyExp) : bodyExp);
-            }
+            expressions.AddRange(ToSolveCore(sourceExpression, sourceType, destinationExpression, destinationType, application));
 
             if (expressions.Count > 0)
             {

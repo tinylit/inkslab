@@ -25,8 +25,10 @@ namespace Inkslab.Map.Maps
             (IsPrimitive(sourceType) && IsPrimitive(destinationType));
 
         /// <inheritdoc/>
-        public Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
+            Type sourceType = sourceExpression.Type;
+
             if (sourceType == destinationType)
             {
                 return sourceExpression;

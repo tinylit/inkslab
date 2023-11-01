@@ -30,7 +30,7 @@ namespace Inkslab.Map.Maps
                 && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
 
         /// <inheritdoc/>
-        public override Expression ToSolve(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
+        public override Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             if (destinationType.IsArray)
             {
@@ -39,6 +39,8 @@ namespace Inkslab.Map.Maps
                     throw new InvalidCastException($"暂不支持映射到多维数组({destinationType})!");
                 }
             }
+
+            Type sourceType = sourceExpression.Type;
 
             if (sourceType.IsArray)
             {
@@ -58,7 +60,7 @@ namespace Inkslab.Map.Maps
                 return ToArray(sourceExpression, destinationType.GetElementType(), application);
             }
 
-            return base.ToSolve(sourceExpression, sourceType, destinationType, application);
+            return base.ToSolve(sourceExpression, destinationType, application);
         }
 
         private static bool TryGet(Type destinationType, out Type elementType, out MethodInfo addElementMtd)
