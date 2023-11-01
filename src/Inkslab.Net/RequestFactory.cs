@@ -51,8 +51,20 @@ namespace Inkslab.Net
         private static readonly Type dateType = typeof(DateTime);
         private static readonly MethodInfo dateToStringFn = dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
-        private static readonly LFU<double, HttpClient> clients = new LFU<double, HttpClient>(100, timeout => new HttpClient { Timeout = TimeSpan.FromMilliseconds(timeout) });
-
+#if NET_Traditional
+        private static readonly LFU<double, HttpClient> clients = new LFU<double, HttpClient>(100, timeout => new HttpClient
+        {
+            Timeout = TimeSpan.FromMilliseconds(timeout)
+        });
+#else
+        private static readonly LFU<double, HttpClient> clients = new LFU<double, HttpClient>(100, timeout => new HttpClient(new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        })
+        {
+            Timeout = TimeSpan.FromMilliseconds(timeout)
+        });
+#endif
         private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> cachings = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
 
         private static readonly Dictionary<string, MediaTypeHeaderValue> mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
@@ -1346,6 +1358,13 @@ namespace Inkslab.Net
                 }
             }
         }
+
+#if NET_Traditional
+        static RequestFactory()
+        {
+            ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => true;
+        }
+#endif
 
         /// <summary>
         /// 请求工厂。
