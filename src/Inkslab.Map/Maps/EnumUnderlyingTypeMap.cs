@@ -86,9 +86,7 @@ namespace Inkslab.Map.Maps
                 }
 
                 //? 源有符号，目标类型为无符号。如:short, ushort
-                return Condition(GreaterThan(sourceExpression, Constant(-1, sourceType)),
-                         ThrowError(sourceExpression, sourceType, sourceType, conversionType),
-                         Convert(sourceExpression, conversionType));
+                return Block(IfThen(GreaterThan(sourceExpression, Constant(-1, sourceType)), ThrowError(sourceExpression, sourceType, sourceType, conversionType)), Convert(sourceExpression, conversionType));
             }
 
             ConstantExpression constantExpression = Type.GetTypeCode(sourceUnderlyingType) switch
@@ -104,9 +102,7 @@ namespace Inkslab.Map.Maps
                 _ => Constant(-1, sourceUnderlyingType),
             };
 
-            return Condition(GreaterThan(Convert(sourceExpression, sourceUnderlyingType), constantExpression),
-                    ThrowError(Convert(sourceExpression, sourceUnderlyingType), sourceUnderlyingType, sourceType, conversionType),
-                    Convert(sourceExpression, conversionType));
+            return Block(IfThen(GreaterThan(Convert(sourceExpression, sourceUnderlyingType), constantExpression), ThrowError(Convert(sourceExpression, sourceUnderlyingType), sourceUnderlyingType, sourceType, conversionType)), Convert(sourceExpression, conversionType));
         }
 
         private static Expression ThrowError(Expression variable, Type sourceUnderlyingType, Type sourceType, Type conversionType)

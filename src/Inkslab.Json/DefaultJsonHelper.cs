@@ -4,6 +4,7 @@ using System;
 using Inkslab.Serialize.Json;
 using System.Collections.Generic;
 using Inkslab.Annotations;
+using System.Reflection;
 
 namespace Inkslab.Json
 {
@@ -17,60 +18,48 @@ namespace Inkslab.Json
         /// </summary>
         private class JsonContractResolver : DefaultContractResolver
         {
-            private readonly NamingType _camelCase;
+            private readonly NamingType camelCase;
             /// <summary>
             /// 构造定义命名解析风格。
             /// </summary>
             /// <param name="namingCase">命名规则。</param>
-            public JsonContractResolver(NamingType namingCase) => _camelCase = namingCase;
-
-            /// <summary>
-            /// 属性名解析。
-            /// </summary>
-            /// <param name="propertyName">属性名称。</param>
-            /// <returns></returns>
-            protected override string ResolvePropertyName(string propertyName) 
-                => _camelCase == NamingType.Normal 
-                    ? base.ResolvePropertyName(propertyName) 
-                    : propertyName.ToNamingCase(_camelCase);
+            public JsonContractResolver(NamingType namingCase) => camelCase = namingCase;
 
             /// <summary>
             /// 属性。
             /// </summary>
-            /// <param name="type">类型。</param>
-            /// <param name="memberSerialization">序列化成员。</param>
-            /// <returns></returns>
-            protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
+            protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
             {
-                var ignoreAttr = typeof(IgnoreAttribute);
+                JsonProperty property = base.CreateProperty(member, memberSerialization);
 
-                var jsonProperties = base.CreateProperties(type, memberSerialization);
-
-                for (int i = jsonProperties.Count - 1; i >= 0; i--)
+                if (property.Ignored)
                 {
-                    JsonProperty property = jsonProperties[i];
 
-                    if (property is null)
-                    {
-                        continue;
-                    }
-
-                    var attrProvider = property.AttributeProvider;
-
-                    if (attrProvider is null)
-                    {
-                        continue;
-                    }
-
-                    var attrs = attrProvider.GetAttributes(ignoreAttr, true);
-
-                    if (attrs.Count > 0)
-                    {
-                        property.Ignored = true;
-                    }
+                }
+                else if (member.IsIgnore())
+                {
+                    property.Ignored = true;
                 }
 
-                return jsonProperties;
+                var nameAtti = member.GetCustomAttribute<JsonElementAttribute>();
+
+                if (nameAtti is null)
+                {
+                    if (camelCase == NamingType.Normal)
+                    {
+
+                    }
+                    else
+                    {
+                        property.PropertyName = member.Name.ToNamingCase(camelCase);
+                    }
+                }
+                else
+                {
+                    property.PropertyName = nameAtti.Name;
+                }
+
+                return property;
             }
         }
 

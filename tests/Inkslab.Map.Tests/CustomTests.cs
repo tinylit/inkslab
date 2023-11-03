@@ -73,11 +73,14 @@ namespace Inkslab.Map.Tests
     /// </summary>
     public class GrpcField
     {
+        /// <inheritdoc/>
         public RepeatedField<int> Ints { get; } = new RepeatedField<int>();
     }
 
+    /// <inheritdoc/>
     public class TestGrpc
     {
+        /// <inheritdoc/>
         public List<C1> C4s { get; set; }
     }
 
@@ -86,6 +89,7 @@ namespace Inkslab.Map.Tests
     /// </summary>
     public class GrpcFieldV2
     {
+        /// <inheritdoc/>
         public RepeatedField<C4> C4s { get; } = new RepeatedField<C4>();
     }
 
@@ -94,6 +98,7 @@ namespace Inkslab.Map.Tests
     /// </summary>
     public class ReadOnlyAbstractCollection
     {
+        /// <inheritdoc/>
         public IList<C4> C4s { get; } = new List<C4>();
     }
 
@@ -150,17 +155,23 @@ namespace Inkslab.Map.Tests
     /// <typeparam name="T"></typeparam>
     public class G1<T>
     {
+
+        /// <inheritdoc/>
         public G1(T value)
         {
             Value = value;
         }
 
+        /// <inheritdoc/>
         public T Value { get; }
 
+        /// <inheritdoc/>
         public int Version { get; set; }
 
+        /// <inheritdoc/>
         public DateTime P3 { get; set; }
 
+        /// <inheritdoc/>
         public DateTime Time { get; set; }
     }
 

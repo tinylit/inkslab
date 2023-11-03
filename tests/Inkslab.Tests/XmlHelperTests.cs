@@ -22,6 +22,7 @@ namespace Inkslab.Tests
         /// <summary>
         /// 生成 <![CDATA[{value}]]>
         /// </summary>
+        [XmlElement("C1")]
         public CData A2 { get; set; }
 
         /// <summary>
@@ -48,7 +49,7 @@ namespace Inkslab.Tests
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public string A2 { get; set; }
+        public string C1 { get; set; }
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
@@ -85,7 +86,7 @@ namespace Inkslab.Tests
 
             Assert.True(x.A1 == 200);
             Assert.True(x2.A1 == 100);
-            Assert.True(x.A2 == x2.A2);
+            Assert.True(x.A2 == x2.C1);
             Assert.True(x.A3 == x2.A3);
         }
     }
