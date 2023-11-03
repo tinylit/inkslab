@@ -41,9 +41,9 @@ namespace Inkslab.Json
                     property.Ignored = true;
                 }
 
-                var nameAtti = member.GetCustomAttribute<ElementAttribute>();
+                var nameAtti = member.GetCustomAttribute<JsonElementAttribute>();
 
-                if (nameAtti is null || string.IsNullOrEmpty(nameAtti.ElementName))
+                if (nameAtti is null)
                 {
                     if (camelCase == NamingType.Normal)
                     {
@@ -56,7 +56,7 @@ namespace Inkslab.Json
                 }
                 else
                 {
-                    property.PropertyName = nameAtti.ElementName;
+                    property.PropertyName = nameAtti.Name;
                 }
 
                 return property;

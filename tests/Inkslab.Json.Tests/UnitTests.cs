@@ -21,8 +21,35 @@ namespace Inkslab.Json.Tests
         /// <summary>
         /// <see cref="A2"/>
         /// </summary>
-        [Element("C1")]
+        [JsonElement("C1")]
         public int A2 { get; set; }
+
+        /// <summary>
+        /// <see cref="A3"/>
+        /// </summary>
+        public string A3 { get; set; } = string.Empty;
+
+        /// <summary>
+        /// <see cref="A4"/>
+        /// </summary>
+        public DateTime A4 { get; set; }
+    }
+
+    /// <summary>
+    /// <inheritdoc/>
+    /// </summary>
+    public class B
+    {
+        /// <summary>
+        /// 不序列化这个属性。
+        /// </summary>
+        [Ignore]
+        public int A1 { get; set; } = 100;
+
+        /// <summary>
+        /// <see cref="C1"/>
+        /// </summary>
+        public int C1 { get; set; }
 
         /// <summary>
         /// <see cref="A3"/>
@@ -105,12 +132,12 @@ namespace Inkslab.Json.Tests
 
             Debug.WriteLine(json);
 
-            var a1 = JsonHelper.Json<A>(json);
+            var a1 = JsonHelper.Json<B>(json, NamingType.SnakeCase);
 
             //? 标记忽略的属性，目标使用默认值。
             Assert.NotEqual(a.A1, a1.A1);
 
-            Assert.Equal(a.A2, a1.A2);
+            Assert.Equal(a.A2, a1.C1);
 
             //? null 被忽略，目标使用默认值。
             Assert.NotEqual(a.A3, a1.A3);

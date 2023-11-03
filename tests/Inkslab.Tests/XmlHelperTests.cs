@@ -22,7 +22,7 @@ namespace Inkslab.Tests
         /// <summary>
         /// 生成 <![CDATA[{value}]]>
         /// </summary>
-        [Element("C1")]
+        [XmlElement("C1")]
         public CData A2 { get; set; }
 
         /// <summary>
