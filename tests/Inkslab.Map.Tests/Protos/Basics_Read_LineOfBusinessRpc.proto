@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+option csharp_namespace = "Basics.Rpc.Read.LineOfBusinessRpc";
+package Basics.Rpc.Read;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+//业务线
+service LineOfBusinessRpc {
+  //根据业务线id 查询业务线信息
+  rpc GetByIds(LineOfBusinessBaseIdsRequest) returns (ListRpcResponse);
+   //根据业务线id 查询业务线信息
+  rpc GetById(LineOfBusinessBaseIdRequest) returns (GetByIdRpcResponse);
+  //查询所有的事业部
+  rpc GetAllLineOfBusiness(google.protobuf.Empty) returns (ListRpcResponse);
+}
+
+// 根据业务线id 查询业务线信息
+message LineOfBusinessBaseIdsRequest {
+  repeated int64 ids = 1; //主键
+}
+
+// 根据业务线id 查询业务线信息
+message LineOfBusinessBaseIdRequest {
+  int64 id = 1; //主键
+}
+
+//出参
+message GetByIdRpcResponse {
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	LineOfBusinessRpcDto Data = 4;
+}
+
+//出参
+message ListRpcResponse {
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated LineOfBusinessRpcDto Data = 4;
+}
+
+//返回数据
+message LineOfBusinessRpcDto{
+	int64 Id = 1;						//主键
+	int64 ParentId = 2;					//业务主线Id
+	string Code = 3;					//业务编号
+	string Name = 4;					//名称
+	string Slogan = 5;					//标语
+	string Logo = 6;					//标识(logo)
+	bool IsEnabled = 7;					//是否启用
+	string AllocationProgramEntry = 8;	//程序入口
+	EnumSkinColour SkinColour = 9;		//皮肤颜色类型
+	int32 InstitutionTypes = 10;		//事业部注册客户类型
+	string SkinColourTxt = 11;			//颜色类型
+}
+
+//业务线皮肤颜色类型
+enum EnumSkinColour{
+	Zero = 0;// 占位
+	Red = 1; //红色
+	Blue = 2;//蓝色
+	Green = 3;//绿色
+}

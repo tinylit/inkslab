@@ -3,7 +3,6 @@ using Inkslab.Serialize.Json;
 using Newtonsoft.Json;
 using System;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using Xunit;
 
 namespace Inkslab.Json.Tests
@@ -22,6 +21,7 @@ namespace Inkslab.Json.Tests
         /// <summary>
         /// <see cref="A2"/>
         /// </summary>
+        [Element("C1")]
         public int A2 { get; set; }
 
         /// <summary>
@@ -101,7 +101,7 @@ namespace Inkslab.Json.Tests
                 A4 = DateTime.Now
             };
 
-            var json = JsonHelper.ToJson(a);
+            var json = JsonHelper.ToJson(a, NamingType.SnakeCase);
 
             Debug.WriteLine(json);
 

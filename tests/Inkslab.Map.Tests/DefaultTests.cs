@@ -1,8 +1,8 @@
-using System;
-using Xunit;
 using Inkslab.Map.Maps;
-using System.Text;
+using System;
 using System.Collections.Generic;
+using System.Text;
+using Xunit;
 
 namespace Inkslab.Map.Tests
 {
@@ -136,6 +136,62 @@ namespace Inkslab.Map.Tests
         /// A4
         /// </summary>
         public A A4 { get; set; } = new A();
+    }
+
+    /// <summary>
+    /// 业务线
+    /// </summary>
+    public class LineOfBusinessOutDto
+    {
+        /// <summary>
+        /// 主键Id
+        /// </summary>
+        public long Id { get; set; }
+
+        /// <summary>
+        /// 业务主线Id
+        /// </summary>
+        public long ParentId { get; set; }
+
+        /// <summary>
+        /// 业务编号
+        /// </summary>
+        public string Code { get; set; }
+
+        /// <summary>
+        /// 名称
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// 标语
+        /// </summary>
+        public string Slogan { get; set; }
+
+        /// <summary>
+        /// 标识(logo)
+        /// </summary>
+        public string Logo { get; set; }
+
+        /// <summary>
+        /// 是否启用
+        /// </summary>
+        public bool IsEnabled { get; set; }
+
+        /// <summary>
+        /// 程序入口
+        /// </summary>
+        public string AllocationProgramEntry { get; set; }
+
+        /// <summary>
+        /// 皮肤颜色类型
+        /// </summary>
+        public int SkinColour { get; set; }
+
+        /// <summary>
+        /// 皮肤颜色类型
+        /// </summary>
+        public string SkinColourTxt { get; set; }
     }
 
     /// <summary>
@@ -401,6 +457,17 @@ namespace Inkslab.Map.Tests
             var f = Mapper.Map<F>(e);
 
             Assert.False(f.A4 is null);
+        }
+
+        /// <summary>
+        /// RPC
+        /// </summary>
+        [Fact]
+        public void TestRPC()
+        {
+            var r = new Basics.Rpc.Read.LineOfBusinessRpc.LineOfBusinessRpcDto();
+
+            var f = Mapper.Map<LineOfBusinessOutDto>(r);
         }
     }
 }

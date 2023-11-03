@@ -1,0 +1,212 @@
+﻿syntax = "proto3";
+
+option csharp_namespace = "Organization.Rpc.Read.InstitutionRpc";
+package Organization.Rpc.Read;
+
+import "google/protobuf/timestamp.proto";
+
+/* 机构查询  */
+service InstitutionRpc {
+  //根据id查询机构信息
+  rpc GetByIds(InstitutionIdsRequest) returns (ByIdsRpcResponse);
+  //根据id查询机构信息
+  rpc GetById(InstitutionIdRequest) returns (ByIdRpcResponse);
+  //根据名字查询机构
+  rpc GetByName(GetByNameRequest) returns (GetByNameRpcResponse);
+  //指定用户id 所拥有的业务线
+  rpc GetLineOfBusinessIdsByUserId(UserIdRequest) returns (GetLineOfBusinessIdsByUserIdRpcResponse);
+  //查询用户指定业务线下授权的机构信息
+  rpc GetInstitutionAuthorByUserId(UserIdRequest) returns(GetInstitutionAuthorByUserIdRpcResponse);
+  //查询指定机构的收货信息
+  rpc GetInstitutionReceivingById(InstitutionIdRequest) returns (GetInstitutionReceivingByIdRpcResponse);
+  //查询指定机构的经营范围id
+  rpc GetBusinesSpoceIdById(InstitutionIdRequest) returns (GetBusinesSpoceIdByIdRpcResponse);
+  //根据名称模糊分页查询
+  rpc GetPagedListByLikeName(GetPagedListByLikeNameRequest) returns (GetPagedListByLikeNameRequestRpcResponse);
+  //校验创建机构数据
+  rpc CheckCreateInstitution(CheckCreateInstitutionRequest) returns (CheckCreateInstitutionRpcReply);
+}
+
+
+//根据id查询机构信息出参
+message ByIdRpcResponse {
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	InstitutionSimDtoReply Data = 4;
+}
+
+//根据id查询机构信息 入参
+message InstitutionIdsRequest {
+	repeated int64 ids = 1; //机构Id
+}
+
+//根据id查询机构信息 入参
+message InstitutionIdRequest {
+	int64 id = 1; //机构Id
+}
+
+//查询指定用户的业务线
+message UserIdRequest {
+	int64 id = 1; //用户Id
+}
+
+//返回id
+message GetLineOfBusinessIdsByUserIdRpcResponse{
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated int64 Data =4; //id 
+}
+
+//返回机构信息
+message GetPagedListByLikeNameRequestRpcResponse {
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated InstitutionSimDtoReply Data = 4;
+	int32 Count = 5; //总条数
+}
+
+//根据名字查询机构（入参）
+message GetPagedListByLikeNameRequest{
+	string Name = 1; //机构名字
+	int32 PageIndex = 2;
+	int32 PageSize = 3;
+}
+
+// 简单实体回参
+message GetByNameRpcResponse {
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	InstitutionSimDtoReply Data = 4;
+}
+
+//出参
+message GetInstitutionReceivingByIdRpcResponse{
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated InstitutionReceivingRpc Data = 4;//分页返回的数据
+}
+
+//查询指定机构的收货信息
+message InstitutionReceivingRpc {
+	int64 Id = 1;					//主键
+	string Name = 2;				//机构名字
+	EnumInstitutionType Type = 3;	//机构类别
+	bool IsHeadquarters = 4;		//是否为总店/总部
+	string ReceivingAddress = 5;	//收货地址
+	string Address = 6;				//注册地址
+	bool IsLastLogistics = 7;		//是否是上次物流
+	int64 ReceivingAreaId =8;		//收货地址区域
+	int64 ReceivingUserId = 9;		//收货人Id
+	bool IsDefault = 10;			//是否默认当前门店
+}
+
+//机构基础信息
+message InstitutionSimDtoReply{
+	int64 Id = 1;							//主键
+	string Name = 2;						//机构名字
+	EnumInstitutionType Type = 3;			//机构类别
+	EnumOrganization Organization = 4;		//机构是否有主子
+	EnumBusinessNature BusinessNature = 5;	//经营性质
+	double Lng = 6;							//经度
+	double Lat = 7;							//纬度
+	int64 AreaId = 8;						//注册区域Id
+	string ReceivingAddress = 9;			//收货地址
+	string Address = 10;					//注册地址
+	int64 ReceivingAreaId = 11;				//收货地址
+	int64 ContactsId = 12;					//联系人id
+	bool IsHeadquarters = 13;				//是否为总店/总部
+	string CreateTime =14;					//创建时间
+}
+
+//根据id查询机构信息出参
+message ByIdsRpcResponse {
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated InstitutionSimDtoReply Data = 4;
+}
+
+//用户授权的实体(出参)
+message GetInstitutionAuthorByUserIdRpcResponse{
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated InstitutionAuthorRpcOutDto Data = 4; //授权机构信息
+}
+
+//根据名字查询机构（入参）
+message GetByNameRequest{
+	string Name = 1; //机构名字
+}
+
+//返回经营范围id
+message GetBusinesSpoceIdByIdRpcResponse{
+	int32 Code = 1;
+    string Msg = 2;
+    google.protobuf.Timestamp Timestamp = 3;
+	repeated int64 Data =4; //返回经营范围 
+}
+
+//用户授权的实体
+message InstitutionAuthorRpcOutDto {
+	int64 Id = 1;							//主键
+	string Name = 2;						//机构名字
+	EnumInstitutionType Type = 3;			//机构类别
+	EnumBusinessNature BusinessNature = 4;	//经营性质
+	int64 AreaId = 5;						//注册区域Id
+	string ReceivingAddress = 6;			//收货地址
+	string Address = 7;						//注册地址
+	int64 ReceivingAreaId = 8;				//收货地址
+	int32 AccountType = 9;					//账号类别
+	int64 LobId = 10;						//业务线Id 
+	int64 ContactsId = 11;					//联系人id
+}
+
+//校验创建机构数据(出参)
+message CheckCreateInstitutionRpcReply{
+  int32 Code = 1;
+  bool Data = 2;
+  string Msg = 3;
+  google.protobuf.Timestamp Timestamp = 4;
+}
+//校验创建机构数据(入参)
+message CheckCreateInstitutionRequest{
+	string Name =1;									//机构名称
+	EnumInstitutionType InstitutionType=2;			//机构类型
+	EnumBusinessNature BusinessNature=3;			//经营性质
+	string Address=4;								//地址信息
+	float Longitude=5;								//经度
+	float Latitude=6;								//纬度
+}
+
+//机构类别的枚举
+enum EnumInstitutionType {
+	Zero = 0;					// Grpc 必须要求从0 开始
+	Clinic = 1;					//诊所
+	HealthRoomOrStation = 2;	//卫生室/卫生站
+	Hospital = 4;				//卫生院
+	IndividualPharmacies = 8;	//单体药店
+	ChainDrugstores = 16;		//连锁药店
+	PrivateHospitals = 32;		//民营医院
+	PublicHospitals = 64;		//公立医院
+	ChainCompanies = 128;		//连锁公司
+	WholesaleCompany = 256;		//批发公司
+}
+
+//机构主子、连锁
+enum EnumOrganization {
+	None = 0;		//无
+	MainAndSub = 1; //主子机构
+	Chain = 3;		//连锁机构
+}
+
+enum EnumBusinessNature {
+	MustZero = 0;		//Grpc 必须要求从0开始
+	Profitability = 1;  //营利性
+	NotForProfit = 2;	//非营利性
+}
