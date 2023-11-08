@@ -57,6 +57,11 @@ namespace Inkslab.Map.Maps
 
             foreach (var propertyInfo in propertyInfos)
             {
+                if (propertyInfo.IsIgnore())
+                {
+                    continue;
+                }
+
                 var propertyType = propertyInfo.PropertyType;
 
                 var destinationProp = Property(destinationExpression, propertyInfo);
