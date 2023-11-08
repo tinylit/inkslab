@@ -12,11 +12,13 @@ namespace Inkslab.DI
     class DependencyInjectionServices : IDependencyInjectionServices
     {
         private readonly IServiceCollection services;
+        private readonly IServiceProvider service;
         private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
 
-        public DependencyInjectionServices(IServiceCollection services)
+        public DependencyInjectionServices(IServiceCollection services, IServiceProvider service)
         {
             this.services = services;
+            this.service = service;
         }
 
         public ICollection<Assembly> Assemblies { get => assemblies; }
@@ -131,7 +133,7 @@ namespace Inkslab.DI
             return services;
         }
 
-        private static void DiConfigureServices(IServiceCollection services, List<Type> assembliyTypes)
+        private void DiConfigureServices(IServiceCollection services, List<Type> assembliyTypes)
         {
             var configureServices = new List<IConfigureServices>();
 
@@ -139,7 +141,7 @@ namespace Inkslab.DI
 
             foreach (var type in assembliyTypes.Where(x => x.IsClass && !x.IsAbstract && configureServicesType.IsAssignableFrom(x)))
             {
-                configureServices.Add((IConfigureServices)Activator.CreateInstance(type));
+                configureServices.Add((IConfigureServices)ActivatorUtilities.CreateInstance(service, type));
             }
 
             foreach (var configure in configureServices)

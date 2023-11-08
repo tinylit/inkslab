@@ -562,32 +562,6 @@ namespace Inkslab.Map
                 return node;
             }
 
-            protected override Expression VisitSwitch(SwitchExpression node) => node.Update(base.Visit(node.SwitchValue), node.Cases, node.DefaultBody);
-
-            protected override SwitchCase VisitSwitchCase(SwitchCase node)
-            {
-                var visitor = new IgnoreIfNullExpressionVisitor();
-
-                var testValues = new List<Expression>();
-
-                if (node.TestValues?.Count > 0)
-                {
-                    foreach (var item in node.TestValues)
-                    {
-                        testValues.Add(visitor.Visit(item));
-                    }
-                }
-
-                var body = visitor.Visit(node.Body);
-
-                if (visitor.HasIgnore)
-                {
-                    testValues.Insert(0, visitor.Test);
-                }
-
-                return node.Update(testValues, body);
-            }
-
             protected override Expression VisitMemberInit(MemberInitExpression node)
             {
                 var bindings = new List<MemberBinding>(node.Bindings.Count);

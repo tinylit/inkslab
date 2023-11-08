@@ -61,9 +61,9 @@ namespace Inkslab.Map.Maps
         /// <exception cref="InvalidCastException">类型不能被转换。</exception>
         protected virtual IEnumerable<Expression> ToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
-            var propertyInfos = sourceType.GetProperties();
+            var propertyInfos = sourceType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
-            foreach (var propertyInfo in destinationType.GetProperties())
+            foreach (var propertyInfo in destinationType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
                 if (propertyInfo.IsIgnore())
                 {
