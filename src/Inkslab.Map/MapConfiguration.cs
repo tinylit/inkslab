@@ -455,6 +455,11 @@ namespace Inkslab.Map
 
             if (visitor.HasIgnore)
             {
+                if (sourceType.IsSimple())
+                {
+                    return IgnoreIfNull(Ignore(MapIgnore(sourceIgnore, sourceType, destinationType, application)), visitor.Test);
+                }
+
                 var sourceVariable = Variable(sourceIgnore.Type);
 
                 var destinationExp = Ignore(MapIgnore(sourceVariable, sourceType, destinationType, application));
@@ -503,6 +508,11 @@ namespace Inkslab.Map
         private static Expression IgnoreIfNull(Expression node, bool keepNullable = false)
         {
             if (node.NodeType == IgnoreIf)
+            {
+                return node;
+            }
+
+            if (node.NodeType == ExpressionType.TypeAs)
             {
                 return node;
             }

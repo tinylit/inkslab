@@ -31,7 +31,7 @@ namespace Inkslab.Map
         {
             var instanceExpression = CreateNew(destinationType);
 
-            var destinationExpression = Variable(destinationType, "instanceNew");
+            var destinationExpression = Variable(destinationType);
 
             var bodyExp = ToSolve(sourceExpression, sourceExpression.Type, destinationExpression, destinationType, application);
 
