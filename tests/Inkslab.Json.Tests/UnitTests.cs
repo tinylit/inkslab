@@ -21,7 +21,7 @@ namespace Inkslab.Json.Tests
         /// <summary>
         /// <see cref="A2"/>
         /// </summary>
-        [JsonElement("C1")]
+        [Annotations.JsonProperty("C1")]
         public int A2 { get; set; }
 
         /// <summary>

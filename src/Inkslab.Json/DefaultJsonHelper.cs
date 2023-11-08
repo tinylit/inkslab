@@ -1,9 +1,8 @@
-﻿using Newtonsoft.Json.Serialization;
+﻿using Inkslab.Serialize.Json;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using System;
-using Inkslab.Serialize.Json;
 using System.Collections.Generic;
-using Inkslab.Annotations;
 using System.Reflection;
 
 namespace Inkslab.Json
@@ -26,6 +25,16 @@ namespace Inkslab.Json
             public JsonContractResolver(NamingType namingCase) => camelCase = namingCase;
 
             /// <summary>
+            /// 属性名解析。
+            /// </summary>
+            /// <param name="propertyName">属性名称。</param>
+            /// <returns></returns>
+            protected override string ResolvePropertyName(string propertyName)
+                => camelCase == NamingType.Normal
+                    ? base.ResolvePropertyName(propertyName)
+                    : propertyName.ToNamingCase(camelCase);
+
+            /// <summary>
             /// 属性。
             /// </summary>
             protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
@@ -41,18 +50,11 @@ namespace Inkslab.Json
                     property.Ignored = true;
                 }
 
-                var nameAtti = member.GetCustomAttribute<JsonElementAttribute>();
+                var nameAtti = member.GetCustomAttribute<Annotations.JsonPropertyAttribute>();
 
                 if (nameAtti is null)
                 {
-                    if (camelCase == NamingType.Normal)
-                    {
 
-                    }
-                    else
-                    {
-                        property.PropertyName = member.Name.ToNamingCase(camelCase);
-                    }
                 }
                 else
                 {

@@ -35,7 +35,7 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
-            var propertyInfos = Array.FindAll(destinationType.GetProperties(), x => x.CanWrite);
+            var propertyInfos = Array.FindAll(destinationType.GetProperties(BindingFlags.Public | BindingFlags.Instance), x => x.CanWrite);
 
             if (propertyInfos.Length == 0)
             {
@@ -53,16 +53,37 @@ namespace Inkslab.Map.Maps
 
             List<SwitchCase> switchCases = new List<SwitchCase>();
 
+            var hash = new HashSet<string>();
+
             foreach (var propertyInfo in propertyInfos)
             {
+                if (propertyInfo.IsIgnore())
+                {
+                    continue;
+                }
+
                 var propertyType = propertyInfo.PropertyType;
 
                 var destinationProp = Property(destinationExpression, propertyInfo);
 
-                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyType)), Constant(propertyInfo.Name.ToLower())));
+                var testValues = new List<Expression>(5);
+
+                string propertyName = propertyInfo.Name;
+
+                foreach (NamingType namingType in Enum.GetValues(typeof(NamingType)))
+                {
+                    string name = propertyName.ToNamingCase(namingType);
+
+                    if (hash.Add(name))
+                    {
+                        testValues.Add(Constant(name));
+                    }
+                }
+
+                switchCases.Add(SwitchCase(Assign(destinationProp, application.Map(sourceValueProp, propertyType)), testValues));
             }
 
-            var bodyExp = Switch(MapConstants.VoidType, Call(sourceKeyProp, MapConstants.ToLowerMtd), null, null, switchCases);
+            var bodyExp = Switch(MapConstants.VoidType, sourceKeyProp, null, null, switchCases);
 
             return Block(new ParameterExpression[]
              {

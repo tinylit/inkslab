@@ -42,6 +42,11 @@ namespace Inkslab.Map.Maps
 
             foreach (var propertyInfo in propertyInfos)
             {
+                if (propertyInfo.IsIgnore())
+                {
+                    continue;
+                }
+
                 var keyExpression = Constant(propertyInfo.Name);
                 var valueExpression = application.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
 
