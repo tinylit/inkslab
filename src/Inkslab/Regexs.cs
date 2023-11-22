@@ -6,7 +6,7 @@ namespace Inkslab
     /// 正则表达式( 字段以 “Is” 开头时，代表完全匹配；否则，仅代表包含符合规则的内容)。
     /// </summary>
     /// <example>
-    /// 例如：<see cref="Regexs.IsMail"/>.IsMatch(<seealso cref="string"/>)，代表内容是邮件地址。
+    /// 例如：<see cref="IsMail"/>.IsMatch(<seealso cref="string"/>)，代表内容是邮件地址。
     /// </example>
     public static class Regexs
     {
