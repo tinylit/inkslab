@@ -1,5 +1,4 @@
 ﻿using Insklab.Exceptions;
-using Inkslab.Annotations;
 #if NET6_0_OR_GREATER
 using Microsoft.AspNetCore.Mvc;
 #endif

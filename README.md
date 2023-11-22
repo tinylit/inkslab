@@ -388,10 +388,14 @@ NuGet 包
     string named = "user_name".ToCamelCase(); // userName
     ```
 
-  - Url命名。
+  - 蛇形命名。
 
     ```c#
-    string named = "user_name".ToUrlCase(); // user_name
+    string named = "user_name".ToSnakeCase(); // user_name
+    ```
+  - 短横线命名
+    ```c#
+    string named = "user_name".ToKebabCase(); // user-name
     ```
 
 ### 字符串语法糖。
@@ -413,6 +417,8 @@ string value = "${a + b}".PropSugar(new { A = 1, B = 2 }); //=> value = "3"。
   - 试空合并运算符：A ?+ B
 
     当A为`null`时，返回`null`，否则按照【合并运算符】计算A+B的结果。
+  
+  -  属性后代：A.B 或 A.B.C ...
 
 标星历程图。
 

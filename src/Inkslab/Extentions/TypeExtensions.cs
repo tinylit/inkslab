@@ -51,6 +51,7 @@ namespace System
         static readonly Type CharType = typeof(char);
         static readonly Type StringType = typeof(string);
         static readonly Type DecimalType = typeof(decimal);
+        static readonly Type Byte_Array_Type = typeof(byte[]);
         static readonly Type Nullable_T_Type = typeof(Nullable<>);
         static readonly Type KeyValuePair_TKey_TValue_Type = typeof(KeyValuePair<,>);
 
@@ -77,8 +78,7 @@ namespace System
             typeof(Guid),
             typeof(TimeSpan),
             typeof(DateTime),
-            typeof(DateTimeOffset),
-            typeof(byte[])
+            typeof(DateTimeOffset)
         };
 
 
@@ -94,7 +94,7 @@ namespace System
         /// </summary>
         /// <param name="type">类型。</param>
         /// <returns>是返回True，不是返回False。</returns>
-        public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || type.IsPrimitive || _simpleTypes.Contains(type)) : type == StringType;
+        public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || type.IsPrimitive || _simpleTypes.Contains(type)) : type.IsArray ? type == Byte_Array_Type : type == StringType;
 
         /// <summary>
         /// 判断类型是否为Nullable类型。
