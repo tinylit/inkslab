@@ -44,9 +44,9 @@ namespace Inkslab.Net
         private static readonly Type kvType = typeof(KeyValuePair<string, object>);
         private static readonly ConstructorInfo kvCtor = kvType.GetConstructor(new Type[] { typeof(string), typeof(object) });
 
-        private static readonly Type listKVType = typeof(List<KeyValuePair<string, object>>);
-        private static readonly ConstructorInfo listKVCtor = listKVType.GetConstructor(new Type[] { typeof(int) });
-        private static readonly MethodInfo listKVAddFn = listKVType.GetMethod("Add", new Type[] { kvType });
+        private static readonly Type listKvType = typeof(List<KeyValuePair<string, object>>);
+        private static readonly ConstructorInfo listKvCtor = listKvType.GetConstructor(new Type[] { typeof(int) });
+        private static readonly MethodInfo listKvAddFn = listKvType.GetMethod("Add", new Type[] { kvType });
 
         private static readonly Type dateType = typeof(DateTime);
         private static readonly MethodInfo dateToStringFn = dateType.GetMethod("ToString", new Type[] { typeof(string) });
@@ -164,14 +164,14 @@ namespace Inkslab.Net
             var objectExp = Parameter(objectType, "param");
             var dateFormatStringExp = Parameter(typeof(string), "dateFormatString");
             var variableExp = Variable(type, "variable");
-            var dictionaryExp = Variable(listKVType, "dictionary");
+            var dictionaryExp = Variable(listKvType, "dictionary");
 
             var propertyInfos = Array.FindAll(type.GetProperties(), x => x.CanRead);
 
             var expressions = new List<Expression>
             {
                 Assign(variableExp, Convert(objectExp, type)),
-                Assign(dictionaryExp, New(listKVCtor, Constant(propertyInfos.Length)))
+                Assign(dictionaryExp, New(listKvCtor, Constant(propertyInfos.Length)))
             };
 
             foreach (var propertyInfo in propertyInfos)
@@ -188,7 +188,7 @@ namespace Inkslab.Net
                 {
                     valueExp = Property(propertyExp, "Value");
 
-                    propertyType = Nullable.GetUnderlyingType(propertyType);
+                    propertyType = Nullable.GetUnderlyingType(propertyType)!;
                 }
                 else
                 {
@@ -208,12 +208,12 @@ namespace Inkslab.Net
                         valueExp = Convert(valueExp, propertyType);
                     }
 
-                    var toStringFn = propertyType.GetMethod("ToString", Type.EmptyTypes);
+                    var toStringFn = propertyType.GetMethod("ToString", Type.EmptyTypes)!;
 
                     valueExp = Call(valueExp, toStringFn);
                 }
 
-                var bodyCallExp = Call(dictionaryExp, listKVAddFn, New(kvCtor, Constant(propertyInfo.Name), valueExp));
+                var bodyCallExp = Call(dictionaryExp, listKvAddFn, New(kvCtor, Constant(propertyInfo.Name), valueExp));
 
                 if (isNullable)
                 {
@@ -533,7 +533,7 @@ namespace Inkslab.Net
 
         private class QueryString<TRequestable> where TRequestable : IRequestableBase
         {
-            private bool hasQueryString = false;
+            private bool hasQueryString;
             private readonly StringBuilder sb;
             private readonly TRequestable requestable;
 
@@ -762,7 +762,7 @@ namespace Inkslab.Net
 
             public IRequestableEncoding UseEncoding(Encoding encoding)
             {
-                if (encoding is null || encodingDefault == encoding)
+                if (encoding is null || Equals(encodingDefault, encoding))
                 {
                     return this;
                 }
@@ -837,22 +837,6 @@ namespace Inkslab.Net
             public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => factory.SendAsync(options, cancellationToken);
         }
 
-        private class ThenCondition
-        {
-            private readonly Func<IRequestableBase, Task> initialize;
-
-            public ThenCondition(Func<IRequestableBase, Task> initialize)
-            {
-                this.initialize = initialize;
-
-                Conditions = new List<Predicate<HttpStatusCode>>();
-            }
-
-            public List<Predicate<HttpStatusCode>> Conditions { get; }
-
-            public Task InitializeAsync(IRequestableBase requestable) => initialize.Invoke(requestable);
-        }
-
         private class WhenRequestable : IWhenRequestable
         {
             private readonly RequestableString requestable;
@@ -879,7 +863,7 @@ namespace Inkslab.Net
 
         private class ThenRequestable : RequestableEncoding, IThenRequestable
         {
-            private volatile bool initializedStatusCode = false;
+            private volatile bool initializedStatusCode;
             private readonly RequestableString requestable;
             private readonly Predicate<HttpStatusCode> whenStatus;
             private readonly Func<IRequestableBase, Task> thenAsync;
@@ -1445,11 +1429,10 @@ namespace Inkslab.Net
 
             var client = clients.Get(options.Timeout);
 
-            using (var httpMsg = new HttpRequestMessage(options.Method, options.RequestUri)
+            using (var httpMsg = new HttpRequestMessage(options.Method, options.RequestUri))
             {
-                Content = options.Content
-            })
-            {
+                httpMsg.Content = options.Content;
+                
                 if (options.Headers.Count > 0)
                 {
                     foreach (var kv in options.Headers)

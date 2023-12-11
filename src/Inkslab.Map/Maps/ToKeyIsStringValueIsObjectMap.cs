@@ -11,17 +11,16 @@ namespace Inkslab.Map.Maps
     /// <summary>
     /// 转 <see cref="ICollection{T}"/> , T is <seealso cref="kvString"/> 的映射。
     /// </summary>
-
     public class ToKeyIsStringValueIsObjectMap : AbstractMap
     {
         private static readonly Type kvStringType = typeof(kvString);
         private static readonly Type kvStringCollectionType = typeof(ICollection<kvString>);
-        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { MapConstants.StirngType, MapConstants.ObjectType });
+        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { MapConstants.StringType, MapConstants.ObjectType });
 
         private static readonly Type kvStringDictionaryType = typeof(IDictionary<string, object>);
 
         private static readonly MethodInfo collectionAddMtd = kvStringCollectionType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[1] { kvStringType }, null);
-        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { MapConstants.StirngType, MapConstants.ObjectType }, null);
+        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { MapConstants.StringType, MapConstants.ObjectType }, null);
 
         /// <summary>
         /// 解决 <see cref="KeyValuePair{TKey, TValue}"/>, TKey is <seealso cref="string"/>, TValue is <seealso cref="object"/> 到对象的映射。
@@ -50,14 +49,9 @@ namespace Inkslab.Map.Maps
                 var keyExpression = Constant(propertyInfo.Name);
                 var valueExpression = application.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
 
-                if (flag)
-                {
-                    expressions.Add(Call(destinationExpression, dictionaryAddMtd, keyExpression, valueExpression));
-                }
-                else
-                {
-                    expressions.Add(Call(destinationExpression, collectionAddMtd, New(kvStringCtor, keyExpression, valueExpression)));
-                }
+                expressions.Add(flag
+                    ? Call(destinationExpression, dictionaryAddMtd, keyExpression, valueExpression)
+                    : Call(destinationExpression, collectionAddMtd, New(kvStringCtor, keyExpression, valueExpression)));
             }
 
             return Block(expressions);

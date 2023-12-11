@@ -11,16 +11,14 @@ namespace Inkslab
     public class XStartup : IDisposable
     {
         private readonly List<Type> types;
-        private static readonly object lockObj = new object();
-        private static readonly HashSet<Type> Startups = new HashSet<Type>();
-        private static readonly Type StartupType = typeof(IStartup);
+        private static readonly HashSet<Type> startupCachings = new HashSet<Type>();
+        private static readonly Type startupType = typeof(IStartup);
 
         /// <summary>
         /// 启动（获取所有DLL的类型启动）<see cref="AssemblyFinder.FindAll()"/>。
         /// </summary>
         public XStartup() : this(AssemblyFinder.FindAll())
         {
-
         }
 
         /// <summary>
@@ -29,7 +27,6 @@ namespace Inkslab
         /// <param name="pattern">DLL过滤规则。</param>
         public XStartup(string pattern) : this(AssemblyFinder.Find(pattern))
         {
-
         }
 
         /// <summary>
@@ -52,7 +49,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(types));
             }
 
-            this.types = types.Where(x => x.IsClass && !x.IsAbstract && StartupType.IsAssignableFrom(x)).ToList();
+            this.types = types.Where(x => x.IsClass && !x.IsAbstract && startupType.IsAssignableFrom(x)).ToList();
         }
 
         /// <summary>
@@ -64,7 +61,7 @@ namespace Inkslab
 
             foreach (var type in types)
             {
-                if (Startups.Contains(type))
+                if (startupCachings.Contains(type))
                 {
                     continue;
                 }
@@ -81,18 +78,11 @@ namespace Inkslab
                     {
                         if (ToStartup(startup))
                         {
-                            bool flag = false;
-
-                            lock (lockObj)
-                            {
-                                flag = Startups.Add(startup.GetType());
-                            }
-
-                            if (flag)
+                            if (startupCachings.Add(startup.GetType()))
                             {
                                 startup.Startup();
                             }
-
+                            
                             break;
                         }
                     }
@@ -109,7 +99,10 @@ namespace Inkslab
         #region IDisposable Support
         private bool disposedValue = false; // 要检测冗余调用
 
-        /// <inheritdoc />
+        /// <summary>
+        /// 是否资源。
+        /// </summary>
+        /// <param name="disposing"></param>
         protected virtual void Dispose(bool disposing)
         {
             if (disposing && !disposedValue)

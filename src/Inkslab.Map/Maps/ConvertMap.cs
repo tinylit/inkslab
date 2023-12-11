@@ -11,7 +11,7 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class ConvertMap : IMap
     {
-        private static bool IsPrimitive(Type type) => type.IsPrimitive || type == MapConstants.StirngType || type == typeof(decimal);
+        private static bool IsPrimitive(Type type) => type.IsPrimitive || type == MapConstants.StringType || type == typeof(decimal);
 
         /// <summary>
         /// <inheritdoc/>
@@ -20,8 +20,8 @@ namespace Inkslab.Map.Maps
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType) =>
-            (sourceType == MapConstants.StirngType && destinationType == typeof(DateTime)) ||
-            (sourceType == typeof(DateTime) && destinationType == MapConstants.StirngType) ||
+            (sourceType == MapConstants.StringType && destinationType == typeof(DateTime)) ||
+            (sourceType == typeof(DateTime) && destinationType == MapConstants.StringType) ||
             (IsPrimitive(sourceType) && IsPrimitive(destinationType));
 
         /// <inheritdoc/>
@@ -34,7 +34,7 @@ namespace Inkslab.Map.Maps
                 return sourceExpression;
             }
 
-            var convertMethod = typeof(Convert).GetMethod("To" + destinationType.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null);
+            var convertMethod = typeof(Convert).GetMethod("To" + destinationType.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null)!;
 
             return Call(convertMethod, sourceExpression);
         }

@@ -17,14 +17,14 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StirngType && (destinationType == typeof(Guid) || destinationType == typeof(Version) || destinationType == typeof(TimeSpan) || destinationType == typeof(DateTimeOffset));
+        public bool IsMatch(Type sourceType, Type destinationType) => sourceType == MapConstants.StringType && (destinationType == typeof(Guid) || destinationType == typeof(Version) || destinationType == typeof(TimeSpan) || destinationType == typeof(DateTimeOffset));
 
         /// <inheritdoc/>
         public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             Type sourceType = sourceExpression.Type;
 
-            var parseMethod = destinationType.GetMethod("Parse", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null);
+            var parseMethod = destinationType.GetMethod("Parse", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null)!;
 
             return Call(null, parseMethod, sourceExpression);
         }

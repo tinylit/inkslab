@@ -1,5 +1,4 @@
-﻿using Inkslab.Annotations;
-using System.Linq;
+﻿using System.Linq;
 using System.Reflection;
 
 namespace Inkslab.Map
@@ -25,8 +24,7 @@ namespace Inkslab.Map
         public void Startup()
         {
             var profileType = typeof(Profile);
-            var ignoreType = typeof(IgnoreAttribute);
-            var papperInstanceType = typeof(MapperInstance);
+            var mapperInstanceType = typeof(MapperInstance);
             var assemblies = AssemblyFinder.FindAll();
 
             foreach (var assemblyType in assemblies.SelectMany(x => x.GetTypes())
@@ -37,7 +35,7 @@ namespace Inkslab.Map
                     continue;
                 }
 
-                if (assemblyType.IsAssignableFrom(papperInstanceType)) // 默认不添加全局配置。
+                if (assemblyType.IsAssignableFrom(mapperInstanceType)) // 默认不添加全局配置。
                 {
                     continue;
                 }

@@ -25,7 +25,7 @@
     /// <summary>
     /// 日期扩展。
     /// </summary>
-    public static class DateTimeExtentions
+    public static class DateTimeExtensions
     {
         /// <summary>
         /// 日初，返回: yyyy-MM-dd 00:00:00.000。

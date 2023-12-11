@@ -5,12 +5,12 @@
     /// </summary>
     public static class JsonHelper
     {
-        private static readonly IJsonHelper _jsonHelper;
+        private static readonly IJsonHelper jsonHelper;
 
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static JsonHelper() => _jsonHelper = SingletonPools.Singleton<IJsonHelper>();
+        static JsonHelper() => jsonHelper = SingletonPools.Singleton<IJsonHelper>();
 
         /// <summary> Json序列化。 </summary>
         /// <typeparam name="T">对象类型。</typeparam>
@@ -19,7 +19,7 @@
         /// <param name="indented">是否缩进。</param>
         /// <returns></returns>
         public static string ToJson<T>(T jsonObj, NamingType namingType = NamingType.Normal, bool indented = false)
-            => _jsonHelper.ToJson(jsonObj, namingType, indented);
+            => jsonHelper.ToJson(jsonObj, namingType, indented);
 
         /// <summary> Json反序列化。 </summary>
         /// <typeparam name="T">结果类型。</typeparam>
@@ -27,7 +27,7 @@
         /// <param name="namingType">命名规则。</param>
         /// <returns></returns>
         public static T Json<T>(string json, NamingType namingType = NamingType.Normal)
-            => _jsonHelper.Json<T>(json, namingType);
+            => jsonHelper.Json<T>(json, namingType);
 
         /// <summary> 匿名对象反序列化。 </summary>
         /// <typeparam name="T">结果类型。</typeparam>

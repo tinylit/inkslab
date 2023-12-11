@@ -6,7 +6,7 @@ namespace System.Collections
     /// <summary>
     /// 迭代扩展。
     /// </summary>
-    public static class IEnumerableExtentions
+    public static class EnumerableExtensions
     {
         /// <summary>
         /// 字符串拼接(null对象自动忽略)。
@@ -16,6 +16,7 @@ namespace System.Collections
         /// <returns></returns>
         public static string Join(this IEnumerable source, string separator = ",")
         {
+            // ReSharper disable once NotDisposedResource
             var enumerator = source.GetEnumerator();
 
             if (!enumerator.MoveNext())
@@ -75,12 +76,12 @@ namespace System.Collections.Generic
     /// <summary>
     /// 迭代扩展。
     /// </summary>
-    public static class IEnumerableExtentions
+    public static class EnumerableExtensions
     {
         private struct Slot<TElement>
         {
-            public int hashCode;
-            public TElement value;
+            public int HashCode;
+            public TElement Value;
         }
 
         private static int InternalGetHashCode<TKey>(IEqualityComparer<TKey> comparer, TKey key)
@@ -102,19 +103,22 @@ namespace System.Collections.Generic
                 throw new ArgumentNullException(nameof(eachIterator));
             }
 
-            if (source is List<TSource> results)
+            switch (source)
             {
-                results.ForEach(eachIterator);
-            }
-            else if (source is TSource[] arrays)
-            {
-                Array.ForEach(arrays, eachIterator);
-            }
-            else
-            {
-                foreach (TSource item in source)
+                case List<TSource> results:
+                    results.ForEach(eachIterator);
+                    break;
+                case TSource[] arrays:
+                    Array.ForEach(arrays, eachIterator);
+                    break;
+                default:
                 {
-                    eachIterator.Invoke(item);
+                    foreach (TSource item in source)
+                    {
+                        eachIterator.Invoke(item);
+                    }
+
+                    break;
                 }
             }
         }
@@ -220,8 +224,8 @@ namespace System.Collections.Generic
 
                         keySlots[i] = slot = new Slot<TKey>
                         {
-                            value = yKey,
-                            hashCode = yCode
+                            Value = yKey,
+                            HashCode = yCode
                         };
                     }
                     else
@@ -229,7 +233,7 @@ namespace System.Collections.Generic
                         slot = keySlots[i];
                     }
 
-                    if (slot.hashCode == hashCode && comparer.Equals(x, slot.value))
+                    if (slot.HashCode == hashCode && comparer.Equals(x, slot.Value))
                     {
                         yield return outerResults[i];
                     }
@@ -308,8 +312,8 @@ namespace System.Collections.Generic
 
                         keySlots[i] = slot = new Slot<TKey>
                         {
-                            value = yKey,
-                            hashCode = yCode
+                            Value = yKey,
+                            HashCode = yCode
                         };
                     }
                     else
@@ -317,7 +321,7 @@ namespace System.Collections.Generic
                         slot = keySlots[i];
                     }
 
-                    if (slot.hashCode == hashCode && comparer.Equals(x, slot.value))
+                    if (slot.HashCode == hashCode && comparer.Equals(x, slot.Value))
                     {
                         yield return outerResults[i];
                     }
@@ -405,8 +409,8 @@ namespace System.Collections.Generic
 
                         keySlots[i] = slot = new Slot<TKey>
                         {
-                            value = yKey,
-                            hashCode = yCode
+                            Value = yKey,
+                            HashCode = yCode
                         };
                     }
                     else
@@ -414,7 +418,7 @@ namespace System.Collections.Generic
                         slot = keySlots[i];
                     }
 
-                    if (hashCode == slot.hashCode && comparer.Equals(x, slot.value))
+                    if (hashCode == slot.HashCode && comparer.Equals(x, slot.Value))
                     {
                         yield return resultSelector.Invoke(outerResults[i]);
                     }
@@ -434,15 +438,12 @@ namespace System.Collections.Generic
         /// <param name="eachIterator">迭代器。</param>
         public static void ZipEach<TFirst, TSecond>(this IEnumerable<TFirst> first, IEnumerable<TSecond> second, Action<TFirst, TSecond> eachIterator)
         {
-            using (IEnumerator<TFirst> e1 = first.GetEnumerator())
+            using IEnumerator<TFirst> e1 = first.GetEnumerator();
+            using IEnumerator<TSecond> e2 = second.GetEnumerator();
+            
+            while (e1.MoveNext() && e2.MoveNext())
             {
-                using (IEnumerator<TSecond> e2 = second.GetEnumerator())
-                {
-                    while (e1.MoveNext() && e2.MoveNext())
-                    {
-                        eachIterator.Invoke(e1.Current, e2.Current);
-                    }
-                }
+                eachIterator.Invoke(e1.Current, e2.Current);
             }
         }
 
@@ -520,8 +521,8 @@ namespace System.Collections.Generic
 
                         keySlots[i] = slot = new Slot<TKey>
                         {
-                            value = yKey,
-                            hashCode = yCode
+                            Value = yKey,
+                            HashCode = yCode
                         };
                     }
                     else
@@ -529,7 +530,7 @@ namespace System.Collections.Generic
                         slot = keySlots[i];
                     }
 
-                    if (slot.hashCode == hashCode && comparer.Equals(x, slot.value))
+                    if (slot.HashCode == hashCode && comparer.Equals(x, slot.Value))
                     {
                         eachIterator.Invoke(outerResults[i]);
                     }
@@ -624,8 +625,8 @@ namespace System.Collections.Generic
 
                         keySlots[i] = slot = new Slot<TKey>
                         {
-                            value = yKey,
-                            hashCode = yCode
+                            Value = yKey,
+                            HashCode = yCode
                         };
                     }
                     else
@@ -633,7 +634,7 @@ namespace System.Collections.Generic
                         slot = keySlots[i];
                     }
 
-                    if (slot.hashCode == xHashCode && comparer.Equals(xKey, slot.value))
+                    if (slot.HashCode == xHashCode && comparer.Equals(xKey, slot.Value))
                     {
                         eachIterator.Invoke(x, y);
                     }

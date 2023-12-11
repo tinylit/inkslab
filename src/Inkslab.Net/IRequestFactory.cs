@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Inkslab.Net
+﻿namespace Inkslab.Net
 {
     /// <summary>
     /// 请求工厂。

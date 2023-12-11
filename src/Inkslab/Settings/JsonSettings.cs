@@ -21,14 +21,6 @@ namespace Inkslab.Settings
         /// <param name="value">数据。</param>
         /// <param name="typeToConvert">源数据类型。</param>
         /// <returns></returns>
-        protected override string ValuePackaging(string value, Type typeToConvert)
-        {
-            if (typeToConvert.IsSimple())
-            {
-                return string.Concat(DoubleQuotationMarks, value, DoubleQuotationMarks);
-            }
-
-            return value;
-        }
+        protected override string ValuePackaging(string value, Type typeToConvert) => typeToConvert.IsSimple() ? string.Concat(DoubleQuotationMarks, value, DoubleQuotationMarks) : value;
     }
 }

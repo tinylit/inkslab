@@ -95,14 +95,14 @@ namespace Inkslab.Serialize.Xml
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>比较结果。</returns>
-        public readonly int CompareTo(CData other) => value.CompareTo(other.value);
+        public readonly int CompareTo(CData other) => String.Compare(value, other.value, StringComparison.Ordinal);
 
         /// <summary>
         /// 比较。
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>比较结果。</returns>
-        public readonly int CompareTo(string other) => value.CompareTo(other);
+        public readonly int CompareTo(string other) => String.Compare(value, other, StringComparison.Ordinal);
 
         /// <summary>
         /// 相同。
@@ -115,7 +115,7 @@ namespace Inkslab.Serialize.Xml
         /// 生成字符串。
         /// </summary>
         /// <returns>返回当前值。</returns>
-        public override readonly string ToString() => value;
+        public readonly override string ToString() => value;
 
         readonly System.Xml.Schema.XmlSchema IXmlSerializable.GetSchema() => null;
 
@@ -128,7 +128,7 @@ namespace Inkslab.Serialize.Xml
         /// </summary>
         /// <param name="obj">对象。</param>
         /// <returns>是否相同。</returns>
-        public override readonly bool Equals(object obj)
+        public readonly override bool Equals(object obj)
         {
             if (obj is CData data)
             {
@@ -147,6 +147,6 @@ namespace Inkslab.Serialize.Xml
         /// 重写哈希值。
         /// </summary>
         /// <returns>哈希值。</returns>
-        public override readonly int GetHashCode() => value is null ? 0 : value.GetHashCode();
+        public readonly override int GetHashCode() => value is null ? 0 : value.GetHashCode();
     }
 }

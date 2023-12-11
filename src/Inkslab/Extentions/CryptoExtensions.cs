@@ -30,7 +30,7 @@ namespace System
     /// <summary>
     /// 加密扩展。
     /// </summary>
-    public static class CryptoExtentions
+    public static class CryptoExtensions
     {
         private static SymmetricAlgorithm GetSymmetricAlgorithm(CryptoKind kind)
         {
@@ -75,7 +75,7 @@ namespace System
             }
 
 
-            ICryptoTransform crypto = null;
+            ICryptoTransform crypto;
 
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
@@ -127,7 +127,7 @@ namespace System
                 throw new ArgumentNullException(nameof(key));
             }
 
-            ICryptoTransform crypto = null;
+            ICryptoTransform crypto;
 
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
@@ -185,21 +185,21 @@ namespace System
                 throw new ArgumentNullException(nameof(iv));
             }
 
-            ICryptoTransform crypto = null;
+            ICryptoTransform crypto;
 
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
                 var rgbKey = Encoding.ASCII.GetBytes(key);
 
-                var rgbIV = Encoding.ASCII.GetBytes(iv);
+                var rgbIv = Encoding.ASCII.GetBytes(iv);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
                     throw new ArgumentOutOfRangeException(nameof(key));
 
-                if (algorithm.IV.Length != rgbIV.Length)
+                if (algorithm.IV.Length != rgbIv.Length)
                     throw new ArgumentOutOfRangeException(nameof(iv));
 
-                crypto = algorithm.CreateEncryptor(rgbKey, rgbIV);
+                crypto = algorithm.CreateEncryptor(rgbKey, rgbIv);
             }
 
             using (var ms = new MemoryStream())
@@ -244,21 +244,21 @@ namespace System
                 throw new ArgumentNullException(nameof(iv));
             }
 
-            ICryptoTransform crypto = null;
+            ICryptoTransform crypto;
 
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
                 var rgbKey = Encoding.ASCII.GetBytes(key);
 
-                var rgbIV = Encoding.ASCII.GetBytes(iv);
+                var rgbIv = Encoding.ASCII.GetBytes(iv);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
                     throw new ArgumentOutOfRangeException(nameof(key));
 
-                if (algorithm.IV.Length != rgbIV.Length)
+                if (algorithm.IV.Length != rgbIv.Length)
                     throw new ArgumentOutOfRangeException(nameof(iv));
 
-                crypto = algorithm.CreateDecryptor(rgbKey, rgbIV);
+                crypto = algorithm.CreateDecryptor(rgbKey, rgbIv);
             }
 
             using (var ms = new MemoryStream())
@@ -292,7 +292,7 @@ namespace System
                 throw new ArgumentNullException(nameof(data));
             }
 
-            byte[] buffer = null;
+            byte[] buffer;
 
             using (var md5 = MD5.Create())
             {

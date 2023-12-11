@@ -21,7 +21,10 @@ namespace Inkslab.DI
             this.service = service;
         }
 
-        public ICollection<Assembly> Assemblies { get => assemblies; }
+        public IReadOnlyCollection<Assembly> Assemblies
+        {
+            get => assemblies;
+        }
 
         public IDependencyInjectionServices SeekAssemblies(string pattern = "*")
         {
@@ -57,89 +60,85 @@ namespace Inkslab.DI
             return this;
         }
 
-        public IDependencyInjectionServices RemoveAll()
-        {
-            assemblies.Clear();
-
-            return this;
-        }
-
-        public IDependencyInjectionServices RemoveAssemblies(Predicate<Assembly> match)
-        {
-            assemblies.RemoveWhere(match);
-
-            return this;
-        }
-
-        public IDependencyInjectionServices AddAssembly(Assembly assembly)
-        {
-            if (assembly is null)
-            {
-                throw new ArgumentNullException(nameof(assembly));
-            }
-
-            assemblies.Add(assembly);
-
-            return this;
-        }
-
-        public IDependencyInjectionServices AddAssemblies(Assembly[] assemblies)
-        {
-            if (assemblies is null)
-            {
-                throw new ArgumentNullException(nameof(assemblies));
-            }
-
-            foreach (var assembly in assemblies)
-            {
-                if (assembly is null)
-                {
-                    continue;
-                }
-
-                this.assemblies.Add(assembly);
-            }
-
-            return this;
-        }
-
         public IDependencyInjectionServices ConfigureByDefined()
         {
-            var assembliyTypes = Assemblies
+            var assemblyTypes = Assemblies
                 .SelectMany(x => x.GetTypes())
                 .Where(x => !x.IsValueType && !x.IsAbstract)
                 .ToList();
 
-            DiConfigureServices(services, assembliyTypes);
+            DiConfigureServices(assemblyTypes);
 
             return this;
         }
 
+
         public IServiceCollection ConfigureByAuto(DependencyInjectionOptions options)
         {
-
             if (options is null)
             {
                 throw new ArgumentNullException(nameof(options));
             }
 
-            var assembliyTypes = Assemblies
+            var assemblyTypes = Assemblies
                 .SelectMany(x => x.GetTypes())
-                .Where(x => !x.IsValueType && !x.IsAbstract)
+                .SkipWhile(options.Ignore)
                 .ToList();
 
-            DiController(services, options, assembliyTypes);
+            var effectiveTypes = assemblyTypes.FindAll(x => !x.IsValueType && !x.IsAbstract);
+
+            DiByExport(services, options, assemblyTypes, effectiveTypes);
+
+            DiController(services, options, effectiveTypes);
 
             return services;
         }
 
-        private void DiConfigureServices(IServiceCollection services, List<Type> assembliyTypes)
+        private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, List<Type> assemblyTypes, List<Type> effectiveTypes)
+        {
+            var exportAttributeType = typeof(ServiceLifetimeAttribute);
+
+            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
+
+            foreach (var type in assemblyTypes)
+            {
+                var attribute = (ServiceLifetimeAttribute)type.GetCustomAttribute(exportAttributeType, true);
+
+                if (attribute is null)
+                {
+                    continue;
+                }
+
+                if (type.IsInterface || type.IsAbstract)
+                {
+                    if (Di(services, options, type, effectiveTypes, 0, dependencies))
+                    {
+                        continue;
+                    }
+
+                    dependencies.Add(type);
+
+                    throw DiError("Service", type, options.MaxDepth, dependencies);
+                }
+
+                if (DiConstructor(services, options, type, effectiveTypes, 0, dependencies))
+                {
+                    services.Add(new ServiceDescriptor(type, type, attribute.Lifetime));
+                }
+                else
+                {
+                    throw DiError("Service", type, options.MaxDepth, dependencies);
+                }
+            }
+        }
+
+        private void DiConfigureServices(List<Type> assemblyTypes)
         {
             var configureServices = new List<IConfigureServices>();
 
             var configureServicesType = typeof(IConfigureServices);
 
-            foreach (var type in assembliyTypes.Where(x => x.IsClass && !x.IsAbstract && configureServicesType.IsAssignableFrom(x)))
+            foreach (var type in assemblyTypes.Where(x => x.IsClass && !x.IsAbstract && configureServicesType.IsAssignableFrom(x)))
             {
                 configureServices.Add((IConfigureServices)ActivatorUtilities.CreateInstance(service, type));
             }
@@ -150,11 +149,11 @@ namespace Inkslab.DI
             }
         }
 
-        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, List<Type> assembliyTypes)
+        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, List<Type> assemblyTypes)
         {
             List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
-            var effectiveTypes = assembliyTypes.FindAll(x => !options.Ignore(x));
+            var effectiveTypes = assemblyTypes.FindAll(x => !options.Ignore(x));
 
             foreach (var controllerType in effectiveTypes.Where(options.IsControllerType))
             {
@@ -163,31 +162,33 @@ namespace Inkslab.DI
                     throw DiError("Controller", controllerType, options.MaxDepth, dependencies);
                 }
 
-                if (options.DiControllerActionIsFromServicesParameters)
+                if (!options.DiControllerActionIsFromServicesParameters)
                 {
-                    foreach (var methodInfo in controllerType.GetMethods())
+                    continue;
+                }
+
+                foreach (var methodInfo in controllerType.GetMethods())
+                {
+                    if (methodInfo.DeclaringType == typeof(object))
                     {
-                        if (methodInfo.DeclaringType == typeof(object))
+                        continue;
+                    }
+
+                    foreach (var parameterInfo in methodInfo.GetParameters())
+                    {
+                        if (!options.ActionParameterIsFromServices(parameterInfo))
                         {
                             continue;
                         }
 
-                        foreach (var parameterInfo in methodInfo.GetParameters())
+                        if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, 0, dependencies))
                         {
-                            if (!options.ActionParameterIsFromServices(parameterInfo))
-                            {
-                                continue;
-                            }
-
-                            if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, 0, dependencies))
-                            {
-                                continue;
-                            }
-
-                            dependencies.Add(parameterInfo.ParameterType);
-
-                            throw DiError($"Controller Method({methodInfo.Name})", controllerType, options.MaxDepth, dependencies);
+                            continue;
                         }
+
+                        dependencies.Add(parameterInfo.ParameterType);
+
+                        throw DiError($"Controller Method({methodInfo.Name})", controllerType, options.MaxDepth, dependencies);
                     }
                 }
             }
@@ -250,7 +251,7 @@ namespace Inkslab.DI
             return new TypeLoadException(sb.Append('.').ToString());
         }
 
-        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> assemblyTypes, int depth, List<Type> dependencies)
+        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> effectiveTypes, int depth, List<Type> dependencies)
         {
             bool flag = false;
 
@@ -284,7 +285,7 @@ namespace Inkslab.DI
                         break;
                     }
 
-                    if (Di(services, options, parameterInfo.ParameterType, assemblyTypes, depth + 1, dependencies))
+                    if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, depth + 1, dependencies))
                     {
                         continue;
                     }
@@ -305,7 +306,7 @@ namespace Inkslab.DI
             return flag;
         }
 
-        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> assemblyTypes, int depth, List<Type> dependencies)
+        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, int depth, List<Type> dependencies)
         {
             if (serviceType == typeof(IServiceProvider) || serviceType == typeof(IServiceScopeFactory))
             {
@@ -337,104 +338,252 @@ namespace Inkslab.DI
                 }
             }
 
-            if (serviceType.IsIgnore())
-            {
-                return false;
-            }
-
             var interfaceTypes = serviceType.IsInterface
                 ? serviceType.GetInterfaces()
                 : Type.EmptyTypes;
 
+            if (serviceType.IsGenericTypeDefinition)
+            {
+                return DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, depth, dependencies, isMulti);
+            }
+
             var implementationTypes = (serviceType.IsInterface || serviceType.IsAbstract)
-                ? assemblyTypes
+                ? effectiveTypes
                     .Where(serviceType.IsAssignableFrom)
-                    .OrderBy(y => OrderByDepth(serviceType, y, interfaceTypes))
                     .ToList()
                 : new List<Type> { serviceType };
 
+            implementationTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
+
             if (implementationTypes.Count > 0)
             {
-                return DiServiceLifetime(services, options, serviceType, implementationTypes, assemblyTypes, depth, dependencies, isMulti);
+                return DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, depth, dependencies, isMulti);
             }
 
-            return serviceType.IsGenericType && DiGeneric(services, options, serviceType, interfaceTypes, assemblyTypes, depth, dependencies, isMulti);
+            return serviceType.IsGenericType && DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, depth, dependencies, isMulti);
         }
 
-        private static bool DiGeneric(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, List<Type> assemblyTypes, int depth, List<Type> dependencies, bool isMulti)
+        private static bool DiTypeDefinition(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, List<Type> effectiveTypes, int depth, List<Type> dependencies, bool isMulti)
         {
-            var typeDefinition = serviceType.GetGenericTypeDefinition();
+            var typeDefinition = serviceType.IsGenericTypeDefinition
+                ? serviceType
+                : serviceType.GetGenericTypeDefinition();
 
-            var typeDefinitionTypes = assemblyTypes
-                              .Where(typeDefinition.IsLike)
-                              .OrderBy(y => OrderByDepth(typeDefinition, y, interfaceTypes))
-                              .ToList();
+            var typeDefinitionTypes = effectiveTypes
+                .Where(typeDefinition.IsLike)
+                .ToList();
 
-            return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, assemblyTypes, depth, dependencies, isMulti);
-        }
+            typeDefinitionTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
 
-        private static int OrderByDepth(Type serviceType, Type implementationType, Type[] interfaceTypes)
-        {
-            int compare = 0;
-
-            if (serviceType.IsInterface)
+            if (typeDefinitionTypes.Count == 0)
             {
-                Type cloneType = typeof(ICloneable);
-                Type disposableType = typeof(IDisposable);
-                Type asyncDisposable = typeof(IAsyncDisposable);
+                return false;
+            }
 
-                foreach (var interfaceType in implementationType.GetInterfaces())
+            if (!serviceType.IsGenericTypeDefinition)
+            {
+                return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, effectiveTypes, depth, dependencies, isMulti);
+            }
+
+            if (typeDefinitionTypes.TrueForAll(x => x.IsGenericTypeDefinition))
+            {
+                return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, effectiveTypes, depth, dependencies, isMulti);
+            }
+
+            bool flag = true;
+
+            foreach (var serviceGroup in typeDefinitionTypes.GroupBy(x =>
+                     {
+                         if (x.IsGenericTypeDefinition)
+                         {
+                             return typeDefinition;
+                         }
+
+                         if (typeDefinition.IsInterface)
+                         {
+                             foreach (var interfaceType in x.GetInterfaces())
+                             {
+                                 if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeDefinition)
+                                 {
+                                     return typeDefinition.MakeGenericType(interfaceType.GetGenericArguments());
+                                 }
+                             }
+                         }
+                         else
+                         {
+                             var implementationType = x.BaseType;
+
+                             while (implementationType != null)
+                             {
+                                 if (implementationType.IsGenericType && implementationType.GetGenericTypeDefinition() == typeDefinition)
+                                 {
+                                     return typeDefinition.MakeGenericType(implementationType.GetGenericArguments());
+                                 }
+
+                                 implementationType = implementationType.BaseType;
+                             }
+                         }
+
+                         throw new NotSupportedException();
+                     }))
+            {
+                if (DiServiceLifetime(services, options, serviceGroup.Key, serviceGroup.ToList(), effectiveTypes, depth, dependencies, isMulti))
                 {
-                    if (interfaceType == serviceType || interfaceTypes.Contains(interfaceType)) //? 本身，或者是接口本身的继承接口。
-                    {
-                        continue;
-                    }
-
-                    if (interfaceType == disposableType || interfaceType == asyncDisposable)
-                    {
-                        continue;
-                    }
-
-                    if (interfaceType == cloneType)
-                    {
-                        continue;
-                    }
-
-                    compare++;
+                    continue;
                 }
 
-                return compare;
+                flag = false;
             }
 
-            do
+            return flag;
+        }
+
+        private sealed class TypeComparer : IComparer<Type>
+        {
+            private readonly Type serviceType;
+            private readonly Type[] interfaceTypes;
+
+            public TypeComparer(Type serviceType, Type[] interfaceTypes)
             {
-                if (implementationType == serviceType)
+                this.serviceType = serviceType;
+                this.interfaceTypes = interfaceTypes;
+            }
+
+            private int CardinalityCode(Type implementationType)
+            {
+                int compare = 0;
+
+                if (serviceType.IsInterface)
                 {
+                    Type cloneType = typeof(ICloneable);
+                    Type disposableType = typeof(IDisposable);
+                    Type asyncDisposable = typeof(IAsyncDisposable);
+
+                    foreach (var interfaceType in implementationType.GetInterfaces())
+                    {
+                        if (interfaceType == serviceType || interfaceTypes.Contains(interfaceType)) //? 本身，或者是接口本身的继承接口。
+                        {
+                            continue;
+                        }
+
+                        if (interfaceType == disposableType || interfaceType == asyncDisposable)
+                        {
+                            continue;
+                        }
+
+                        if (interfaceType == cloneType)
+                        {
+                            continue;
+                        }
+
+                        compare++;
+                    }
+
                     return compare;
                 }
 
-                compare++;
+                do
+                {
+                    if (implementationType == serviceType)
+                    {
+                        return compare;
+                    }
 
-                implementationType = implementationType.BaseType;
+                    compare++;
 
-            } while (!(implementationType is null || implementationType == typeof(object)));
+                    implementationType = implementationType.BaseType;
+                } while (!(implementationType is null || implementationType == typeof(object)));
 
-            return int.MaxValue;
+                return int.MaxValue;
+            }
+
+            public int Compare(Type x, Type y)
+            {
+                if (x is null)
+                {
+                    return y is null ? 0 : 1;
+                }
+
+                if (y is null)
+                {
+                    return -1;
+                }
+
+                if (serviceType.IsGenericTypeDefinition)
+                {
+                    if (x.IsGenericTypeDefinition && y.IsGenericTypeDefinition)
+                    {
+                    }
+                    else if (x.IsGenericTypeDefinition)
+                    {
+                        return -1;
+                    }
+                    else
+                    {
+                        return 1;
+                    }
+                }
+                else if (x.IsGenericTypeDefinition && y.IsGenericTypeDefinition)
+                {
+                }
+                else if (x.IsGenericTypeDefinition)
+                {
+                    return 1;
+                }
+                else
+                {
+                    return -1;
+                }
+
+                return CardinalityCode(x) - CardinalityCode(y);
+            }
         }
 
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> assemblyTypes, int depth, List<Type> dependencies, bool isMulti)
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> effectiveTypes, int depth, List<Type> dependencies, bool isMulti)
         {
+            if (implementationTypes.Count == 0)
+            {
+                return false;
+            }
+
             bool flag = false;
 
             foreach (var implementationType in DiImplementationAnalysis(options, serviceType, implementationTypes, isMulti))
             {
-                if (DiConstructor(services, options, implementationType, assemblyTypes, depth, dependencies))
+                if (DiConstructor(services, options, implementationType, effectiveTypes, depth, dependencies))
                 {
                     flag = true;
 
-                    var attrbute = (ServiceLifetimeAttribute)(implementationType.GetCustomAttribute(typeof(ServiceLifetimeAttribute), false) ?? serviceType.GetCustomAttribute(typeof(ServiceLifetimeAttribute), false));
+                    var serviceAttribute = serviceType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
+                    var implementationAttribute = implementationType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
 
-                    services.Add(new ServiceDescriptor(serviceType, implementationType, attrbute?.Lifetime ?? options.Lifetime));
+                    ServiceLifetime lifetime = options.Lifetime;
+
+                    if (implementationAttribute is null)
+                    {
+                        if (serviceAttribute is null)
+                        {
+                        }
+                        else
+                        {
+                            lifetime = serviceAttribute.Lifetime;
+                        }
+                    }
+                    else if (serviceAttribute is null)
+                    {
+                        lifetime = implementationAttribute.Lifetime;
+                    }
+                    else
+                    {
+                        if (implementationAttribute.Lifetime > serviceAttribute.Lifetime)
+                        {
+                            throw new NotSupportedException($"生命周期为【{serviceAttribute.Lifetime}】的【{serviceType.Name}】类型，不支持声明周期为【{implementationAttribute.Lifetime}】的【{implementationType.Name}】实现。");
+                        }
+
+                        lifetime = implementationAttribute.Lifetime;
+                    }
+
+                    services.Add(new ServiceDescriptor(serviceType, implementationType, lifetime));
 
                     if (isMulti) //? 注入一个支持。
                     {

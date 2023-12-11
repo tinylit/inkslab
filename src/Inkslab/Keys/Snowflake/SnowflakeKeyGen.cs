@@ -11,18 +11,18 @@ namespace Inkslab.Keys.Snowflake
         {
             public SnowflakeKey(long value) : base(value) { }
 
-            public override int WorkId => (int)(Value >> workerIdShift & maxWorkerId);
+            public override int WorkId => (int)(Value >> WorkerIdShift & MaxWorkerId);
 
-            public override int DataCenterId => (int)(Value >> datacenterIdShift & maxDatacenterId);
+            public override int DataCenterId => (int)(Value >> DatacenterIdShift & MaxDatacenterId);
 
-            public override DateTime ToUniversalTime() => UnixEpoch.AddMilliseconds(Value >> timestampLeftShift);
+            public override DateTime ToUniversalTime() => unixEpoch.AddMilliseconds(Value >> TimestampLeftShift);
         }
 
-        private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-        private readonly long workerId = 0L; // 这个就是代表了机器id
-        private readonly long datacenterId = 0L; // 这个就是代表了机房id
+        private static readonly DateTime unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+        private readonly long workerId; // 这个就是代表了机器id
+        private readonly long datacenterId; // 这个就是代表了机房id
 
-        private /* static */ long sequence = 0L; // 代表当前毫秒内已经生成了多少个主键
+        private /* static */ long sequence; // 代表当前毫秒内已经生成了多少个主键
 
         private readonly Random random = new Random();
 
@@ -35,35 +35,36 @@ namespace Inkslab.Keys.Snowflake
         {
             // sanity check for workerId
             // 这儿不就检查了一下，要求就是你传递进来的机房id和机器id不能超过32，不能小于0
-            if (workerId > maxWorkerId || workerId < 0)
+            if (workerId > MaxWorkerId || workerId < 0)
             {
-                throw new ArgumentException(string.Format("worker Id can't be greater than {0} or less than 0", maxWorkerId));
+                throw new ArgumentException(string.Format("worker Id can't be greater than {0} or less than 0", MaxWorkerId));
             }
 
-            if (datacenterId > maxDatacenterId || datacenterId < 0)
+            if (datacenterId > MaxDatacenterId || datacenterId < 0)
             {
-                throw new ArgumentException(string.Format("datacenter Id can't be greater than {0} or less than 0", maxDatacenterId));
+                throw new ArgumentException(string.Format("datacenter Id can't be greater than {0} or less than 0", MaxDatacenterId));
             }
             this.workerId = workerId;
             this.datacenterId = datacenterId;
         }
 
-        private static readonly int workerIdBits = 5;
-        private static readonly int datacenterIdBits = 5;
+        private const int WorkerIdBits = 5;
+        private const int DatacenterIdBits = 5;
 
         // 这个是二进制运算，就是5 bit最多只能有31个数字，也就是说机器id最多只能是32以内
-        private static readonly int maxWorkerId = -1 ^ (-1 << workerIdBits);
+        private const int MaxWorkerId = -1 ^ (-1 << WorkerIdBits);
+
         // 这个是一个意思，就是5 bit最多只能有31个数字，机房id最多只能是32以内
-        private static readonly int maxDatacenterId = -1 ^ (-1 << datacenterIdBits);
-        private static readonly int sequenceBits = 12;
-        private static readonly int workerIdShift = sequenceBits;
-        private static readonly int datacenterIdShift = sequenceBits + workerIdBits;
-        private static readonly int timestampLeftShift = sequenceBits + workerIdBits + datacenterIdBits;
-        private static readonly long sequenceMask = -1L ^ (-1L << sequenceBits);
+        private const int MaxDatacenterId = -1 ^ (-1 << DatacenterIdBits);
+        private const int SequenceBits = 12;
+        private const int WorkerIdShift = SequenceBits;
+        private const int DatacenterIdShift = SequenceBits + WorkerIdBits;
+        private const int TimestampLeftShift = SequenceBits + WorkerIdBits + DatacenterIdBits;
+        private const long SequenceMask = -1L ^ (-1L << SequenceBits);
 
         private /* static */ long lastTimestamp = -1L;
 
-        private readonly object _lockObj = new object();
+        private readonly object lockObj = new object();
 
         /// <summary>
         /// 新ID。
@@ -71,7 +72,7 @@ namespace Inkslab.Keys.Snowflake
         /// <returns></returns>
         public long Id()
         {
-            lock (_lockObj)
+            lock (lockObj)
             {
                 long timestamp = TimeGen();
 
@@ -86,12 +87,10 @@ namespace Inkslab.Keys.Snowflake
                 {
                     // 这个意思是说一个毫秒内最多只能有4096个数字，无论你传递多少进来，
                     //这个位运算保证始终就是在4096这个范围内，避免你自己传递个sequence超过了4096这个范围
-                    sequence = (sequence + 1L) & sequenceMask;
+                    sequence = (sequence + 1L) & SequenceMask;
 
                     if (sequence == 0L)
                     {
-                        sequence = random.Next(128);
-
                         timestamp = NextGen(lastTimestamp);
                     }
                 }
@@ -102,9 +101,9 @@ namespace Inkslab.Keys.Snowflake
 
                 lastTimestamp = timestamp;
 
-                return (timestamp << timestampLeftShift)
-                        | (datacenterId << datacenterIdShift)
-                        | (workerId << workerIdShift)
+                return (timestamp << TimestampLeftShift)
+                        | (datacenterId << DatacenterIdShift)
+                        | (workerId << WorkerIdShift)
                         | sequence;
             }
         }
@@ -114,9 +113,9 @@ namespace Inkslab.Keys.Snowflake
         /// </summary>
         /// <param name="id">键值。</param>
         /// <returns></returns>
-        public Key Create(long id) => new SnowflakeKey(id);
+        public Key New(long id) => new SnowflakeKey(id);
 
-        private static long TimeGen() => (long)(DateTime.UtcNow - UnixEpoch).TotalMilliseconds;
+        private static long TimeGen() => (long)(DateTime.UtcNow - unixEpoch).TotalMilliseconds;
 
         private static long NextGen(long lastTimestamp)
         {

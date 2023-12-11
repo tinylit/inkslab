@@ -13,12 +13,7 @@ namespace Inkslab
         /// <summary>
         /// 服务。
         /// </summary>
-        private static readonly Dictionary<Type, Type> ServiceCachings = new Dictionary<Type, Type>();
-
-        /// <summary>
-        /// 服务。
-        /// </summary>
-        private static readonly Dictionary<Type, Type> DefaultCachings = new Dictionary<Type, Type>();
+        private static readonly Dictionary<Type, Type> serviceCachings = new Dictionary<Type, Type>();
 
         /// <summary>
         /// 添加服务。
@@ -26,7 +21,7 @@ namespace Inkslab
         /// <returns>是否添加成功。</returns>
         public static bool TryAdd<TService>()
             where TService : class
-        => Nested<TService>.TryAdd(() => Nested<TService, TService>.Instance);
+            => Nested<TService>.TryAdd(() => Nested<TService, TService>.Instance);
 
         /// <summary>
         /// 添加服务。
@@ -82,7 +77,7 @@ namespace Inkslab
         /// <returns>返回唯一实例。</returns>
         public static TService Singleton<TService>()
             where TService : class
-        => AutoNested<TService>.Instance;
+            => AutoNested<TService>.AutoInstance;
 
         /// <summary>
         /// 获取服务，没有注入 <typeparamref name="TService"/> 单列实现时，使用 <typeparamref name="TImplementation"/> 的实现。
@@ -98,14 +93,14 @@ namespace Inkslab
 
         private class Nested<TService> where TService : class
         {
-            private static Lazy<TService> _lazy = new Lazy<TService>(() => null);
+            private static Lazy<TService> lazy = new Lazy<TService>(() => null);
 
-            private static volatile bool _useBaseTryAdd = true;
-            private static volatile bool _uninitialized = true;
+            private static volatile bool useBaseTryAdd = true;
+            private static volatile bool uninitialized = true;
 
             protected static void AddDefaultImpl(Func<TService> factory)
             {
-                if (_uninitialized)
+                if (uninitialized)
                 {
                     TryAddCore(factory);
                 }
@@ -113,23 +108,25 @@ namespace Inkslab
 
             private static bool TryAddCore(Func<TService> factory, bool defineService = false)
             {
-                if (defineService || _useBaseTryAdd)
+                if (defineService || useBaseTryAdd)
                 {
                     if (defineService)
                     {
-                        _useBaseTryAdd = false;
+                        useBaseTryAdd = false;
 
-                        ServiceCachings[typeof(TService)] = typeof(Nested<TService>);
+                        serviceCachings[typeof(TService)] = typeof(Nested<TService>);
                     }
 
-                    _uninitialized &= false;
+                    uninitialized = false;
 
-                    if (!_lazy.IsValueCreated)
+                    if (lazy.IsValueCreated)
                     {
-                        _lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
-
-                        return true;
+                        return false;
                     }
+
+                    lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
+
+                    return true;
                 }
 
                 return false;
@@ -139,7 +136,7 @@ namespace Inkslab
 
             public static bool TryAdd(Func<TService> factory) => TryAddCore(factory, true);
 
-            public static TService Instance => _lazy.Value;
+            public static TService Instance => lazy.Value;
         }
 
         private class AutoNested<TService> : Nested<TService> where TService : class
@@ -150,7 +147,8 @@ namespace Inkslab
 
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    AddDefaultImpl(() => throw new NotImplementedException($"未注入{type.FullName}服务的实现，可以使用【RuntimeServPools.TryAddSingleton<{type.Name}, {type.Name}Impl>()】注入服务实现，或使用【RuntimeServPools.Singleton<{type.Name}, Default{type.Name.TrimStart('i', 'I')}Impl>】安全获取实例，若未注入实现会生成【Default{type.Name.TrimStart('i', 'I')}Impl】的实例。"));
+                    AddDefaultImpl(() => throw new NotImplementedException(
+                        $"未注入{type.FullName}服务的实现，可以使用【SingletonPools.TryAdd<{type.Name}, {type.Name}Impl>()】注入服务实现。"));
                 }
                 else
                 {
@@ -158,17 +156,16 @@ namespace Inkslab
                 }
             }
 
-            public new static TService Instance => Nested<TService>.Instance; //? 触发静态构造函数。
+            public static TService AutoInstance => Instance; //? 触发静态构造函数。
         }
 
         private static class Nested<TService, TImplementation>
-        where TService : class
-        where TImplementation : class, TService
+            where TService : class
+            where TImplementation : class, TService
         {
-
             private static class Lazy
             {
-                private const BindingFlags DefaultLookup = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public;
+                private const BindingFlags DefaultLookup = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
                 static Lazy()
                 {
@@ -185,7 +182,7 @@ namespace Inkslab
                             var parameterInfos = x.GetParameters();
 
                             //! 客户最优注册的类型。
-                            var specifiedCount = parameterInfos.Count(y => ServiceCachings.ContainsKey(y.ParameterType));
+                            var specifiedCount = parameterInfos.Count(y => serviceCachings.ContainsKey(y.ParameterType));
 
                             return parameterInfos.Length * parameterInfos.Length + specifiedCount;
                         })
@@ -201,12 +198,12 @@ namespace Inkslab
 
                             foreach (var parameterInfo in parameterInfos)
                             {
-                                if (parameterInfo.IsOptional || IsSurport(conversionType, parameterInfo.ParameterType))
+                                if (parameterInfo.IsOptional || IsSupport(conversionType, parameterInfo.ParameterType))
                                 {
                                     continue;
                                 }
 
-                                throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【RuntimeServPools.TryAddSingleton<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
+                                throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【SingletonPools.TryAdd<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
                             }
                         }
                     }
@@ -224,7 +221,7 @@ namespace Inkslab
 
                         foreach (var parameterInfo in parameterInfos)
                         {
-                            if (parameterInfo.IsOptional || IsSurport(conversionType, parameterInfo.ParameterType))
+                            if (parameterInfo.IsOptional || IsSupport(conversionType, parameterInfo.ParameterType))
                             {
                                 continue;
                             }
@@ -243,52 +240,41 @@ namespace Inkslab
                     return null;
                 }
 
-                private static bool IsSurport(Type conversionType, Type parameterType)
+                private static bool IsSupport(Type conversionType, Type parameterType)
                 {
-                    if (ServiceCachings.ContainsKey(parameterType))
+                    if (serviceCachings.ContainsKey(parameterType))
                     {
                         return true;
                     }
 
                     if (!parameterType.IsAbstract)
                     {
-                        foreach (var kv in ServiceCachings)
+                        foreach (var kv in serviceCachings)
                         {
                             if (kv.Value == parameterType)
                             {
-                                ServiceCachings[parameterType] = kv.Value;
+                                serviceCachings[parameterType] = kv.Value;
 
                                 return true;
                             }
                         }
                     }
 
-                    foreach (var kv in ServiceCachings)
+                    foreach (var kv in serviceCachings)
                     {
-                        if (parameterType.IsInterface)
-                        {
-                            if (kv.Value == conversionType)
-                            {
-                                continue;
-                            }
-
-                            if (parameterType.IsAssignableFrom(kv.Key))
-                            {
-                                ServiceCachings[parameterType] = kv.Value;
-
-                                return true;
-                            }
-                        }
-                        else if (parameterType.IsAssignableFrom(conversionType))
+                        if (kv.Value == conversionType) //? 防递归注入。
                         {
                             continue;
                         }
-                        else if (parameterType.IsAssignableFrom(kv.Key))
-                        {
-                            ServiceCachings[parameterType] = kv.Value;
 
-                            return true;
+                        if (!parameterType.IsAssignableFrom(kv.Key))
+                        {
+                            continue;
                         }
+
+                        serviceCachings[parameterType] = kv.Value;
+
+                        return true;
                     }
 
                     return false;
@@ -304,26 +290,11 @@ namespace Inkslab
                     {
                         var parameterInfo = parameterInfos[i];
 
-                        if (ServiceCachings.TryGetValue(parameterInfo.ParameterType, out Type implementType))
+                        if (serviceCachings.TryGetValue(parameterInfo.ParameterType, out Type implementType))
                         {
-                            PropertyInfo instancePropertyInfo = implementType.GetProperty("Instance", DefaultLookup);
+                            PropertyInfo propertyInfo = implementType.GetProperty("Instance", DefaultLookup);
 
-                            var instance = instancePropertyInfo.GetValue(null, null);
-
-                            if (instance is null)
-                            {
-                                if (DefaultCachings.TryGetValue(parameterInfo.ParameterType, out Type defaultType))
-                                {
-                                    //? 同时存在时以“Nested<TService, TImplementation>”类型存储。
-                                    instancePropertyInfo = defaultType.GetProperty("Instance", DefaultLookup);
-
-                                    instance = instancePropertyInfo.GetValue(null, null);
-                                }
-                            }
-
-                            arguments[i] = instance;
-
-                            continue;
+                            arguments[i] = propertyInfo!.GetValue(null, null);
                         }
                         else
                         {
@@ -353,8 +324,6 @@ namespace Inkslab
                 {
                     throw new NotSupportedException($"单例服务({conversionType.FullName}=>{serviceType.FullName})的实现（{conversionType.FullName}）是抽象类，不能被实例化!");
                 }
-
-                DefaultCachings[typeof(TService)] = typeof(Nested<TService, TImplementation>);
             }
 
             public static TImplementation Instance => Lazy.Instance;

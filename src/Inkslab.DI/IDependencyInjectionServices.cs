@@ -15,7 +15,7 @@ namespace Inkslab.DI
         /// <summary>
         /// 程序集。
         /// </summary>
-        ICollection<Assembly> Assemblies { get; }
+        IReadOnlyCollection<Assembly> Assemblies { get; }
 
         /// <summary>
         /// 查找程序集。
@@ -30,27 +30,6 @@ namespace Inkslab.DI
         /// <param name="patterns">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
         /// <returns>依赖注入。</returns>
         IDependencyInjectionServices SeekAssemblies(params string[] patterns);
-
-        /// <summary>
-        /// 程序集。
-        /// </summary>
-        /// <param name="assembly">程序集。</param>
-        /// <returns>依赖注入。</returns>
-        IDependencyInjectionServices AddAssembly(Assembly assembly);
-
-        /// <summary>
-        /// 程序集。
-        /// </summary>
-        /// <param name="assemblies">程序集集合。</param>
-        /// <returns>依赖注入。</returns>
-        IDependencyInjectionServices AddAssemblies(params Assembly[] assemblies);
-
-        /// <summary>
-        /// 移除程序集。
-        /// </summary>
-        /// <param name="match">匹配规则。</param>
-        /// <returns>依赖注入。</returns>
-        IDependencyInjectionServices RemoveAssemblies(Predicate<Assembly> match);
 
         /// <summary>
         /// 查找并调用限定程序集中，所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(IServiceCollection)"/> 注入约定。

@@ -91,6 +91,7 @@ namespace Inkslab.Settings
                 case DateTime date: return date.ToString(DateFormatString);
                 case IEnumerable enumerable:
                     {
+                        // ReSharper disable once NotDisposedResource
                         var enumerator = enumerable.GetEnumerator();
 
                         if (!enumerator.MoveNext())

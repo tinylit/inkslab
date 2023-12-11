@@ -9,7 +9,6 @@ using System.Reflection;
 namespace Inkslab.Map
 {
     using static Expression;
-    using static System.Net.Mime.MediaTypeNames;
 
     /// <summary>
     /// 配置。
@@ -49,11 +48,6 @@ namespace Inkslab.Map
 
                 public int GetHashCode(TypeCode obj)
                 {
-                    if (obj is null)
-                    {
-                        return 0;
-                    }
-
                     var h1 = obj.x.GetHashCode();
                     var h2 = obj.y.GetHashCode();
 
@@ -61,7 +55,7 @@ namespace Inkslab.Map
                 }
             }
 
-            public static IEqualityComparer<TypeCode> InstanceComparer = new TypeCodeEqualityComparer();
+            public static readonly IEqualityComparer<TypeCode> InstanceComparer = new TypeCodeEqualityComparer();
         }
 
         private class Slot
@@ -126,10 +120,11 @@ namespace Inkslab.Map
                     case EsConstraints.NullableEnum:
                         if (argumentType.IsNullable())
                         {
-                            var underlyingType = Nullable.GetUnderlyingType(argumentType);
+                            var underlyingType = Nullable.GetUnderlyingType(argumentType)!;
 
                             return underlyingType.IsEnum;
                         }
+
                         return false;
                     case EsConstraints.Inherit:
                         return typeConstraints.IsAssignableFrom(argumentType);
@@ -144,14 +139,11 @@ namespace Inkslab.Map
             private readonly Type typeDefinition;
             private readonly ConstraintsSlot[] constraintSlots;
 
-            public MapConstraints(Type originalType, Type typeDefinition, ConstraintsSlot[] constraintSlots)
+            public MapConstraints(Type typeDefinition, ConstraintsSlot[] constraintSlots)
             {
-                OriginalType = originalType;
                 this.typeDefinition = typeDefinition;
                 this.constraintSlots = constraintSlots;
             }
-
-            public Type OriginalType { get; }
 
             public bool IsMatch(Type destinationType)
             {
@@ -183,42 +175,40 @@ namespace Inkslab.Map
             }
         }
 
-        private const BindingFlags bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+        private const BindingFlags BindingFlags = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
 
-        private static readonly ExpressionType NodeTypeMap = (ExpressionType)(-1024);
-        private static readonly ExpressionType NodeTypeConvertIf = (ExpressionType)(-1025);
+        private const ExpressionType NodeTypeMap = (ExpressionType)(-1024);
+        private const ExpressionType NodeTypeConvertIf = (ExpressionType)(-1025);
 
         private class ConvertIfExpression : Expression
         {
-            private readonly Type destinationType;
-
             public ConvertIfExpression(Type destinationType)
             {
-                this.destinationType = destinationType;
+                this.Type = destinationType;
             }
 
-            public override Type Type => destinationType;
+            public override Type Type { get; }
 
             public override ExpressionType NodeType => NodeTypeConvertIf;
 
-            public override bool CanReduce => true;
+            public override bool CanReduce => false;
 
-            public override Expression Reduce() => null;
+            public override Expression Reduce() => null!;
         }
+
         private class MapExpression : Expression
         {
             private readonly Expression node;
-            private readonly Type destinationType;
 
             public MapExpression(Expression node, Type destinationType)
             {
                 this.node = node;
-                this.destinationType = destinationType;
+                this.Type = destinationType;
             }
 
             public override ExpressionType NodeType => NodeTypeMap;
 
-            public override Type Type => destinationType;
+            public override Type Type { get; }
 
             public override bool CanReduce => true;
 
@@ -266,7 +256,7 @@ namespace Inkslab.Map
 
                 node = isStatic ? methodCall.Arguments[0] : methodCall.Object;
 
-                if (node.NodeType == NodeTypeConvertIf)
+                if (node!.NodeType == NodeTypeConvertIf)
                 {
                     throw new InvalidCastException("表达式“NewEnumerable<TSourceEnumerable, TDestinationEnumerable>((x, y) => {TDestinationEnumerable})”中，参数“y”不是使用方法二次处理！");
                 }
@@ -315,15 +305,15 @@ namespace Inkslab.Map
             {
                 var declaringType = memberInfo.DeclaringType;
 
-                if (declaringType.IsGenericType)
+                if (declaringType!.IsGenericType)
                 {
                     if (originalDestinationType.IsGenericType && (declaringType == originalDestinationType || memberInfo.ReflectedType == originalDestinationType))
                     {
                         memberInfo = memberInfo.MemberType switch
                         {
-                            MemberTypes.Property => destinationType.GetProperty(memberInfo.Name, bindingFlags),
-                            MemberTypes.Field => destinationType.GetField(memberInfo.Name, bindingFlags),
-                            MemberTypes.Event => destinationType.GetEvent(memberInfo.Name, bindingFlags),
+                            MemberTypes.Property => destinationType.GetProperty(memberInfo.Name, BindingFlags),
+                            MemberTypes.Field => destinationType.GetField(memberInfo.Name, BindingFlags),
+                            MemberTypes.Event => destinationType.GetEvent(memberInfo.Name, BindingFlags),
                             MemberTypes.Method when memberInfo is MethodInfo methodInfo => MethodBase.GetMethodFromHandle(methodInfo.MethodHandle, destinationType.TypeHandle),
                             _ => Member(memberInfo, destinationType),
                         };
@@ -336,7 +326,7 @@ namespace Inkslab.Map
 
                 static MemberInfo Member(MemberInfo memberInfo, Type destinationType)
                 {
-                    var memberInfos = destinationType.GetMember(memberInfo.Name, memberInfo.MemberType, bindingFlags);
+                    var memberInfos = destinationType.GetMember(memberInfo.Name, memberInfo.MemberType, BindingFlags);
 
                     if (memberInfos.Length == 1)
                     {
@@ -345,9 +335,9 @@ namespace Inkslab.Map
 
                     var declaringType = memberInfo.DeclaringType;
 
-                    var typeDefintion = declaringType.GetGenericTypeDefinition();
+                    var typeDefinition = declaringType!.GetGenericTypeDefinition();
 
-                    return memberInfos.Single(x => x.DeclaringType.IsGenericType && x.DeclaringType.GetGenericTypeDefinition() == typeDefintion);
+                    return memberInfos.Single(x => x.DeclaringType!.IsGenericType && x.DeclaringType.GetGenericTypeDefinition() == typeDefinition);
                 }
             }
 
@@ -355,7 +345,7 @@ namespace Inkslab.Map
             {
                 if (node.Type == originalDestinationType && destinationType.IsGenericType)
                 {
-                    var constructorInfo = (ConstructorInfo)MethodBase.GetMethodFromHandle(node.Constructor.MethodHandle, destinationType.TypeHandle);
+                    var constructorInfo = (ConstructorInfo)MethodBase.GetMethodFromHandle(node.Constructor.MethodHandle, destinationType.TypeHandle)!;
 
                     var arguments = new List<Expression>(node.Arguments.Count);
 
@@ -387,7 +377,7 @@ namespace Inkslab.Map
             {
                 var memberInfo = node.Member;
 
-                var declaringType = memberInfo.DeclaringType;
+                var declaringType = memberInfo.DeclaringType!;
 
                 var instanceExpression = Visit(node.Expression);
 
@@ -395,9 +385,9 @@ namespace Inkslab.Map
                 {
                     return memberInfo.MemberType switch
                     {
-                        MemberTypes.Property => Property(instanceExpression, sourceType.GetProperty(memberInfo.Name, bindingFlags)),
-                        MemberTypes.Field => Field(instanceExpression, sourceType.GetField(memberInfo.Name, bindingFlags)),
-                        MemberTypes.Method when memberInfo is MethodInfo method => Property(instanceExpression, (MethodInfo)MethodBase.GetMethodFromHandle(method.MethodHandle, sourceType.TypeHandle)),
+                        MemberTypes.Property => Property(instanceExpression, sourceType.GetProperty(memberInfo.Name, BindingFlags)!),
+                        MemberTypes.Field => Field(instanceExpression, sourceType.GetField(memberInfo.Name, BindingFlags)!),
+                        MemberTypes.Method when memberInfo is MethodInfo method => Property(instanceExpression, (MethodInfo)MethodBase.GetMethodFromHandle(method.MethodHandle, sourceType.TypeHandle)!),
                         _ => throw new NotSupportedException(),
                     };
                 }
@@ -560,13 +550,11 @@ namespace Inkslab.Map
             private readonly IInstanceFactory instanceFactory;
             private readonly HashSet<Type> destinationTypes;
 
-            private readonly bool hasInstanceSlot = false;
-
             private bool isSourceConstraints;
             private bool isDestinationConstraints;
 
-            private bool hasMatchConstraints = false;
-            private int destinationConstraintsCount = 0;
+            private bool hasMatchConstraints;
+            private int destinationConstraintsCount;
             private MatchConstraints matchConstraints;
             private MapConstraints sourceConstraints;
             private List<MapConstraints> destinationConstraints;
@@ -584,12 +572,12 @@ namespace Inkslab.Map
 
             public MapSlot(Type sourceType, Type destinationType, IInstanceFactory instanceFactory, List<IMapSlot> mapSlots) : this(sourceType, destinationType, mapSlots)
             {
-                hasInstanceSlot = true;
+                IsInstanceSlot = true;
 
                 this.instanceFactory = instanceFactory;
             }
 
-            public bool IsInstanceSlot => hasInstanceSlot;
+            public bool IsInstanceSlot { get; }
 
             public void Include(Type destinationType) => destinationTypes.Add(destinationType);
 
@@ -652,7 +640,7 @@ namespace Inkslab.Map
 
                     if (typeConstraints.IsNullable()) //? 可空类型。
                     {
-                        var underlyingType = Nullable.GetUnderlyingType(typeConstraints);
+                        var underlyingType = Nullable.GetUnderlyingType(typeConstraints)!;
 
                         constraints = underlyingType.IsEnum
                             ? EsConstraints.NullableEnum
@@ -678,7 +666,7 @@ namespace Inkslab.Map
                     constraintSlots[i] = new ConstraintsSlot(typeConstraints, constraints);
                 }
 
-                mapConstraints = new MapConstraints(type, typeDefinition, constraintSlots);
+                mapConstraints = new MapConstraints(typeDefinition, constraintSlots);
 
                 return true;
             }
@@ -758,7 +746,7 @@ namespace Inkslab.Map
                 var instanceFactory = new InstanceEnumerableFactory(body, parameter, parameterOfSet);
 
                 Func<Type, Type, bool> bindingConstraints = sourceType == MapConstants.ObjectType && destinationType == MapConstants.ObjectType
-                    ? (x, y) => true
+                    ? (_, _) => true
                     : IsMatch;
 
                 var mapSlot = new GenericMapSlot(sourceTypeDefinition, destinationTypeDefinition, instanceFactory, bindingConstraints);
@@ -826,7 +814,7 @@ namespace Inkslab.Map
 
                 public Expression Map(Expression source, IMapApplication application)
                 {
-                    var visitor = new MapExpressionVisitor(application, new[] { parameter }, new[] { source });
+                    var visitor = new MapExpressionVisitor(application, new Expression[] { parameter }, new Expression[] { source });
 
                     return visitor.Visit(body);
                 }
@@ -836,7 +824,7 @@ namespace Inkslab.Map
             {
                 var source = Parameter(sourceType);
 
-                var visitor = new PrepareMapExpressionVisitor(parameter.Type, body.Type, sourceType, destinationType, new[] { parameter }, new[] { source });
+                var visitor = new PrepareMapExpressionVisitor(parameter.Type, body.Type, sourceType, destinationType, new Expression[] { parameter }, new Expression[] { source });
 
                 return new MapperSlot(visitor.Visit(body), source);
             }
@@ -868,7 +856,7 @@ namespace Inkslab.Map
 
                 public Expression Map(Expression source, IMapApplication application)
                 {
-                    var visitor = new MapExpressionVisitor(application, new[] { parameter }, new[] { source });
+                    var visitor = new MapExpressionVisitor(application, new Expression[] { parameter }, new Expression[] { source });
 
                     return visitor.Visit(body);
                 }
@@ -915,8 +903,8 @@ namespace Inkslab.Map
             {
                 NewExpression => true,
                 MemberInitExpression => true,
-                GotoExpression gotoExpression when gotoExpression.Kind == GotoExpressionKind.Return => TryAnalysisInstanceExpression(gotoExpression.Value, out validExpression),
-                BlockExpression blockExpression when blockExpression.Variables.Count == 0 && blockExpression.Expressions.Count == 1 => TryAnalysisInstanceExpression(blockExpression.Expressions[0], out validExpression),
+                GotoExpression { Kind: GotoExpressionKind.Return } gotoExpression => TryAnalysisInstanceExpression(gotoExpression.Value, out validExpression),
+                BlockExpression { Variables: { Count: 0 }, Expressions: { Count: 1 } } blockExpression => TryAnalysisInstanceExpression(blockExpression.Expressions[0], out validExpression),
                 _ => false,
             };
         }
@@ -976,11 +964,11 @@ namespace Inkslab.Map
             public void Ignore() => mapSlot.Ignore(memberName);
         }
 
-        private class ProfileExpressio<TSource, TDestination> : IProfileExpression<TSource, TDestination>
+        private class ProfileExpression<TSource, TDestination> : IProfileExpression<TSource, TDestination>
         {
             private readonly MapSlot mapSlot;
 
-            public ProfileExpressio(MapSlot mapSlot)
+            public ProfileExpression(MapSlot mapSlot)
             {
                 this.mapSlot = mapSlot;
             }
@@ -997,8 +985,8 @@ namespace Inkslab.Map
                 return node switch
                 {
                     MemberExpression member => member.Member.Name,
-                    InvocationExpression invocation when invocation.Arguments.Count == 1 => NameOfAnalysis(invocation.Expression),
-                    LambdaExpression lambda when lambda.Parameters.Count == 1 => NameOfAnalysis(lambda.Body),
+                    InvocationExpression { Arguments: { Count: 1 } } invocation => NameOfAnalysis(invocation.Expression),
+                    LambdaExpression { Parameters: { Count: 1 } } lambda => NameOfAnalysis(lambda.Body),
                     _ => throw new NotSupportedException(),
                 };
             }
@@ -1127,7 +1115,7 @@ namespace Inkslab.Map
                     continue;
                 }
 
-label_auto:
+                label_auto:
                 propertyInfos ??= sourceType.GetProperties();
 
                 foreach (var memberInfo in propertyInfos)
@@ -1272,7 +1260,7 @@ label_auto:
                 mapCachings[new TypeCode(sourceType, destinationType)] = mapSlot;
             }
 
-            return new ProfileExpressio<TSource, TDestination>(mapSlot);
+            return new ProfileExpression<TSource, TDestination>(mapSlot);
         }
 
         /// <summary>
@@ -1320,7 +1308,7 @@ label_auto:
 
             instanceMapCachings[typeCode] = instanceFactory.CreateMap(sourceType, destinationType);
 
-            return new ProfileExpressio<TSource, TDestination>(mapSlot);
+            return new ProfileExpression<TSource, TDestination>(mapSlot);
         }
 
         /// <summary>

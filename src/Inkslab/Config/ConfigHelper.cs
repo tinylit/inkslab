@@ -10,12 +10,12 @@ namespace Inkslab.Config
     /// </summary>
     public static class ConfigHelper
     {
-        private static readonly IConfigHelper _configHelper;
+        private static readonly IConfigHelper configHelper;
 
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static ConfigHelper() => _configHelper = SingletonPools.Singleton<IConfigHelper, DefaultConfigHelper>();
+        static ConfigHelper() => configHelper = SingletonPools.Singleton<IConfigHelper, DefaultConfigHelper>();
 
 #if !NET_Traditional
         /// <summary>
@@ -54,7 +54,7 @@ namespace Inkslab.Config
 
 #if !NET_Traditional
         /// <summary> 配置文件变更事件。 </summary>
-        public static event Action<object> OnConfigChanged { add { _configHelper.OnConfigChanged += value; } remove { _configHelper.OnConfigChanged -= value; } }
+        public static event Action<object> OnConfigChanged { add { configHelper.OnConfigChanged += value; } remove { configHelper.OnConfigChanged -= value; } }
 #endif
 
         /// <summary>
@@ -64,7 +64,7 @@ namespace Inkslab.Config
         /// <param name="key">健。</param>
         /// <param name="defaultValue">默认值。</param>
         /// <returns></returns>
-        public static T Get<T>(string key, T defaultValue = default) => _configHelper.Get(key, defaultValue);
+        public static T Get<T>(string key, T defaultValue = default) => configHelper.Get(key, defaultValue);
 
 #if !NET_Traditional
         /// <summary>
@@ -74,7 +74,7 @@ namespace Inkslab.Config
         /// <param name="key">键。</param>
         /// <param name="defaultValue">默认值。</param>
         /// <returns></returns>
-        public static IOptions<T> Options<T>(string key, T defaultValue = default) where T : class => new DefaultOptions<T>(_configHelper, key, defaultValue);
+        public static IOptions<T> Options<T>(string key, T defaultValue = default) where T : class => new DefaultOptions<T>(configHelper, key, defaultValue);
 #endif
     }
 }

@@ -162,8 +162,8 @@ namespace System
         private static class Convert<TEnum> where TEnum : struct, Enum
         {
             private static readonly Type conversionType;
-            private static readonly bool allowConvertToInt = false;
-            private static readonly bool allowConvertToLong = false;
+            private static readonly bool allowConvertToInt;
+            private static readonly bool allowConvertToLong;
 
             static Convert()
             {
