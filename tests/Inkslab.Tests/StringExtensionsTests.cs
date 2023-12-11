@@ -6,9 +6,9 @@ using Xunit;
 namespace Inkslab.Tests
 {
     /// <summary>
-    /// <see cref="StringExtentions"/> 测试。
+    /// <see cref="StringExtensions"/> 测试。
     /// </summary>
-    public class StringExtentionsTests
+    public class StringExtensionsTests
     {
         /// <summary>
         /// 语法糖测试。
