@@ -4,9 +4,9 @@ using Xunit;
 namespace Inkslab.Tests
 {
     /// <summary>
-    /// <see cref="CryptoExtentions"/> 测试。
+    /// <see cref="CryptoExtensions"/> 测试。
     /// </summary>
-    public class CryptoExtentionsTest
+    public class CryptoExtensionsTest
     {
         /// <summary>
         /// 加密/解密测试。

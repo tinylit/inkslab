@@ -185,16 +185,16 @@ namespace Inkslab.Sugars
                 }
                 else
                 {
-                    canConvertFn = x => true;
+                    canConvertFn = _ => true;
                 }
 
                 expressions.Add(Call(contextExp, methodInfo, arguments));
 
                 var bodyExp = Block(variables, expressions);
 
-                var lamdaExp = Lambda<Func<T, Match, string>>(bodyExp, contextExp, parameterExp);
+                var lambdaExp = Lambda<Func<T, Match, string>>(bodyExp, contextExp, parameterExp);
 
-                var convertFn = lamdaExp.Compile();
+                var convertFn = lambdaExp.Compile();
 
                 adapterCachings.Add(new Adapter(canConvertFn, convertFn));
             }

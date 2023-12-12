@@ -1,12 +1,10 @@
 ﻿using Inkslab.Map.Maps;
-using Inkslab.Map.Visitors;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Security.AccessControl;
 
 namespace Inkslab.Map
 {
@@ -23,7 +21,7 @@ namespace Inkslab.Map
         /// <summary>
         /// 默认映射规则集合。
         /// </summary>
-        public readonly static IList<IMap> DefaultMaps = new List<IMap>
+        public static readonly IList<IMap> DefaultMaps = new List<IMap>
         {
             new EnumerableMap(),
             new ConvertMap(),
@@ -93,7 +91,7 @@ namespace Inkslab.Map
         {
             if (sourceType.IsNullable())
             {
-                sourceType = Nullable.GetUnderlyingType(sourceType);
+                sourceType = Nullable.GetUnderlyingType(sourceType)!;
             }
 
             if (destinationType.IsNullable())
@@ -203,14 +201,14 @@ namespace Inkslab.Map
                         conversionType = typeof(List<>).MakeGenericType(conversionType.GetGenericArguments());
                     }
                     else if (typeDefinition == typeof(IDictionary<,>)
-                        || typeDefinition == typeof(IReadOnlyDictionary<,>))
+                             || typeDefinition == typeof(IReadOnlyDictionary<,>))
                     {
                         conversionType = typeof(Dictionary<,>).MakeGenericType(conversionType.GetGenericArguments());
                     }
                 }
                 else if (conversionType == typeof(IEnumerable)
-                    || conversionType == typeof(ICollection)
-                    || conversionType == typeof(IList))
+                         || conversionType == typeof(ICollection)
+                         || conversionType == typeof(IList))
                 {
                     conversionType = typeof(List<object>);
                 }
@@ -255,7 +253,7 @@ namespace Inkslab.Map
                 return MapAnyOfValueType(sourceExpression, sourceType, destinationType, application);
             }
 
-            if (sourceType == destinationType && sourceType == MapConstants.StirngType)
+            if (sourceType == destinationType && sourceType == MapConstants.StringType)
             {
                 if (AllowPropagationNullValues)
                 {
@@ -297,12 +295,12 @@ namespace Inkslab.Map
         {
             if (destinationType.IsNullable())
             {
-                var conversionType = Nullable.GetUnderlyingType(destinationType);
+                var conversionType = Nullable.GetUnderlyingType(destinationType)!;
 
                 return Condition(TypeIs(sourceExpression, conversionType),
-                        TypeAs(sourceExpression, destinationType),
-                        New(destinationType.GetConstructor(new Type[] { conversionType }), MapAnyOfObject(sourceExpression, sourceType, conversionType, application))
-                    );
+                    TypeAs(sourceExpression, destinationType),
+                    New(destinationType.GetConstructor(new Type[] { conversionType })!, MapAnyOfObject(sourceExpression, sourceType, conversionType, application))
+                );
             }
 
             if (destinationType.IsEnum)
@@ -310,9 +308,9 @@ namespace Inkslab.Map
                 var conversionType = Enum.GetUnderlyingType(destinationType);
 
                 return Condition(TypeIs(sourceExpression, conversionType),
-                        Map(Convert(sourceExpression, conversionType), destinationType, application),
-                        Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
-                    );
+                    Map(Convert(sourceExpression, conversionType), destinationType, application),
+                    Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
+                );
             }
 
             if (destinationType.IsPrimitive ||
@@ -324,10 +322,10 @@ namespace Inkslab.Map
                     || destinationType == typeof(DateTimeOffset))
                 || destinationType == typeof(Version))
             {
-                return Condition(TypeIs(sourceExpression, MapConstants.StirngType),
-                        Map(TypeAs(sourceExpression, MapConstants.StirngType), destinationType, application),
-                        MapAnyByConvert(sourceExpression, sourceType, destinationType, application)
-                    );
+                return Condition(TypeIs(sourceExpression, MapConstants.StringType),
+                    Map(TypeAs(sourceExpression, MapConstants.StringType), destinationType, application),
+                    MapAnyByConvert(sourceExpression, sourceType, destinationType, application)
+                );
             }
 
             return MapAnyByConvert(sourceExpression, sourceType, destinationType, application);
@@ -392,7 +390,7 @@ namespace Inkslab.Map
 
                             var destinationExpression = MapAnyOfValueType(Property(sourceExpression, "Value"), sourceType, underlyingDestinationType, application);
 
-                            return Condition(Property(sourceExpression, "HasValue"), New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression), DefaultValue(destinationType));
+                            return Condition(Property(sourceExpression, "HasValue"), New(destinationType.GetConstructor(new Type[] { underlyingDestinationType })!, destinationExpression), DefaultValue(destinationType));
                         }
 
                         return Condition(Property(sourceExpression, "HasValue"), MapAnyOfValueType(Property(sourceExpression, "Value"), underlyingSourceType, destinationType, application), DefaultValue(destinationType));
@@ -404,7 +402,7 @@ namespace Inkslab.Map
 
                         var destinationExpression = MapGeneral(IgnoreIfNull(sourceExpression), sourceType, underlyingDestinationType, application);
 
-                        return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
+                        return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType })!, destinationExpression);
                     }
 
                     return MapAnyOfValueType(IgnoreIfNull(sourceExpression), underlyingSourceType, destinationType, application);
@@ -416,10 +414,10 @@ namespace Inkslab.Map
                     var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
                     var destinationExpression = sourceType == underlyingDestinationType
-                            ? sourceExpression
-                            : MapAnyOfValueType(sourceExpression, sourceType, underlyingDestinationType, application);
+                        ? sourceExpression
+                        : MapAnyOfValueType(sourceExpression, sourceType, underlyingDestinationType, application);
 
-                    return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), destinationExpression);
+                    return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType })!, destinationExpression);
                 }
 
                 return MapGeneral(sourceExpression, sourceType, destinationType, application);
@@ -431,7 +429,7 @@ namespace Inkslab.Map
                 {
                     var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
-                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(sourceExpression, sourceType, underlyingDestinationType, application)));
+                    return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), New(destinationType.GetConstructor(new Type[] { underlyingDestinationType })!, MapGeneral(sourceExpression, sourceType, underlyingDestinationType, application)));
                 }
 
                 return Condition(Equal(sourceExpression, DefaultValue(sourceType)), DefaultValue(destinationType), MapGeneral(sourceExpression, sourceType, destinationType, application));
@@ -441,7 +439,7 @@ namespace Inkslab.Map
             {
                 var underlyingDestinationType = Nullable.GetUnderlyingType(destinationType);
 
-                return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType }), MapGeneral(IgnoreIfNull(sourceExpression), sourceType, underlyingDestinationType, application));
+                return New(destinationType.GetConstructor(new Type[] { underlyingDestinationType })!, MapGeneral(IgnoreIfNull(sourceExpression), sourceType, underlyingDestinationType, application));
             }
 
             return MapGeneral(IgnoreIfNull(sourceExpression), sourceType, destinationType, application);
@@ -556,7 +554,9 @@ namespace Inkslab.Map
 
         private class MapperExpressionVisitor : ExpressionVisitor
         {
-            private MapperExpressionVisitor() { }
+            private MapperExpressionVisitor()
+            {
+            }
 
             protected override Expression VisitBinary(BinaryExpression node)
             {
@@ -615,7 +615,7 @@ namespace Inkslab.Map
                 return Block(new ParameterExpression[] { instanceVar }, expressions);
             }
 
-            public static MapperExpressionVisitor Instance = new MapperExpressionVisitor();
+            public static readonly MapperExpressionVisitor Instance = new MapperExpressionVisitor();
         }
 
         /// <summary>
@@ -624,15 +624,11 @@ namespace Inkslab.Map
         private const ExpressionType IgnoreIf = (ExpressionType)(-1);
 
         /// <summary>
-        /// 为 null 时，忽略。
+        /// 为 <see langword="null"/> 时，忽略。
         /// </summary>
         private class IgnoreIfNullExpressionVisitor : ExpressionVisitor
         {
             private readonly HashSet<Expression> ignoreIfNull = new HashSet<Expression>();
-
-            public IgnoreIfNullExpressionVisitor()
-            {
-            }
 
             /// <summary>
             /// 是否含有忽略条件。
@@ -686,9 +682,7 @@ namespace Inkslab.Map
         /// </summary>
         private class IgnoreIfNullExpression : Expression
         {
-            private readonly Type type;
             private readonly Expression node;
-            private readonly Expression test;
             private readonly bool keepNullable;
 
             /// <summary>
@@ -701,28 +695,29 @@ namespace Inkslab.Map
             public IgnoreIfNullExpression(Expression node, Expression test, bool keepNullable)
             {
                 this.node = node ?? throw new ArgumentNullException(nameof(node));
-                this.test = test ?? throw new ArgumentNullException(nameof(test));
+                this.Test = test ?? throw new ArgumentNullException(nameof(test));
+                
                 this.keepNullable = keepNullable;
 
                 if (node.Type.IsNullable())
                 {
-                    type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type);
+                    Type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type)!;
                 }
                 else
                 {
-                    type = node.Type;
+                    Type = node.Type;
                 }
             }
 
             /// <summary>
             /// 非空条件。
             /// </summary>
-            public Expression Test => test;
+            public Expression Test { get; }
 
             /// <summary>
             /// 类型。
             /// </summary>
-            public override Type Type => type;
+            public override Type Type { get; }
 
             /// <summary>
             /// 节点类型。
@@ -743,7 +738,8 @@ namespace Inkslab.Map
                     return Property(node, "Value");
                 }
 
-label_original:
+                label_original:
+                
                 return node;
             }
 

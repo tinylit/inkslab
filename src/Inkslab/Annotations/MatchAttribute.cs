@@ -5,7 +5,7 @@ namespace Inkslab.Annotations
     /// <summary>
     /// 匹配。
     /// </summary>
-    [AttributeUsage(AttributeTargets.Parameter, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Parameter)]
     public sealed class MatchAttribute : Attribute
     {
         /// <summary>

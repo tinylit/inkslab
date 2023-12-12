@@ -12,9 +12,9 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class KeyValueMap : IMap
     {
-        private readonly static Type KeyValueType = typeof(KeyValuePair<,>);
+        private static readonly Type keyValueType = typeof(KeyValuePair<,>);
 
-        private static bool IsKeyValue(Type conversionType) => conversionType.IsGenericType && conversionType.GetGenericTypeDefinition() == KeyValueType;
+        private static bool IsKeyValue(Type conversionType) => conversionType.IsGenericType && conversionType.GetGenericTypeDefinition() == keyValueType;
 
         /// <summary>
         /// <see cref="KeyValuePair{TKey, TValue}"/> 映射。
@@ -54,7 +54,7 @@ namespace Inkslab.Map.Maps
                 }
             });
 
-            return New(destinationType.GetConstructor(conversionGenericArguments), arguments);
+            return New(destinationType.GetConstructor(conversionGenericArguments)!, arguments);
         }
     }
 }

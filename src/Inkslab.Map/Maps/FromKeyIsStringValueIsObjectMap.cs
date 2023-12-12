@@ -13,16 +13,16 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class FromKeyIsStringValueIsObjectMap : AbstractMap, IMap
     {
-        private readonly static Type kvStringType = typeof(kvString);
-        private readonly static Type kvStringEnumerableType = typeof(IEnumerable<kvString>);
-        private readonly static Type kvStringEnumeratorType = typeof(IEnumerator<kvString>);
+        private static readonly Type kvStringType = typeof(kvString);
+        private static readonly Type kvStringEnumerableType = typeof(IEnumerable<kvString>);
+        private static readonly Type kvStringEnumeratorType = typeof(IEnumerator<kvString>);
 
-        private readonly static MethodInfo GetEnumeratorMtd = kvStringEnumerableType.GetMethod("GetEnumerator", Type.EmptyTypes);
+        private static readonly MethodInfo getEnumeratorMtd = kvStringEnumerableType.GetMethod("GetEnumerator", Type.EmptyTypes);
 
-        private readonly static PropertyInfo PropertyCurrent = kvStringEnumeratorType.GetProperty("Current");
+        private static readonly PropertyInfo propertyCurrent = kvStringEnumeratorType.GetProperty("Current");
 
-        private readonly static PropertyInfo PropertyKey = kvStringType.GetProperty("Key");
-        private readonly static PropertyInfo PropertyValue = kvStringType.GetProperty("Value");
+        private static readonly PropertyInfo propertyKey = kvStringType.GetProperty("Key");
+        private static readonly PropertyInfo propertyValue = kvStringType.GetProperty("Value");
 
         /// <summary>
         /// 解决从 <see cref="IEnumerable{T}"/>, T is <seealso cref="kvString"/> 到对象的映射。
@@ -42,14 +42,14 @@ namespace Inkslab.Map.Maps
                 return destinationExpression;
             }
 
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             var keyValueExp = Variable(typeof(kvString));
             var enumeratorExp = Variable(kvStringEnumeratorType);
 
-            var sourceKeyProp = Property(keyValueExp, PropertyKey);
-            var sourceValueProp = Property(keyValueExp, PropertyValue);
+            var sourceKeyProp = Property(keyValueExp, propertyKey);
+            var sourceValueProp = Property(keyValueExp, propertyValue);
 
             List<SwitchCase> switchCases = new List<SwitchCase>();
 
@@ -91,18 +91,18 @@ namespace Inkslab.Map.Maps
                 enumeratorExp
              }, new Expression[]
              {
-                Assign(enumeratorExp, Call(sourceExpression, GetEnumeratorMtd)),
+                Assign(enumeratorExp, Call(sourceExpression, getEnumeratorMtd)),
                 Loop(
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
                             MapConstants.VoidType,
-                            Assign(keyValueExp, Property(enumeratorExp, PropertyCurrent)),
+                            Assign(keyValueExp, Property(enumeratorExp, propertyCurrent)),
                             bodyExp,
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label)
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel)
              });
         }
     }

@@ -45,12 +45,12 @@ namespace Inkslab.DI.Options
 
 #if NET_Traditional
         /// <summary>
-        /// 自动注入接口行为参数，默认：false。
+        /// 自动注入接口行为参数，默认：<see langword="false"/>。
         /// </summary>
         public bool DiControllerActionIsFromServicesParameters { get; set; }
 #else
         /// <summary>
-        /// 自动注入接口行为参数为 true 时，生效。默认：true。
+        /// 自动注入接口行为参数为 true 时，生效。默认：<see langword="true"/>。
         /// </summary>
         public bool DiControllerActionIsFromServicesParameters { get; set; } = true;
 #endif

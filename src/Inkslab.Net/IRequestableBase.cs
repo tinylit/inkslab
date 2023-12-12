@@ -14,7 +14,7 @@ namespace Inkslab.Net
     /// <summary>
     /// 基础请求能力。
     /// </summary>
-    public interface IRequestableBase<TRequestable>
+    public interface IRequestableBase<out TRequestable>
     {
         /// <summary>
         /// 指定包含与请求或响应相关联的协议头。

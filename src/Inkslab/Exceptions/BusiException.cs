@@ -1,6 +1,7 @@
 ﻿using System;
+using Insklab.Exceptions;
 
-namespace Insklab.Exceptions
+namespace Inkslab.Exceptions
 {
     /// <summary> 业务执行中，业务逻辑不满足返回异常（<see cref="CodeException.ErrorCode"/>：1000001 ~ 9999999）。 </summary>
     public class BusiException : CodeException

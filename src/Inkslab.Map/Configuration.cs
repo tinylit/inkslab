@@ -6,7 +6,7 @@
     public class Configuration : IConfiguration
     {
         /// <summary>
-        /// 是否深度映射，默认：true。
+        /// 是否深度映射，默认：<see langword="true"/>。
         /// </summary>
         public bool IsDepthMapping { get; set; } = true;
 

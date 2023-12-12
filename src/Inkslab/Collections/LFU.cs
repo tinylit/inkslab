@@ -8,9 +8,9 @@ namespace Inkslab.Collections
     /// 【线程安全】LFU 算法，移除最近最不常使用的数据。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
-    public class LFU<T>
+    public class LFU<T> : IEliminationAlgorithm<T>
     {
-        private int version = 0;
+        private int version;
 
         private readonly int capacity;
         private readonly SortedSet<Node> sortKeys;
@@ -18,11 +18,7 @@ namespace Inkslab.Collections
 
         private readonly object lockKeys = new object();
 
-        private interface IComparerOrEquals<TItem> : IComparer<TItem>, IEqualityComparer<TItem>
-        {
-        }
-
-        [DebuggerDisplay("{Value}(rank:{rank})")]
+        [DebuggerDisplay("{key}(rank:{rank})")]
         private class Node
         {
             private readonly T key;
@@ -119,26 +115,17 @@ namespace Inkslab.Collections
             }
         }
 
-        /// <summary>
-        /// 元素个数。
-        /// </summary>
+        /// <inheritdoc />
         public int Count => keys.Count;
 
-        /// <summary>
-        /// 若集合元素饱和，添加元素后，返回被淘汰的元素。
-        /// </summary>
-        /// <param name="addItem">添加的元素。</param>
-        /// <param name="removeItem">溢出的元素。</param>
-        /// <returns>元素是否溢出。</returns>
-        public bool Overflow(T addItem, out T removeItem)
+        /// <inheritdoc />
+        public bool Put(T value, out T obsoleteValue)
         {
             lock (lockKeys)
             {
-                removeItem = default;
+                obsoleteValue = default;
 
-                bool removeFlag = false;
-
-                if (keys.TryGetValue(addItem, out Node node)) //? 有节点数据。
+                if (keys.TryGetValue(value, out Node node)) //? 有节点数据。
                 {
                     sortKeys.Remove(node);
 
@@ -146,24 +133,27 @@ namespace Inkslab.Collections
 
                     sortKeys.Add(node);
 
-                    return removeFlag;
+                    return false;
                 }
+
+                bool removeFlag = false;
 
                 if (keys.Count == capacity)
                 {
                     removeFlag = true;
-label_removeItem:
+                    
+                    label_removeItem:
                     bool removeMinFlag = true;
 
                     while (removeMinFlag)
                     {
                         var min = sortKeys.Min;
 
-                        removeItem = min.Value;
+                        obsoleteValue = min.Value;
 
                         removeMinFlag = sortKeys.Remove(min);
 
-                        if (removeMinFlag && keys.Remove(removeItem))
+                        if (removeMinFlag && keys.Remove(obsoleteValue))
                         {
                             goto label_add;
                         }
@@ -179,12 +169,13 @@ label_removeItem:
                     goto label_removeItem;
                 }
 
-label_add:
-                node = new Node(addItem, version, capacity);
+                label_add:
+                
+                node = new Node(value, version, capacity);
 
                 sortKeys.Add(node);
 
-                keys.Add(addItem, node);
+                keys.Add(value, node);
 
                 return removeFlag;
             }
@@ -282,24 +273,24 @@ label_add:
 
             if (cachings.TryGetValue(key, out TValue value))
             {
-                if (lfu.Overflow(key, out TKey removeKey))
+                if (lfu.Put(key, out TKey obsoleteKey))
                 {
                     lock (lockObj)
                     {
 #if NET_Traditional
-                        if (cachings.TryGetValue(removeKey, out TValue removeValue))
+                        if (cachings.TryGetValue(obsoleteKey, out TValue obsoleteValue))
                         {
-                            if (removeValue is IDisposable disposable)
+                            if (obsoleteValue is IDisposable disposable)
                             {
                                 disposable.Dispose();
                             }
 
-                            cachings.Remove(removeKey);
+                            cachings.Remove(obsoleteKey);
                         }
 #else
-                        if (cachings.Remove(removeKey, out TValue removeValue))
+                        if (cachings.Remove(obsoleteKey, out TValue obsoleteValue))
                         {
-                            if (removeValue is IDisposable disposable)
+                            if (obsoleteValue is IDisposable disposable)
                             {
                                 disposable.Dispose();
                             }
@@ -310,10 +301,11 @@ label_add:
 
                 return value;
             }
-label_ref:
+
+            label_ref:
             lock (lockObj)
             {
-                if (lfu.Overflow(key, out TKey removeKey))
+                if (lfu.Put(key, out TKey removeKey))
                 {
 #if NET_Traditional
                         if (cachings.TryGetValue(removeKey, out TValue removeValue))

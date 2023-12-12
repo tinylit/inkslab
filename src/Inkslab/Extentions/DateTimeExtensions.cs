@@ -25,7 +25,7 @@
     /// <summary>
     /// 日期扩展。
     /// </summary>
-    public static class DateTimeExtentions
+    public static class DateTimeExtensions
     {
         /// <summary>
         /// 日初，返回: yyyy-MM-dd 00:00:00.000。
@@ -90,7 +90,7 @@
         /// 是否为闰年。
         /// </summary>
         /// <param name="year">年份。</param>
-        /// <returns>是闰年则为 true， 否则为 false。</returns>
+        /// <returns>是闰年则为 <see langword="true"/>， 否则为 <see langword="false"/>。</returns>
         public static bool IsLeapYear(this int year) => year % 400 == 0 || year % 4 == 0 && year % 100 > 0;
 
         /// <summary>

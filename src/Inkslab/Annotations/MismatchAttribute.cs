@@ -5,7 +5,7 @@ namespace Inkslab.Annotations
     /// <summary>
     /// 不匹配。
     /// </summary>
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     public sealed class MismatchAttribute : Attribute
     {
         /// <summary>

@@ -17,15 +17,15 @@ namespace System
     /// <summary>
     /// 字符串扩展。
     /// </summary>
-    public static class StringExtentions
+    public static class StringExtensions
     {
-        private static readonly Regex PatternCamelCase = new Regex("(_|-)[a-zA-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex patternCamelCase = new Regex("(_|-)[a-zA-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
 
-        private static readonly Regex PatternPascalCase = new Regex("(^[a-z])|(_|-)[a-zA-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex patternPascalCase = new Regex("(^[a-z])|(_|-)[a-zA-Z]", RegexOptions.Singleline | RegexOptions.Compiled);
 
-        private static readonly Regex PatternSnakeCase = new Regex("[A-Z]|(-[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex patternSnakeCase = new Regex("[A-Z]|(-[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
 
-        private static readonly Regex PatternKebabCase = new Regex("[A-Z]|(_[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
+        private static readonly Regex patternKebabCase = new Regex("[A-Z]|(_[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
 
         /// <summary>
         /// 命名。
@@ -59,13 +59,13 @@ namespace System
                         string value = name[1..];
 #endif
 
-                        return string.Concat(char.ToString(char.ToLower(name[0])), PatternCamelCase.Replace(value, x => char.ToUpper(x.Value[1]).ToString()));
+                        return string.Concat(char.ToString(char.ToLower(name[0])), patternCamelCase.Replace(value, x => char.ToUpper(x.Value[1]).ToString()));
                     }
 
-                    return PatternCamelCase.Replace(name, x => char.ToUpper(x.Value[1]).ToString());
+                    return patternCamelCase.Replace(name, x => char.ToUpper(x.Value[1]).ToString());
 
                 case NamingType.PascalCase:
-                    return PatternPascalCase.Replace(name, x =>
+                    return patternPascalCase.Replace(name, x =>
                     {
                         if (x.Index == 0)
                         {
@@ -76,7 +76,7 @@ namespace System
                     });
 
                 case NamingType.SnakeCase:
-                    return PatternSnakeCase.Replace(name, x =>
+                    return patternSnakeCase.Replace(name, x =>
                     {
                         if (x.Index == 0)
                         {
@@ -92,7 +92,7 @@ namespace System
                     });
 
                 case NamingType.KebabCase:
-                    return PatternKebabCase.Replace(name, x =>
+                    return patternKebabCase.Replace(name, x =>
                     {
                         if (x.Index == 0)
                         {
@@ -108,7 +108,7 @@ namespace System
                     });
 
                 default:
-                    throw new NotImplementedException();
+                    throw new NotSupportedException();
             }
         }
 

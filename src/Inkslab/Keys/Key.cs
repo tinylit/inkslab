@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Globalization;
 
 namespace Inkslab.Keys
 {
@@ -40,7 +41,7 @@ namespace Inkslab.Keys
         /// 长整型隐式转换为主键。
         /// </summary>
         /// <param name="value">键值。</param>
-        public static implicit operator Key(long value) => KeyGen.Create(value);
+        public static implicit operator Key(long value) => KeyGen.New(value);
 
         /// <summary>
         /// 是否相等。
@@ -96,7 +97,7 @@ namespace Inkslab.Keys
         /// 转本地日期字符串。
         /// </summary>
         /// <returns></returns>
-        public string ToLocalTimeString() => ToLocalTime().ToString();
+        public string ToLocalTimeString() => ToLocalTime().ToString(CultureInfo.CurrentCulture);
 
         /// <summary>
         /// 转本地日期字符串。
@@ -109,7 +110,7 @@ namespace Inkslab.Keys
         /// 转UTC日期字符串。
         /// </summary>
         /// <returns></returns>
-        public string ToUniversalTimeString() => ToUniversalTime().ToString();
+        public string ToUniversalTimeString() => ToUniversalTime().ToString(CultureInfo.CurrentCulture);
 
         /// <summary>
         /// 转UTC日期字符串。
@@ -137,7 +138,12 @@ namespace Inkslab.Keys
         /// <inheritdoc/>
         public override int GetHashCode() => Value.GetHashCode();
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 重写等于运算符。
+        /// </summary>
+        /// <param name="left">左值。</param>
+        /// <param name="right">右值。</param>
+        /// <returns>是否相等。</returns>
         public static bool operator ==(Key left, Key right)
         {
             if (left is null)
@@ -148,31 +154,56 @@ namespace Inkslab.Keys
             return left.Equals(right);
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 重写不等于运算符。
+        /// </summary>
+        /// <param name="left">左值。</param>
+        /// <param name="right">右值。</param>
+        /// <returns>是否不相等。</returns>
         public static bool operator !=(Key left, Key right)
         {
             return !(left == right);
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 重写小于运算符。
+        /// </summary>
+        /// <param name="left">左值。</param>
+        /// <param name="right">右值。</param>
+        /// <returns>是否小于。</returns>
         public static bool operator <(Key left, Key right)
         {
             return left is null ? right is not null : left.CompareTo(right) < 0;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 重写小于等于运算符。
+        /// </summary>
+        /// <param name="left">左值。</param>
+        /// <param name="right">右值。</param>
+        /// <returns>是否小于等于。</returns>
         public static bool operator <=(Key left, Key right)
         {
             return left is null || left.CompareTo(right) <= 0;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 重写大于运算符。
+        /// </summary>
+        /// <param name="left">左值。</param>
+        /// <param name="right">右值。</param>
+        /// <returns>是否大于。</returns>
         public static bool operator > (Key left, Key right)
         {
             return left is not null && left.CompareTo(right) > 0;
         }
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// 重写大于等于运算符。
+        /// </summary>
+        /// <param name="left">左值。</param>
+        /// <param name="right">右值。</param>
+        /// <returns>是否大于等于。</returns>
         public static bool operator >=(Key left, Key right)
         {
             return left is null ? right is null : left.CompareTo(right) >= 0;

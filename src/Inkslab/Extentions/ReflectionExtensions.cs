@@ -7,7 +7,7 @@ namespace System.Reflection
     /// <summary>
     /// 反射扩展。
     /// </summary>
-    public static class ReflectionExtentions
+    public static class ReflectionExtensions
     {
         private static readonly LFU<MemberInfo, string> descriptions = new LFU<MemberInfo, string>(x =>
         {

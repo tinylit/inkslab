@@ -5,7 +5,7 @@ namespace Inkslab.Annotations
     /// <summary>
     /// 元素。
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Parameter)]
     public class JsonPropertyAttribute : Attribute
     {
         /// <summary>

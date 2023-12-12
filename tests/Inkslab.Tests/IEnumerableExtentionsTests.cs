@@ -28,9 +28,9 @@ namespace Inkslab.Tests
     }
 
     /// <summary>
-    /// <see cref="System.Collections.IEnumerableExtentions"/> 和 <see cref="System.Collections.Generic.IEnumerableExtentions"/> 测试。
+    /// <see cref="System.Collections.EnumerableExtensions"/> 和 <see cref="System.Collections.Generic.EnumerableExtensions"/> 测试。
     /// </summary>
-    public class IEnumerableExtentionsTests
+    public class EnumerableExtensionsTests
     {
         /// <summary>
         /// 合并。
@@ -98,10 +98,7 @@ namespace Inkslab.Tests
                 .AlignOverall(array1)
                 .ToList();
 
-            array3.ZipEach(array1, (x, y) =>
-            {
-                Assert.Equal(x, y);
-            });
+            array3.ZipEach(array1, Assert.Equal);
         }
     }
 }

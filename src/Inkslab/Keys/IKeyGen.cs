@@ -16,6 +16,6 @@
         /// </summary>
         /// <param name="key">主键值。</param>
         /// <returns></returns>
-        Key Create(long key);
+        Key New(long key);
     }
 }

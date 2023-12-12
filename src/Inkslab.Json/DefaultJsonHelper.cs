@@ -50,15 +50,15 @@ namespace Inkslab.Json
                     property.Ignored = true;
                 }
 
-                var nameAtti = member.GetCustomAttribute<Annotations.JsonPropertyAttribute>();
+                var nameAttr = member.GetCustomAttribute<Annotations.JsonPropertyAttribute>();
 
-                if (nameAtti is null)
+                if (nameAttr is null)
                 {
 
                 }
                 else
                 {
-                    property.PropertyName = nameAtti.Name;
+                    property.PropertyName = nameAttr.Name;
                 }
 
                 return property;

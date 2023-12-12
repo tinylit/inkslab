@@ -32,69 +32,59 @@ namespace Inkslab.Map
         public const BindingFlags InstanceDeclaredOnlyBindingFlags = InstanceBindingFlags | BindingFlags.DeclaredOnly;
 
         /// <summary>
-        /// <see cref="void"/> 类型。
+        /// <see langword="void"/> 类型。
         /// </summary>
-        public readonly static Type VoidType = typeof(void);
+        public static readonly Type VoidType = typeof(void);
 
         /// <summary>
         /// <see cref="string"/> 类型。
         /// </summary>
-        public readonly static Type StirngType = typeof(string);
+        public static readonly Type StringType = typeof(string);
 
         /// <summary>
         /// <see cref="object"/> 类型。
         /// </summary>
-        public readonly static Type ObjectType = typeof(object);
+        public static readonly Type ObjectType = typeof(object);
 
         /// <summary>
         /// <see cref="IEnumerable"/> 接口。
         /// </summary>
-        public readonly static Type EnumerableType = typeof(IEnumerable);
+        public static readonly Type EnumerableType = typeof(IEnumerable);
 
         /// <summary>
         /// <see cref="IEnumerator"/> 接口。
         /// </summary>
-        public readonly static Type EnumeratorType = typeof(IEnumerator);
+        public static readonly Type EnumeratorType = typeof(IEnumerator);
 
         /// <summary>
         /// <see cref="IEnumerable{T}"/> 接口。
         /// </summary>
-        public readonly static Type Enumerable_T_Type = typeof(IEnumerable<>);
+        public static readonly Type Enumerable_T_Type = typeof(IEnumerable<>);
 
         /// <summary>
         /// <see cref="IEnumerator{T}"/> 接口。
         /// </summary>
-        public readonly static Type Enumerator_T_Type = typeof(IEnumerator<>);
+        public static readonly Type Enumerator_T_Type = typeof(IEnumerator<>);
 
         /// <summary>
         /// <see cref="IEnumerator.MoveNext"/> 方法。
         /// </summary>
-        public readonly static MethodInfo MoveNextMtd = EnumeratorType.GetMethod("MoveNext", Type.EmptyTypes);
-
-        /// <summary>
-        /// <see cref="StringExtentions.IsEmpty(string)"/> 方法。
-        /// </summary>
-        public readonly static MethodInfo IsEmptyMtd = typeof(StringExtentions).GetMethod(nameof(StringExtentions.IsEmpty), StaticDeclaredOnlyBindingFlags);
-
-        /// <summary>
-        /// <see cref="Enumerable.Cast{TResult}(IEnumerable)"/> 方法。
-        /// </summary>
-        public readonly static MethodInfo CastMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.Cast), StaticDeclaredOnlyBindingFlags);
+        public static readonly MethodInfo MoveNextMtd = EnumeratorType.GetMethod("MoveNext", Type.EmptyTypes);
 
         /// <summary>
         /// <see cref="Enumerable.ToArray{TSource}(IEnumerable{TSource})"/> 方法。
         /// </summary>
-        public readonly static MethodInfo ToArrayMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray), StaticDeclaredOnlyBindingFlags);
+        public static readonly MethodInfo ToArrayMtd = typeof(Enumerable).GetMethod(nameof(Enumerable.ToArray), StaticDeclaredOnlyBindingFlags);
 
         /// <summary>
         /// <see cref="string.ToLower()"/> 方法。
         /// </summary>
-        public readonly static MethodInfo ToLowerMtd = StirngType.GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags, null, Type.EmptyTypes, null);
+        public static readonly MethodInfo ToLowerMtd = StringType.GetMethod(nameof(string.ToLower), InstanceDeclaredOnlyBindingFlags, null, Type.EmptyTypes, null);
 
         /// <summary>
         /// <see cref="ICloneable.Clone()"/> 方法。
         /// </summary>
-        public readonly static MethodInfo CloneMtd = typeof(ICloneable).GetMethod(nameof(ICloneable.Clone));
+        public static readonly MethodInfo CloneMtd = typeof(ICloneable).GetMethod(nameof(ICloneable.Clone));
 
         /// <summary>
         /// <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)"/> 方法。
@@ -105,6 +95,6 @@ namespace Inkslab.Map
         /// <summary>
         /// <see cref="InvalidCastException(string)"/> 构造函数。
         /// </summary>
-        public readonly static ConstructorInfo InvalidCastExceptionCtorOfString = typeof(InvalidCastException).GetConstructor(new Type[1] { StirngType });
+        public static readonly ConstructorInfo InvalidCastExceptionCtorOfString = typeof(InvalidCastException).GetConstructor(new Type[1] { StringType });
     }
 }

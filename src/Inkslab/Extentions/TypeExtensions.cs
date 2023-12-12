@@ -29,14 +29,17 @@ namespace System
         ///         4.2.5 源类型有基类约束，目标类型需与基类相似。
         /// </summary>
         Template = 0,
+
         /// <summary>
         /// 类型均为 <see cref="Type.IsGenericType"/>。
         /// </summary>
         IsGenericType = 1,
+
         /// <summary>
         /// 类型均为 <see cref="Type.IsGenericTypeDefinition"/>.
         /// </summary>
         IsGenericTypeDefinition = 2,
+
         /// <summary>
         /// 类型均为 <see cref="Type.IsGenericParameter"/>.
         /// </summary>
@@ -56,7 +59,7 @@ namespace System
         static readonly Type KeyValuePair_TKey_TValue_Type = typeof(KeyValuePair<,>);
 
         private static readonly HashSet<Type> _simpleTypes = new HashSet<Type>()
-        {            
+        {
             /*? 基元类型。
              * bool
              * sbyte
@@ -86,28 +89,28 @@ namespace System
         /// 当前类型是否是迷你类型（枚举、基元类型（不含<see cref="char"/>）：<see cref="Enum"/>/<see cref="bool"/>/<see cref="sbyte"/>/<see cref="byte"/>/<see cref="float"/>/<see cref="double"/>/<see cref="decimal"/>/<see cref="short"/>/<see cref="ushort"/>/<see cref="short"/>/<see cref="int"/>/<see cref="uint"/>/<see cref="long"/>/<see cref="ulong"/>/<see cref="IntPtr"/>/<see cref="UIntPtr"/>）。
         /// </summary>
         /// <param name="type">类型。</param>
-        /// <returns>是返回True，不是返回False。</returns>
+        /// <returns>是返回 <see langword="true"/> ，不是返回 <see langword="false"/>。</returns>
         public static bool IsMini(this Type type) => type.IsEnum || type.IsValueType && (type.IsPrimitive ? type != CharType : type == DecimalType);
 
         /// <summary>
         /// 当前类型是否是简单类型（基础类型：基元类型/<see cref="Enum"/>/<see cref="decimal"/>/<see cref="string"/>/<see cref="Guid"/>/<see cref="TimeSpan"/>/<see cref="DateTime"/>/<see cref="DateTimeOffset"/>/<see cref="byte"/>[]）。
         /// </summary>
         /// <param name="type">类型。</param>
-        /// <returns>是返回True，不是返回False。</returns>
+        /// <returns>是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
         public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || type.IsPrimitive || _simpleTypes.Contains(type)) : type.IsArray ? type == Byte_Array_Type : type == StringType;
 
         /// <summary>
         /// 判断类型是否为Nullable类型。
         /// </summary>
         /// <param name="type"> 要处理的类型。</param>
-        /// <returns> 是返回True，不是返回False。</returns>
+        /// <returns> 是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
         public static bool IsNullable(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == Nullable_T_Type;
 
         /// <summary>
         /// 判断类型是否为KeyValuePair类型。
         /// </summary>
         /// <param name="type"> 要处理的类型。 </param>
-        /// <returns> 是返回True，不是返回False。 </returns>
+        /// <returns> 是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
         public static bool IsKeyValuePair(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == KeyValuePair_TKey_TValue_Type;
 
         /// <summary>
@@ -152,12 +155,7 @@ namespace System
                         return IsLikeGenericParameter(type, implementationType);
                     }
 
-                    if (likeKind > TypeLikeKind.Template)
-                    {
-                        return false;
-                    }
-
-                    return IsLikeGenericParameterAssign(type, implementationType);
+                    return likeKind <= TypeLikeKind.Template && IsLikeGenericParameterAssign(type, implementationType);
                 }
             }
             else if (type.IsGenericTypeDefinition)
@@ -168,7 +166,7 @@ namespace System
                     {
                         if (IsLikeTypeDefinition(type, implementationType))
                         {
-                            goto label_generic_type;
+                            goto label_generic_type_definition;
                         }
 
                         return false;
@@ -183,12 +181,11 @@ namespace System
                     {
                         if (IsLikeTypeDefinition(type.GetGenericTypeDefinition(), implementationType))
                         {
-                            goto label_generic_type;
+                            goto label_generic_type_definition;
                         }
 
                         return false;
                     }
-
                 }
             }
 
@@ -202,15 +199,15 @@ namespace System
                 return true;
             }
 
-            bool isGenericType = type.IsGenericType;
+            bool isGenericTypeDefinition = type.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition;
 
             if (type.IsInterface)
             {
                 if (IsLikeInterfaces(type, implementationType.GetInterfaces()))
                 {
-                    if (isGenericType)
+                    if (isGenericTypeDefinition)
                     {
-                        goto label_generic_type;
+                        goto label_generic_type_definition;
                     }
 
                     return true;
@@ -221,18 +218,17 @@ namespace System
 
             if (IsLikeClass(type, implementationType))
             {
-                if (isGenericType)
+                if (isGenericTypeDefinition)
                 {
-                    goto label_generic_type;
+                    goto label_generic_type_definition;
                 }
 
                 return true;
-
             }
 
             return false;
 
-label_generic_type:
+            label_generic_type_definition:
 
             return IsLikeGenericArguments(type.GetGenericArguments(), implementationType.GetGenericArguments());
         }
@@ -253,7 +249,6 @@ label_generic_type:
                     }
 
                     implementationType = implementationType.BaseType;
-
                 } while (implementationType is not null);
             }
             else
@@ -266,7 +261,6 @@ label_generic_type:
                     }
 
                     implementationType = implementationType.BaseType;
-
                 } while (implementationType is not null);
             }
 
@@ -327,8 +321,8 @@ label_generic_type:
                     if (implementationTypeArgument.IsGenericType || implementationTypeArgument.IsGenericTypeDefinition)
                     {
                         if (!IsLikeTypeDefinition(typeArgument.IsGenericTypeDefinition
-                            ? typeArgument
-                            : typeArgument.GetGenericTypeDefinition(), implementationTypeArgument))
+                                ? typeArgument
+                                : typeArgument.GetGenericTypeDefinition(), implementationTypeArgument))
                         {
                             return false;
                         }
@@ -415,7 +409,6 @@ label_generic_type:
                     }
 
                     implementationType = implementationType.BaseType;
-
                 } while (implementationType is not null);
             }
 
@@ -468,4 +461,3 @@ label_generic_type:
         }
     }
 }
-

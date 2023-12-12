@@ -1,4 +1,7 @@
-﻿namespace Inkslab.DI.Tests.DependencyInjections
+﻿using Inkslab.Annotations;
+using Inkslab.DI.Annotations;
+
+namespace Inkslab.DI.Tests.DependencyInjections
 {
     /// <summary>
     /// 测试实现选举。
@@ -44,6 +47,32 @@
         public virtual int Test() => 1;
     }
 
+    /// <summary>
+    /// 泛型声明测试。
+    /// </summary>
+    /// <typeparam name="T">类型。</typeparam>
+    [Transient]
+    public interface ITypeDefinition<T>
+    {
+        
+    }
+    
+    [Export]
+    public class TypeDefinition<T> : ITypeDefinition<T>
+    {
+        
+    }
+
+    public class TypeDefinitionInt : ITypeDefinition<int>
+    {
+        
+    }
+    
+    public class TypeDefinitionLong : ITypeDefinition<long>
+    {
+        
+    }
+    
     /// <summary>
     /// 测试实现选举。
     /// </summary>

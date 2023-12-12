@@ -16,7 +16,7 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public bool IsMatch(Type sourceType, Type destinationType) => destinationType == MapConstants.StirngType;
+        public bool IsMatch(Type sourceType, Type destinationType) => destinationType == MapConstants.StringType;
 
         /// <inheritdoc/>
         public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
@@ -25,11 +25,11 @@ namespace Inkslab.Map.Maps
 
             Type sourceType = sourceExpression.Type;
 
-            var toStringMethod = sourceType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(ToString), Type.EmptyTypes);
+            var toStringMethod = sourceType.GetMethod(nameof(ToString), Type.EmptyTypes) ?? objectType.GetMethod(nameof(ToString), Type.EmptyTypes)!;
 
             if (sourceType.IsValueType && toStringMethod.DeclaringType == objectType)
             {
-                return Call(Convert(sourceExpression, objectType), toStringMethod);
+                return Call(Convert(sourceExpression, objectType!), toStringMethod);
             }
 
             return Call(sourceExpression, toStringMethod);

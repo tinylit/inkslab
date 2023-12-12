@@ -7,29 +7,29 @@ namespace Inkslab
     /// </summary>
     public static class KeyGen
     {
-        private static readonly IKeyGen _keyGen;
+        private static readonly IKeyGen keyGen;
 
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static KeyGen() => _keyGen = KeyGenFactory.Create();
+        static KeyGen() => keyGen = KeyGenFactory.Create();
 
         /// <summary>
         /// 生成主键。
         /// </summary>
         /// <returns></returns>
-        public static long Id() => _keyGen.Id();
+        public static long Id() => keyGen.Id();
 
         /// <summary>
         /// 生成主键。
         /// </summary>
         /// <returns></returns>
-        public static Key New() => _keyGen.Create(_keyGen.Id());
+        public static Key New() => keyGen.New(keyGen.Id());
 
         /// <summary>
         /// 生成主键。
         /// </summary>
         /// <returns></returns>
-        public static Key Create(long key) => _keyGen.Create(key);
+        public static Key New(long key) => keyGen.New(key);
     }
 }

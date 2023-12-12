@@ -7,12 +7,12 @@ namespace Inkslab.Map
     /// </summary>
     public static class Mapper
     {
-        private static readonly IMapper _mapper;
+        private static readonly IMapper mapper;
 
         /// <summary>
-        /// inheritdoc
+        /// 获取映射对象。
         /// </summary>
-        static Mapper() => _mapper = SingletonPools.Singleton<IMapper>();
+        static Mapper() => mapper = SingletonPools.Singleton<IMapper>();
 
         /// <summary>
         /// 对象映射。
@@ -20,7 +20,7 @@ namespace Inkslab.Map
         /// <param name="obj">数据源。</param>
         /// <typeparam name="T">目标类型。</typeparam>
         /// <returns></returns>
-        public static T Map<T>(object obj) => _mapper.Map<T>(obj);
+        public static T Map<T>(object obj) => mapper.Map<T>(obj);
 
         /// <summary> 
         /// 对象映射。
@@ -28,6 +28,6 @@ namespace Inkslab.Map
         /// <param name="obj">数据源。</param>
         /// <param name="destinationType">目标类型。</param>
         /// <returns></returns>
-        public static object Map(object obj, Type destinationType) => _mapper.Map(obj, destinationType);
+        public static object Map(object obj, Type destinationType) => mapper.Map(obj, destinationType);
     }
 }

@@ -5,52 +5,50 @@ using Xunit;
 namespace Inkslab.Config.Tests
 {
     /// <summary>
-    /// Öğ¸öÖ´ĞĞ¡£
+    /// æµ‹è¯•
     /// </summary>
     public class UnitTests
     {
         /// <summary>
-        /// Ä¬ÈÏ¡£
+        /// é»˜è®¤æµ‹è¯•ã€‚
         /// </summary>
         [Fact]
         public void TestDef()
         {
-            //+ Òı°ü¼´ÓÃ£ºÌí¼ÓNuget°ü»ò¹¤³ÌÒıÓÃ¼´¿ÉÊ¹ÓÃ¡£
-            using (var xstartup = new XStartup())
+            //+ çƒ­å¯åŠ¨ã€‚
+            using (var startup = new XStartup())
             {
-                xstartup.DoStartup();
+                startup.DoStartup();
             }
 
             var equal = "Production";
 
-            //? Éú²ú»·¾³×Ô¶¯¼ÓÔØ appsettings.json ÎÄ¼ş¡£
-            //!? ÏîÄ¿¿ª·¢ÖĞ£¬»·¾³±äÁ¿¡¾ASPNETCORE_ENVIRONMENT¡¿Îª¿ª·¢Ä£Ê½£¨Development£©Ê±£¬»áÍ¬Ê±¼ÓÔØ appsettings.json ºÍ appsettings.Development.json ÎÄ¼ş£¬ÇÒ appsettings.Development.json ÓÅÏÈ¼¶¸ü¸ß¡£
+            //? è¯»å–é…ç½®æ–‡ä»¶ appsettings.json å†…å®¹ã€‚
             var environment = "Environment".Config<string>();
 
             Assert.Equal(environment, equal);
         }
 
         /// <summary>
-        /// ×Ô¶¨Òå¡£
+        /// è‡ªå®šä¹‰ã€‚
         /// </summary>
         [Fact]
         public void TestCus()
         {
-            //+ Òı°ü¼´ÓÃ£ºÌí¼ÓNuget°ü»ò¹¤³ÌÒıÓÃ¼´¿ÉÊ¹ÓÃ¡£
-            using (var xstartup = new XStartup())
+            //+ çƒ­å¯åŠ¨ã€‚
+            using (var startup = new XStartup())
             {
-                xstartup.DoStartup();
+                startup.DoStartup();
             }
 
             SingletonPools.TryAdd(new JsonConfigSettings(x =>
             {
-                //TODO: ¿ÉÒÔÔÚÕâÀï³õÊ¼»¯ÅäÖÃ¡£
+                // è‡ªå®šä¹‰é…ç½®ã€‚
             }));
 
             var equal = "Production";
 
-            //? Éú²ú»·¾³×Ô¶¯¼ÓÔØ appsettings.json ÎÄ¼ş¡£
-            //!? ÏîÄ¿¿ª·¢ÖĞ£¬»·¾³±äÁ¿¡¾ASPNETCORE_ENVIRONMENT¡¿Îª¿ª·¢Ä£Ê½£¨Development£©Ê±£¬»áÍ¬Ê±¼ÓÔØ appsettings.json ºÍ appsettings.Development.json ÎÄ¼ş£¬ÇÒ appsettings.Development.json ÓÅÏÈ¼¶¸ü¸ß¡£
+            //? è¯»å–é…ç½®æ–‡ä»¶ appsettings.json å†…å®¹ã€‚
             var environment = "Environment".Config<string>();
 
             Assert.Equal(environment, equal);
