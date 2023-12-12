@@ -74,6 +74,11 @@ namespace Inkslab.DI.Tests.Controllers
         [HttpGet("generic")]
         public bool GenericTest([FromServices] ITestGeneric<int> testGeneric) => testGeneric.CreateNew() == 0;
 
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <param name="model">数据模型。</param>
+        /// <returns></returns>
         [HttpPost]
         public IActionResult Post([FromBody] TestModel model)
         {
