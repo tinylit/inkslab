@@ -9,7 +9,7 @@ namespace System.Collections
     public static class EnumerableExtensions
     {
         /// <summary>
-        /// 字符串拼接(null对象自动忽略)。
+        /// 字符串拼接( <see langword="null"/> 对象自动忽略)。
         /// </summary>
         /// <param name="source">数据源。</param>
         /// <param name="separator">分隔符。</param>

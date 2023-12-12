@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Inkslab.Annotations;
 
 namespace Inkslab.DI
 {
@@ -96,19 +97,12 @@ namespace Inkslab.DI
 
         private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, List<Type> assemblyTypes, List<Type> effectiveTypes)
         {
-            var exportAttributeType = typeof(ServiceLifetimeAttribute);
+            var exportAttributeType = typeof(ExportAttribute);
 
             List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
-            foreach (var type in assemblyTypes)
+            foreach (var type in assemblyTypes.Where(x => x.IsDefined(exportAttributeType, true)))
             {
-                var attribute = (ServiceLifetimeAttribute)type.GetCustomAttribute(exportAttributeType, true);
-
-                if (attribute is null)
-                {
-                    continue;
-                }
-
                 if (type.IsInterface || type.IsAbstract)
                 {
                     if (Di(services, options, type, effectiveTypes, 0, dependencies))
@@ -121,14 +115,12 @@ namespace Inkslab.DI
                     throw DiError("Service", type, options.MaxDepth, dependencies);
                 }
 
-                if (DiConstructor(services, options, type, effectiveTypes, 0, dependencies))
+                if (DiServiceLifetime(services, options, type, new List<Type> { type }, effectiveTypes, 0, effectiveTypes, false))
                 {
-                    services.Add(new ServiceDescriptor(type, type, attribute.Lifetime));
+                    continue;
                 }
-                else
-                {
-                    throw DiError("Service", type, options.MaxDepth, dependencies);
-                }
+                
+                throw DiError("Service", type, options.MaxDepth, dependencies);
             }
         }
 
@@ -149,11 +141,9 @@ namespace Inkslab.DI
             }
         }
 
-        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, List<Type> assemblyTypes)
+        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, List<Type> effectiveTypes)
         {
             List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
-
-            var effectiveTypes = assemblyTypes.FindAll(x => !options.Ignore(x));
 
             foreach (var controllerType in effectiveTypes.Where(options.IsControllerType))
             {

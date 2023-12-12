@@ -98,10 +98,7 @@ namespace Inkslab.Tests
                 .AlignOverall(array1)
                 .ToList();
 
-            array3.ZipEach(array1, (x, y) =>
-            {
-                Assert.Equal(x, y);
-            });
+            array3.ZipEach(array1, Assert.Equal);
         }
     }
 }

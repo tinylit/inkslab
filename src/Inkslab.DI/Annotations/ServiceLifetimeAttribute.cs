@@ -1,13 +1,14 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
+using Inkslab.Annotations;
 
 namespace Inkslab.DI.Annotations
 {
     /// <summary>
     /// 服务生存周期。
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false, Inherited = true)]
-    public class ServiceLifetimeAttribute : Attribute
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface)]
+    public class ServiceLifetimeAttribute : ExportAttribute
     {
         /// <summary>
         /// 构造函数。

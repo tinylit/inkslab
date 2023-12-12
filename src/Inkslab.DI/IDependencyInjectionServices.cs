@@ -37,7 +37,7 @@ namespace Inkslab.DI
         IDependencyInjectionServices ConfigureByDefined();
 
         /// <summary>
-        /// 自动检查接口参数（属性 <see cref="DependencyInjectionOptions.DiControllerActionIsFromServicesParameters"/> 为 true 时，方法参数也会注入）自动注入，并检查是否所有参数都成功注入。
+        /// 自动检查接口参数（属性 <see cref="DependencyInjectionOptions.DiControllerActionIsFromServicesParameters"/> 为 <see langword="true"/> 时，方法参数也会注入）自动注入，并检查是否所有参数都成功注入。
         /// </summary>
         /// <param name="options">注入配置。</param>
         IServiceCollection ConfigureByAuto(DependencyInjectionOptions options);

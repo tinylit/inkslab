@@ -13,7 +13,7 @@ namespace Inkslab.Sugars
 
     /// <summary>
     /// <see cref="IStringSugar"/> 默认实现。
-    /// 支持属性空字符串【空字符串运算符（A?B 或 A??B），当属性A为“null”时，返回B内容，否则返回A内容】、属性内容合并(A+B)，属性非“null”合并【空试探合并符(A?+B)，当属性A为“null”时，返回null，否则返回A+B的内容】，末尾表达式支持指定“format”，如：${Datetime:yyyy-MM}、${Enum:D}等。
+    /// 支持属性空字符串【空字符串运算符（A?B 或 A??B），当属性A为 <see langword="null"/> 时，返回B内容，否则返回A内容】、属性内容合并(A+B)，属性非 <see langword="null"/> 合并【空试探合并符(A?+B)，当属性A为 <see langword="null"/> 时，返回 <see langword="null"/>，否则返回A+B的内容】，末尾表达式支持指定“format”，如：${Datetime:yyyy-MM}、${Enum:D}等。
     /// </summary>
     public class DefaultStringSugar : IStringSugar
     {

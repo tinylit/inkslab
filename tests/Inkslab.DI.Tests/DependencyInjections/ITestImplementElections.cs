@@ -55,6 +55,10 @@ namespace Inkslab.DI.Tests.DependencyInjections
     {
         
     }
+    public class TypeDefinition<T> : ITypeDefinition<T>
+    {
+        
+    }
 
     public class TypeDefinitionInt : ITypeDefinition<int>
     {

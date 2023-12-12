@@ -10,7 +10,7 @@ namespace Inkslab.Settings
         private const string DoubleQuotationMarks = "\"";
 
         /// <summary>
-        /// ‘null’值处理。
+        /// <see langword="null"/> 值处理。
         /// </summary>
         /// <returns></returns>
         public override string NullValue => "null";

@@ -16,17 +16,17 @@ namespace Inkslab.Settings
         public const string DefaultDateFormatString = "yyyy'-'MM'-'dd'T'HH':'mm':'ss.FFFFFFFK";
 
         /// <summary>
-        /// 严格模式。若启用严格模式，找不到对应的属性时，抛异常；否则，按照 <see cref="PreserveSyntax"/> 规则返回。默认：true。
+        /// 严格模式。若启用严格模式，找不到对应的属性时，抛异常；否则，按照 <see cref="PreserveSyntax"/> 规则返回。默认：<see langword="true"/>。
         /// </summary>
         public bool Strict { get; set; } = true;
 
         /// <summary>
-        /// 当成员丢失时，保留语法。保留语法，则返回原始语法，否则，返回 “null”。默认：false。
+        /// 当成员丢失时，保留语法。保留语法，则返回原始语法，否则，返回 <see langword="null"/>。默认：<see langword="false"/>。
         /// </summary>
         public bool PreserveSyntax { get; set; }
 
         /// <summary>
-        /// ‘null’值处理。
+        /// <see langword="null"/> 值处理。
         /// </summary>
         /// <returns></returns>
         public virtual string NullValue => string.Empty;
@@ -34,7 +34,7 @@ namespace Inkslab.Settings
         private string dateFormatString;
 
         /// <summary>
-        /// 获取或设置如何系统。DateTime和系统。格式化DateTimeOffset值,写入JSON文本时，以及读取JSON文本时的期望日期格式。默认值是"yyyy'-'MM'-'dd'T'hh ':' MM':'ss.FFFFFFFK"。
+        /// 获取或设置如何系统。<see cref="DateTime"/>和系统。格式化<see cref="DateTimeOffset"/>值,写入JSON文本时，以及读取JSON文本时的期望日期格式。默认值是"yyyy'-'MM'-'dd'T'hh ':' MM':'ss.FFFFFFFK"。
         /// </summary>
         public string DateFormatString
         {

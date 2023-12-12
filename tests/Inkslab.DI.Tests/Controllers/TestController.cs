@@ -1,6 +1,9 @@
-﻿using Inkslab.DI.Tests.DependencyInjections;
+﻿using System;
+using System.Diagnostics;
+using Inkslab.DI.Tests.DependencyInjections;
 using Inkslab.DI.Tests.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Inkslab.DI.Tests.Controllers
@@ -20,12 +23,20 @@ namespace Inkslab.DI.Tests.Controllers
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger)
+        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, IServiceProvider serviceProvider)
         {
             this.controllerCtor = controllerCtor;
             this.singletonTest = singletonTest;
             this.implementElectionsByOne = implementElectionsByOne;
             this.logger = logger;
+
+            var a = serviceProvider.GetRequiredService<ITypeDefinition<int>>();
+
+            Debug.Assert(a is TypeDefinitionInt);
+
+            var b = serviceProvider.GetRequiredService<ITypeDefinition<DateTime>>();
+            
+            Debug.Assert(b is TypeDefinition<DateTime>);
         }
 
         /// <summary>

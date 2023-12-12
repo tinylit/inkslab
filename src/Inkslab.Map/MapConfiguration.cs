@@ -624,7 +624,7 @@ namespace Inkslab.Map
         private const ExpressionType IgnoreIf = (ExpressionType)(-1);
 
         /// <summary>
-        /// 为 null 时，忽略。
+        /// 为 <see langword="null"/> 时，忽略。
         /// </summary>
         private class IgnoreIfNullExpressionVisitor : ExpressionVisitor
         {
