@@ -15,10 +15,12 @@ namespace Inkslab.Map.Tests
         /// A1.
         /// </summary>
         public int A1 { get; set; }
+
         /// <summary>
         /// A2.
         /// </summary>
         public string A2 { get; set; }
+
         /// <summary>
         /// A3.
         /// </summary>
@@ -45,10 +47,12 @@ namespace Inkslab.Map.Tests
         /// B1.
         /// </summary>
         public int B1 => a.A1;
+
         /// <summary>
         /// B2.
         /// </summary>
         public string B2 => a.A2;
+
         /// <summary>
         /// B3.
         /// </summary>
@@ -80,10 +84,12 @@ namespace Inkslab.Map.Tests
         /// A1.
         /// </summary>
         public long A1 { get; set; }
+
         /// <summary>
         /// A2.
         /// </summary>
         public string A2 { get; set; }
+
         /// <summary>
         /// A3.
         /// </summary>
@@ -99,10 +105,12 @@ namespace Inkslab.Map.Tests
         /// A1.
         /// </summary>
         public long A1 { get; set; }
+
         /// <summary>
         /// A2.
         /// </summary>
         public string A2 { get; set; }
+
         /// <summary>
         /// A3.
         /// </summary>
@@ -123,10 +131,12 @@ namespace Inkslab.Map.Tests
         /// A1.
         /// </summary>
         public long A1 { get; set; }
+
         /// <summary>
         /// A2.
         /// </summary>
         public string A2 { get; set; }
+
         /// <summary>
         /// A3.
         /// </summary>
@@ -139,80 +149,80 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
-    /// ÒµÎñÏß
+    /// Òµï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class LineOfBusinessOutDto
     {
         /// <summary>
-        /// Ö÷¼üId
+        /// Id
         /// </summary>
         public long Id { get; set; }
 
         /// <summary>
-        /// ÒµÎñÖ÷ÏßId
+        /// ParentId
         /// </summary>
         public long ParentId { get; set; }
 
         /// <summary>
-        /// ÒµÎñ±àºÅ
+        /// Code
         /// </summary>
         public string Code { get; set; }
 
         /// <summary>
-        /// Ãû³Æ
+        /// Name
         /// </summary>
         public string Name { get; set; }
 
         /// <summary>
-        /// ±êÓï
+        /// Slogan
         /// </summary>
         public string Slogan { get; set; }
 
         /// <summary>
-        /// ±êÊ¶(logo)
+        /// Logo
         /// </summary>
         public string Logo { get; set; }
 
         /// <summary>
-        /// ÊÇ·ñÆôÓÃ
+        /// IsEnabled
         /// </summary>
         public bool IsEnabled { get; set; }
 
         /// <summary>
-        /// ³ÌĞòÈë¿Ú
+        /// AllocationProgramEntry
         /// </summary>
         public string AllocationProgramEntry { get; set; }
 
         /// <summary>
-        /// Æ¤·ôÑÕÉ«ÀàĞÍ
+        /// SkinColour
         /// </summary>
         public int SkinColour { get; set; }
 
         /// <summary>
-        /// Æ¤·ôÑÕÉ«ÀàĞÍ
+        /// SkinColourTxt
         /// </summary>
         public string SkinColourTxt { get; set; }
     }
 
     /// <summary>
-    /// Ä¬ÈÏ²âÊÔ¡£
+    /// DefaultTests
     /// </summary>
     public class DefaultTests
     {
         /// <summary>
-        /// ¹¹Ôìº¯Êı¡£
+        /// DefaultTests
         /// </summary>
         public DefaultTests()
         {
-            //+ Òı°ü¼´ÓÃ£ºÌí¼ÓNuget°ü»ò¹¤³ÌÒıÓÃ¼´¿ÉÊ¹ÓÃ¡£
-            using (var xstartup = new XStartup())
+            //+ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½Nugetï¿½ï¿½ï¿½ò¹¤³ï¿½ï¿½ï¿½ï¿½Ã¼ï¿½ï¿½ï¿½Ê¹ï¿½Ã¡ï¿½
+            using (var startup = new XStartup())
             {
-                xstartup.DoStartup();
+                startup.DoStartup();
             }
         }
 
         /// <summary>
-        /// ×Ô¶¯´¦ÀíËùÓĞ¿É¿ÕÀàĞÍ¡£
+        /// NullableTest
         /// </summary>
         [Fact]
         public void NullableTest()
@@ -226,7 +236,7 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// <see cref="ConvertMap"/>¡£
+        /// <see cref="ConvertMap"/>ï¿½ï¿½
         /// </summary>
         [Fact]
         public void ConvertTest()
@@ -239,7 +249,7 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// <see cref="ToStringMap"/>¡£
+        /// <see cref="ToStringMap"/>ï¿½ï¿½
         /// </summary>
         [Fact]
         public void ToStringTest()
@@ -333,7 +343,7 @@ namespace Inkslab.Map.Tests
         {
             var now = DateTime.Now;
 
-            var sourceDic = new Dictionary<string, object>
+            var sourceDic = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
                 { "a1", DateTimeKind.Utc },
                 { "A2", "Test" },
@@ -442,7 +452,7 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// ²âÊÔÊôĞÔÎªnullµÄÓ³Éä¡£
+        /// MapPropertyIsNull
         /// </summary>
         [Fact]
         public void MapPropertyIsNull()
@@ -463,7 +473,7 @@ namespace Inkslab.Map.Tests
         /// RPC
         /// </summary>
         [Fact]
-        public void TestRPC()
+        public void TestRpc()
         {
             var r = new Basics.Rpc.Read.LineOfBusinessRpc.LineOfBusinessRpcDto();
 
@@ -471,15 +481,38 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// ×ÖµäÓ³Éä¶ÔÏó¡£
+        /// MapFromDictionary
         /// </summary>
         [Fact]
-        public void MapFromDictinary()
+        public void MapFromIEnumerable()
         {
             using var instance = new MapperInstance();
 
-            //! ½öÖ§³Ö×Ö·û´®µ½»ù´¡ÀàĞÍµÄÖÇÄÜ×ª»»£¬ÆäËüÀàĞÍ¾ùÎªÖ±½ÓÇ¿×ª¡£
-            var dic = new Dictionary<string, object>
+            //? ä¼˜å…ˆæŒ‰ç…§å®Œå…¨åç§°åŒ¹é…ï¼Œå¦‚æœåŒ¹é…è¡¥ä¸Šï¼Œä¼šæŒ‰ç…§å‘½åè§„åˆ™è½¬æ¢åè¿›è¡ŒåŒ¹é…ã€‚
+            var dic = new List<KeyValuePair<string, object>>
+            {
+                new("i5", "7042011313840586752"),
+                new("p3", "2023-10-12"),
+                new("p2", "test"),
+                new("p1", DateTimeKind.Utc),
+                new("d4", 1)
+            };
+
+            var c1 = instance.Map<C2>(dic);
+
+            Assert.True(c1.I5 == 7042011313840586752L);
+        }
+
+        /// <summary>
+        /// MapFromDictionary
+        /// </summary>
+        [Fact]
+        public void MapFromDictionary()
+        {
+            using var instance = new MapperInstance();
+
+            //? é€šè¿‡ã€TryGetValueã€‘æ–¹æ³•ï¼Œè·å¾—æ•°æ®åˆ™è¿›è¡Œæ˜ å°„ï¼Œå¦åˆ™ä¸æ˜ å°„ã€‚
+            var dic = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
             {
                 ["i5"] = "7042011313840586752",
                 ["p3"] = "2023-10-12",
@@ -490,14 +523,14 @@ namespace Inkslab.Map.Tests
 
             var c1 = instance.Map<C2>(dic);
 
-            Assert.True(c1.I5 > 0L);
+            Assert.True(c1.I5 == 7042011313840586752L);
         }
 
         /// <summary>
-        /// ¶ÔÏóÓ³Éä×Öµä¡£
+        /// MapToDictionary
         /// </summary>
         [Fact]
-        public void MapToDictinary()
+        public void MapToDictionary()
         {
             using var instance = new MapperInstance();
 
@@ -509,7 +542,6 @@ namespace Inkslab.Map.Tests
                 I5 = 10000
             };
 
-            //! ½öÖ§³Ö×Ö·û´®µ½»ù´¡ÀàĞÍµÄÖÇÄÜ×ª»»£¬ÆäËüÀàĞÍ¾ùÎªÖ±½ÓÇ¿×ª¡£
             var dic = instance.Map<Dictionary<string, object>>(sourceC1);
 
             Assert.True(Convert.ToInt64(dic["I5"]) == sourceC1.I5);

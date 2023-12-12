@@ -82,7 +82,7 @@ namespace Inkslab.Keys.Snowflake
                 }
 
                 // 下面是说假设在同一个毫秒内，又发送了一个请求生成一个id
-                // 这个时候就得把seqence序号给递增1，最多就是4096
+                // 这个时候就得把sequence序号给递增1，最多就是4096
                 if (lastTimestamp == timestamp)
                 {
                     // 这个意思是说一个毫秒内最多只能有4096个数字，无论你传递多少进来，

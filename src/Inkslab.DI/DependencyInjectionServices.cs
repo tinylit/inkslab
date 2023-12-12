@@ -88,9 +88,9 @@ namespace Inkslab.DI
 
             var effectiveTypes = assemblyTypes.FindAll(x => !x.IsValueType && !x.IsAbstract);
 
-            DiByExport(services, options, assemblyTypes, effectiveTypes);
-
             DiController(services, options, effectiveTypes);
+
+            DiByExport(services, options, assemblyTypes, effectiveTypes);
 
             return services;
         }
@@ -101,11 +101,11 @@ namespace Inkslab.DI
 
             List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
-            foreach (var type in assemblyTypes.Where(x => x.IsDefined(exportAttributeType, true)))
+            foreach (var type in assemblyTypes.Where(x => x.IsDefined(exportAttributeType, false)))
             {
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    if (Di(services, options, type, effectiveTypes, 0, dependencies))
+                    if (Di(services, options, type, effectiveTypes, dependencies))
                     {
                         continue;
                     }
@@ -115,11 +115,17 @@ namespace Inkslab.DI
                     throw DiError("Service", type, options.MaxDepth, dependencies);
                 }
 
-                if (DiServiceLifetime(services, options, type, new List<Type> { type }, effectiveTypes, 0, effectiveTypes, false))
+                //? 已注入。
+                if (services.Any(x => x.ServiceType == type && x.ImplementationType == type))
                 {
                     continue;
                 }
-                
+
+                if (DiServiceLifetime(services, options, type, new List<Type> { type }, effectiveTypes, dependencies))
+                {
+                    continue;
+                }
+
                 throw DiError("Service", type, options.MaxDepth, dependencies);
             }
         }
@@ -147,7 +153,7 @@ namespace Inkslab.DI
 
             foreach (var controllerType in effectiveTypes.Where(options.IsControllerType))
             {
-                if (!DiConstructor(services, options, controllerType, effectiveTypes, 0, dependencies))
+                if (!DiConstructor(services, options, controllerType, effectiveTypes, dependencies))
                 {
                     throw DiError("Controller", controllerType, options.MaxDepth, dependencies);
                 }
@@ -171,7 +177,7 @@ namespace Inkslab.DI
                             continue;
                         }
 
-                        if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, 0, dependencies))
+                        if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies))
                         {
                             continue;
                         }
@@ -241,7 +247,16 @@ namespace Inkslab.DI
             return new TypeLoadException(sb.Append('.').ToString());
         }
 
-        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> effectiveTypes, int depth, List<Type> dependencies)
+        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, List<Type> dependencies)
+            => Di(services, options, serviceType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies);
+
+        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> effectiveTypes, List<Type> dependencies)
+            => DiConstructor(services, options, implementationType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies);
+
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> effectiveTypes, List<Type> dependencies)
+            => DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, ServiceLifetime.Transient, 0, dependencies, false);
+
+        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
             bool flag = false;
 
@@ -275,7 +290,7 @@ namespace Inkslab.DI
                         break;
                     }
 
-                    if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, depth + 1, dependencies))
+                    if (Di(services, options, parameterInfo.ParameterType, effectiveTypes, lifetime, depth + 1, dependencies))
                     {
                         continue;
                     }
@@ -296,9 +311,9 @@ namespace Inkslab.DI
             return flag;
         }
 
-        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, int depth, List<Type> dependencies)
+        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
-            if (serviceType == typeof(IServiceProvider) || serviceType == typeof(IServiceScopeFactory))
+            if (serviceType == typeof(IServiceProvider) || serviceType == typeof(IServiceScope) || serviceType == typeof(IServiceScopeFactory))
             {
                 return true;
             }
@@ -334,7 +349,7 @@ namespace Inkslab.DI
 
             if (serviceType.IsGenericTypeDefinition)
             {
-                return DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, depth, dependencies, isMulti);
+                return DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
             }
 
             var implementationTypes = (serviceType.IsInterface || serviceType.IsAbstract)
@@ -347,13 +362,13 @@ namespace Inkslab.DI
 
             if (implementationTypes.Count > 0)
             {
-                return DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, depth, dependencies, isMulti);
+                return DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
             }
 
-            return serviceType.IsGenericType && DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, depth, dependencies, isMulti);
+            return serviceType.IsGenericType && DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
         }
 
-        private static bool DiTypeDefinition(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, List<Type> effectiveTypes, int depth, List<Type> dependencies, bool isMulti)
+        private static bool DiTypeDefinition(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
         {
             var typeDefinition = serviceType.IsGenericTypeDefinition
                 ? serviceType
@@ -372,12 +387,12 @@ namespace Inkslab.DI
 
             if (!serviceType.IsGenericTypeDefinition)
             {
-                return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, effectiveTypes, depth, dependencies, isMulti);
+                return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
             }
 
             if (typeDefinitionTypes.TrueForAll(x => x.IsGenericTypeDefinition))
             {
-                return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, effectiveTypes, depth, dependencies, isMulti);
+                return DiServiceLifetime(services, options, typeDefinition, typeDefinitionTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
             }
 
             bool flag = true;
@@ -417,7 +432,7 @@ namespace Inkslab.DI
                          throw new NotSupportedException();
                      }))
             {
-                if (DiServiceLifetime(services, options, serviceGroup.Key, serviceGroup.ToList(), effectiveTypes, depth, dependencies, isMulti))
+                if (DiServiceLifetime(services, options, serviceGroup.Key, serviceGroup.ToList(), effectiveTypes, lifetime, depth, dependencies, isMulti))
                 {
                     continue;
                 }
@@ -426,6 +441,127 @@ namespace Inkslab.DI
             }
 
             return flag;
+        }
+
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
+        {
+            if (implementationTypes.Count == 0)
+            {
+                return false;
+            }
+
+            bool flag = false;
+
+            foreach (var implementationType in DiImplementationAnalysis(options, serviceType, implementationTypes, isMulti))
+            {
+                var serviceAttribute = serviceType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
+                var implementationAttribute = implementationType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
+
+                if (implementationAttribute is null && serviceAttribute is null)
+                {
+                    if (depth == 0)
+                    {
+                        lifetime = options.Lifetime;
+                    }
+                }
+                else if (implementationAttribute is null)
+                {
+                    if (lifetime < serviceAttribute.Lifetime)
+                    {
+                        throw new NotSupportedException($"生命周期为【{serviceAttribute.Lifetime}】的【{serviceType.Name}】类型，不支持对声明周期为【{lifetime}】的服务注入。");
+                    }
+
+                    lifetime = serviceAttribute.Lifetime;
+                }
+                else
+                {
+                    if (serviceAttribute is null)
+                    {
+                    }
+                    else if (implementationAttribute.Lifetime > serviceAttribute.Lifetime)
+                    {
+                        throw new NotSupportedException($"生命周期为【{serviceAttribute.Lifetime}】的【{serviceType.Name}】类型，不支持声明周期为【{implementationAttribute.Lifetime}】的【{implementationType.Name}】实现。");
+                    }
+
+                    if (lifetime < implementationAttribute.Lifetime)
+                    {
+                        throw new NotSupportedException($"服务【{serviceType.Name}】的【{implementationType.Name}】实现类声明周期为【{implementationAttribute.Lifetime}】，不支持对声明周期为【{lifetime}】的服务注入。");
+                    }
+
+                    lifetime = implementationAttribute.Lifetime;
+                }
+
+                if (DiConstructor(services, options, implementationType, effectiveTypes, lifetime, depth, dependencies))
+                {
+                    flag = true;
+
+                    services.Add(new ServiceDescriptor(serviceType, implementationType, lifetime));
+
+                    if (isMulti) //? 注入一个支持。
+                    {
+                        continue;
+                    }
+
+                    break;
+                }
+
+                dependencies.Add(implementationType);
+
+                break;
+            }
+
+            return flag;
+        }
+
+        private static IEnumerable<Type> DiImplementationAnalysis(DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, bool isMulti)
+        {
+            if (implementationTypes.Count == 1)
+            {
+                yield return implementationTypes[0];
+            }
+
+            if (implementationTypes.Count <= 1)
+            {
+                yield break;
+            }
+
+            List<Type> effectiveTypes = new List<Type>();
+
+            for (int i = 0, len = implementationTypes.Count - 1; i <= len; i++)
+            {
+                Type target = implementationTypes[i];
+
+                while (len > i && target.IsLike(implementationTypes[i + 1]))
+                {
+                    i++;
+                }
+
+                if (isMulti)
+                {
+                    yield return target;
+                }
+                else
+                {
+                    effectiveTypes.Add(target);
+                }
+            }
+
+            if (isMulti)
+            {
+                yield break;
+            }
+
+            if (effectiveTypes.Count == 1)
+            {
+                yield return effectiveTypes[0];
+            }
+
+            if (effectiveTypes.Count <= 1)
+            {
+                yield break;
+            }
+
+            yield return options.ResolveConflictingTypes(serviceType, effectiveTypes);
         }
 
         private sealed class TypeComparer : IComparer<Type>
@@ -449,8 +585,12 @@ namespace Inkslab.DI
                     Type disposableType = typeof(IDisposable);
                     Type asyncDisposable = typeof(IAsyncDisposable);
 
-                    foreach (var interfaceType in implementationType.GetInterfaces())
+                    var interfaces = implementationType.GetInterfaces();
+                    
+                    for (int i = 0; i < interfaces.Length; i++)
                     {
+                        Type interfaceType = interfaces[i];
+                        
                         if (interfaceType == serviceType || interfaceTypes.Contains(interfaceType)) //? 本身，或者是接口本身的继承接口。
                         {
                             continue;
@@ -527,119 +667,6 @@ namespace Inkslab.DI
 
                 return CardinalityCode(x) - CardinalityCode(y);
             }
-        }
-
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> effectiveTypes, int depth, List<Type> dependencies, bool isMulti)
-        {
-            if (implementationTypes.Count == 0)
-            {
-                return false;
-            }
-
-            bool flag = false;
-
-            foreach (var implementationType in DiImplementationAnalysis(options, serviceType, implementationTypes, isMulti))
-            {
-                if (DiConstructor(services, options, implementationType, effectiveTypes, depth, dependencies))
-                {
-                    flag = true;
-
-                    var serviceAttribute = serviceType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
-                    var implementationAttribute = implementationType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
-
-                    ServiceLifetime lifetime = options.Lifetime;
-
-                    if (implementationAttribute is null)
-                    {
-                        if (serviceAttribute is null)
-                        {
-                        }
-                        else
-                        {
-                            lifetime = serviceAttribute.Lifetime;
-                        }
-                    }
-                    else if (serviceAttribute is null)
-                    {
-                        lifetime = implementationAttribute.Lifetime;
-                    }
-                    else
-                    {
-                        if (implementationAttribute.Lifetime > serviceAttribute.Lifetime)
-                        {
-                            throw new NotSupportedException($"生命周期为【{serviceAttribute.Lifetime}】的【{serviceType.Name}】类型，不支持声明周期为【{implementationAttribute.Lifetime}】的【{implementationType.Name}】实现。");
-                        }
-
-                        lifetime = implementationAttribute.Lifetime;
-                    }
-
-                    services.Add(new ServiceDescriptor(serviceType, implementationType, lifetime));
-
-                    if (isMulti) //? 注入一个支持。
-                    {
-                        continue;
-                    }
-
-                    break;
-                }
-
-                dependencies.Add(implementationType);
-
-                break;
-            }
-
-            return flag;
-        }
-
-        private static IEnumerable<Type> DiImplementationAnalysis(DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, bool isMulti)
-        {
-            if (implementationTypes.Count == 1)
-            {
-                yield return implementationTypes[0];
-            }
-
-            if (implementationTypes.Count <= 1)
-            {
-                yield break;
-            }
-
-            List<Type> effectiveTypes = new List<Type>();
-
-            for (int i = 0, len = implementationTypes.Count - 1; i <= len; i++)
-            {
-                Type target = implementationTypes[i];
-
-                while (len > i && target.IsLike(implementationTypes[i + 1]))
-                {
-                    i++;
-                }
-
-                if (isMulti)
-                {
-                    yield return target;
-                }
-                else
-                {
-                    effectiveTypes.Add(target);
-                }
-            }
-
-            if (isMulti)
-            {
-                yield break;
-            }
-
-            if (effectiveTypes.Count == 1)
-            {
-                yield return effectiveTypes[0];
-            }
-
-            if (effectiveTypes.Count <= 1)
-            {
-                yield break;
-            }
-
-            yield return options.ResolveConflictingTypes(serviceType, effectiveTypes);
         }
     }
 }

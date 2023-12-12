@@ -7,7 +7,7 @@ namespace Microsoft.Extensions.DependencyInjection
     /// <summary>
     /// 依赖注入服务扩展。
     /// </summary>
-    public static class IServiceCollectionExtentions
+    public static class ServiceCollectionExtensions
     {
         /// <summary>
         /// 依赖注入。

@@ -58,7 +58,7 @@ namespace Inkslab.Map.Expressions
         {
             if (source is null)
             {
-                return default(TDestination);
+                return default;
             }
 
             var sourceType = source.GetType();
@@ -70,7 +70,7 @@ namespace Inkslab.Map.Expressions
             }
 
             return (TDestination)routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
-                        .Map(source);
+                .Map(source);
         }
 
         /// <summary>
@@ -93,7 +93,7 @@ namespace Inkslab.Map.Expressions
             }
 
             return routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
-                         .Map(source);
+                .Map(source);
         }
 
         /// <summary>
@@ -200,14 +200,14 @@ namespace Inkslab.Map.Expressions
                             destinationType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
                         }
                         else if (typeDefinition == typeof(IDictionary<,>)
-                            || typeDefinition == typeof(IReadOnlyDictionary<,>))
+                                 || typeDefinition == typeof(IReadOnlyDictionary<,>))
                         {
                             destinationType = typeof(Dictionary<,>).MakeGenericType(destinationType.GetGenericArguments());
                         }
                     }
                     else if (destinationType == typeof(IEnumerable)
-                        || destinationType == typeof(ICollection)
-                        || destinationType == typeof(IList))
+                             || destinationType == typeof(ICollection)
+                             || destinationType == typeof(IList))
                     {
                         destinationType = typeof(List<object>);
                     }
@@ -220,36 +220,34 @@ namespace Inkslab.Map.Expressions
             {
                 var sourceType = source.GetType();
 
-                if (sourceType.IsNullable())
+                var factory = cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    sourceType = Nullable.GetUnderlyingType(sourceType);
-                }
+                    var conversionType = destinationType;
 
-                var conversionType = destinationType;
-
-                if (runtimeType.IsInterface || runtimeType.IsAbstract)
-                {
-                    if (runtimeType.IsAssignableFrom(sourceType))
+                    if (runtimeType.IsInterface || runtimeType.IsAbstract)
+                    {
+                        if (runtimeType.IsAssignableFrom(sourceType))
+                        {
+                            if (conversionType.IsAbstract) //? 避免推测类型支持转换，但源类型不支持转换的问题。
+                            {
+                                conversionType = sourceType;
+                            }
+                        }
+                        else if (conversionType.IsInterface)
+                        {
+                            throw new InvalidCastException($"无法推测有效的接口（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
+                        }
+                        else if (conversionType.IsAbstract)
+                        {
+                            throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
+                        }
+                    }
+                    else if (runtimeType == MapConstants.ObjectType)
                     {
                         conversionType = sourceType;
                     }
-                    else if (destinationType.IsInterface)
-                    {
-                        throw new InvalidCastException($"无法推测有效的接口（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                    }
-                    else if (destinationType.IsAbstract)
-                    {
-                        throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                    }
-                }
-                else if (runtimeType == MapConstants.ObjectType)
-                {
-                    conversionType = sourceType;
-                }
 
-                var factory = cachings.GetOrAdd(sourceType, type =>
-                {
-                    var tuple = Map(application, type, destinationType);
+                    var tuple = Map(application, type, conversionType);
 
                     var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
 
@@ -288,14 +286,14 @@ namespace Inkslab.Map.Expressions
                             this.destinationType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
                         }
                         else if (typeDefinition == typeof(IDictionary<,>)
-                            || typeDefinition == typeof(IReadOnlyDictionary<,>))
+                                 || typeDefinition == typeof(IReadOnlyDictionary<,>))
                         {
                             this.destinationType = typeof(Dictionary<,>).MakeGenericType(destinationType.GetGenericArguments());
                         }
                     }
                     else if (destinationType == typeof(IEnumerable)
-                        || destinationType == typeof(ICollection)
-                        || destinationType == typeof(IList))
+                             || destinationType == typeof(ICollection)
+                             || destinationType == typeof(IList))
                     {
                         this.destinationType = typeof(List<object>);
                     }
@@ -306,36 +304,31 @@ namespace Inkslab.Map.Expressions
             {
                 var sourceType = source.GetType();
 
-                if (sourceType.IsNullable())
+                var factory = cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    sourceType = Nullable.GetUnderlyingType(sourceType);
-                }
+                    var conversionType = destinationType;
 
-                var conversionType = destinationType;
-
-                if (runtimeType.IsInterface || runtimeType.IsAbstract)
-                {
-                    if (runtimeType.IsAssignableFrom(sourceType))
+                    if (runtimeType.IsInterface || runtimeType.IsAbstract)
+                    {
+                        if (runtimeType.IsAssignableFrom(sourceType))
+                        {
+                            conversionType = sourceType;
+                        }
+                        else if (destinationType.IsInterface)
+                        {
+                            throw new InvalidCastException($"无法推测有效的接口（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
+                        }
+                        else if (destinationType.IsAbstract)
+                        {
+                            throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
+                        }
+                    }
+                    else if (runtimeType == MapConstants.ObjectType)
                     {
                         conversionType = sourceType;
                     }
-                    else if (destinationType.IsInterface)
-                    {
-                        throw new InvalidCastException($"无法推测有效的接口（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                    }
-                    else if (destinationType.IsAbstract)
-                    {
-                        throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                    }
-                }
-                else if (runtimeType == MapConstants.ObjectType)
-                {
-                    conversionType = sourceType;
-                }
 
-                var factory = cachings.GetOrAdd(sourceType, type =>
-                {
-                    var tuple = Map(application, sourceType, conversionType);
+                    var tuple = Map(application, type, conversionType);
 
                     var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
 

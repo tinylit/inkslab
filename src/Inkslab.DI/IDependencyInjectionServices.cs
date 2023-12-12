@@ -1,6 +1,5 @@
 ﻿using Inkslab.DI.Options;
 using Microsoft.Extensions.DependencyInjection;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
