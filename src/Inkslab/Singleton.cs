@@ -7,11 +7,6 @@
     public class Singleton<T> where T : class
     {
         /// <summary>
-        /// 静态构造函数。
-        /// </summary>
-        static Singleton() { }
-
-        /// <summary>
         /// 单例。
         /// </summary>
         public static T Instance => Nested.Instance;

@@ -1,5 +1,4 @@
-﻿using Inkslab.Map.Visitors;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -190,8 +189,8 @@ namespace Inkslab.Map.Maps
 
             var lengthExp = Variable(typeof(int), "len");
 
-            LabelTarget break_label = Label(MapConstants.VoidType, "label_break");
-            LabelTarget continue_label = Label(MapConstants.VoidType, "label_continue");
+            LabelTarget breakLabel = Label(MapConstants.VoidType, "label_break");
+            LabelTarget continueLabel = Label(MapConstants.VoidType, "label_continue");
 
             return Block(new ParameterExpression[]
               {
@@ -207,10 +206,10 @@ namespace Inkslab.Map.Maps
                         Block(
                             Call(destinationExpression, methodInfo, ArrayIndex(sourceExpression, indexExp)),
                             AddAssign(indexExp, Constant(1)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
                 )
               });
         }

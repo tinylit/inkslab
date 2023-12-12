@@ -22,7 +22,7 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
-            var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceExpression.Type }, null);
+            var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, new Type[] { sourceExpression.Type }, null)!;
 
             return New(constructorInfo, sourceExpression);
         }

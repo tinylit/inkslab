@@ -22,10 +22,10 @@ namespace Inkslab.Collections
         private class Node
         {
             private readonly T key;
-            private readonly int weight = 0;
+            private readonly int weight;
 
-            private int version = 0;
-            private int rank = 0;
+            private int version;
+            private int rank;
 
             public Node(T key, int ticks, int weight)
             {

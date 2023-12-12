@@ -97,7 +97,7 @@ namespace Inkslab
         protected virtual bool ToStartup(IStartup startup) => true;
 
         #region IDisposable Support
-        private bool disposedValue = false; // 要检测冗余调用
+        private bool disposedValue; // 要检测冗余调用
 
         /// <summary>
         /// 是否资源。

@@ -51,14 +51,14 @@ namespace System
     /// </summary>
     public static class TypeExtensions
     {
-        static readonly Type CharType = typeof(char);
-        static readonly Type StringType = typeof(string);
-        static readonly Type DecimalType = typeof(decimal);
-        static readonly Type Byte_Array_Type = typeof(byte[]);
-        static readonly Type Nullable_T_Type = typeof(Nullable<>);
-        static readonly Type KeyValuePair_TKey_TValue_Type = typeof(KeyValuePair<,>);
+        static readonly Type charType = typeof(char);
+        static readonly Type stringType = typeof(string);
+        static readonly Type decimalType = typeof(decimal);
+        static readonly Type byteArrayType = typeof(byte[]);
+        static readonly Type nullableTType = typeof(Nullable<>);
+        static readonly Type keyValuePairTKeyTValueType = typeof(KeyValuePair<,>);
 
-        private static readonly HashSet<Type> _simpleTypes = new HashSet<Type>()
+        private static readonly HashSet<Type> simpleTypes = new HashSet<Type>()
         {
             /*? 基元类型。
              * bool
@@ -77,7 +77,7 @@ namespace System
              * UIntPtr
              */
 
-            DecimalType,
+            decimalType,
             typeof(Guid),
             typeof(TimeSpan),
             typeof(DateTime),
@@ -90,28 +90,28 @@ namespace System
         /// </summary>
         /// <param name="type">类型。</param>
         /// <returns>是返回 <see langword="true"/> ，不是返回 <see langword="false"/>。</returns>
-        public static bool IsMini(this Type type) => type.IsEnum || type.IsValueType && (type.IsPrimitive ? type != CharType : type == DecimalType);
+        public static bool IsMini(this Type type) => type.IsEnum || type.IsValueType && (type.IsPrimitive ? type != charType : type == decimalType);
 
         /// <summary>
         /// 当前类型是否是简单类型（基础类型：基元类型/<see cref="Enum"/>/<see cref="decimal"/>/<see cref="string"/>/<see cref="Guid"/>/<see cref="TimeSpan"/>/<see cref="DateTime"/>/<see cref="DateTimeOffset"/>/<see cref="byte"/>[]）。
         /// </summary>
         /// <param name="type">类型。</param>
         /// <returns>是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
-        public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || type.IsPrimitive || _simpleTypes.Contains(type)) : type.IsArray ? type == Byte_Array_Type : type == StringType;
+        public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || type.IsPrimitive || simpleTypes.Contains(type)) : type.IsArray ? type == byteArrayType : type == stringType;
 
         /// <summary>
         /// 判断类型是否为Nullable类型。
         /// </summary>
         /// <param name="type"> 要处理的类型。</param>
         /// <returns> 是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
-        public static bool IsNullable(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == Nullable_T_Type;
+        public static bool IsNullable(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == nullableTType;
 
         /// <summary>
         /// 判断类型是否为KeyValuePair类型。
         /// </summary>
         /// <param name="type"> 要处理的类型。 </param>
         /// <returns> 是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
-        public static bool IsKeyValuePair(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == KeyValuePair_TKey_TValue_Type;
+        public static bool IsKeyValuePair(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == keyValuePairTKeyTValueType;
 
         /// <summary>
         /// 类型 <paramref name="implementationType"/> 是 <paramref name="type"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="type"/> 相同（泛型数相等、顺序相同且约束相似）。

@@ -61,10 +61,17 @@ namespace Inkslab.DI.Tests.DependencyInjections
     /// 泛型测试。
     /// </summary>
     /// <typeparam name="T">类型。</typeparam>
-    [Export]
+    [Singleton]
     public class TypeDefinition<T> : ITypeDefinition<T>
     {
-        
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="simpleType">简单类型。</param>
+        public TypeDefinition(SimpleType simpleType)
+        {
+            
+        }
     }
 
     /// <summary>
@@ -79,6 +86,14 @@ namespace Inkslab.DI.Tests.DependencyInjections
     /// 泛型实现。
     /// </summary>
     public class TypeDefinitionLong : ITypeDefinition<long>
+    {
+        
+    }
+
+    /// <summary>
+    /// 简单类型。
+    /// </summary>
+    public class SimpleType
     {
         
     }
