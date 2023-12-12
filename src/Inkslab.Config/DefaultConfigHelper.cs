@@ -1,6 +1,6 @@
 ﻿using System;
 #if NET_Traditional
-using Insklab.Exceptions;
+using Inkslab.Exceptions;
 using System.Configuration;
 using System.Web.Configuration;
 using System.Collections.Generic;

@@ -1,5 +1,4 @@
 ﻿using System;
-using Insklab.Exceptions;
 
 namespace Inkslab.Exceptions
 {
