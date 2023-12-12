@@ -35,12 +35,12 @@ namespace Inkslab.Keys.Snowflake
         {
             // sanity check for workerId
             // 这儿不就检查了一下，要求就是你传递进来的机房id和机器id不能超过32，不能小于0
-            if (workerId > MaxWorkerId || workerId < 0)
+            if (workerId is > MaxWorkerId or < 0)
             {
                 throw new ArgumentException(string.Format("worker Id can't be greater than {0} or less than 0", MaxWorkerId));
             }
 
-            if (datacenterId > MaxDatacenterId || datacenterId < 0)
+            if (datacenterId is > MaxDatacenterId or < 0)
             {
                 throw new ArgumentException(string.Format("datacenter Id can't be greater than {0} or less than 0", MaxDatacenterId));
             }

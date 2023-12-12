@@ -147,7 +147,7 @@ namespace Inkslab
 
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    AddDefaultImpl(() => throw new NotImplementedException(
+                    AddDefaultImpl(() => throw new NotSupportedException(
                         $"未注入{type.FullName}服务的实现，可以使用【SingletonPools.TryAdd<{type.Name}, {type.Name}Impl>()】注入服务实现。"));
                 }
                 else

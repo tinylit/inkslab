@@ -1,4 +1,5 @@
-﻿using Inkslab.DI.Annotations;
+﻿using Inkslab.Annotations;
+using Inkslab.DI.Annotations;
 
 namespace Inkslab.DI.Tests.DependencyInjections
 {
@@ -55,6 +56,8 @@ namespace Inkslab.DI.Tests.DependencyInjections
     {
         
     }
+    
+    [Export]
     public class TypeDefinition<T> : ITypeDefinition<T>
     {
         

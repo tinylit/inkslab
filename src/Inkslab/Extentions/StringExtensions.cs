@@ -108,7 +108,7 @@ namespace System
                     });
 
                 default:
-                    throw new NotImplementedException();
+                    throw new NotSupportedException();
             }
         }
 
