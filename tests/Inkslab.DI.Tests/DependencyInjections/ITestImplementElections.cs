@@ -57,17 +57,27 @@ namespace Inkslab.DI.Tests.DependencyInjections
         
     }
     
+    /// <summary>
+    /// 泛型测试。
+    /// </summary>
+    /// <typeparam name="T">类型。</typeparam>
     [Export]
     public class TypeDefinition<T> : ITypeDefinition<T>
     {
         
     }
 
+    /// <summary>
+    /// 泛型实现。
+    /// </summary>
     public class TypeDefinitionInt : ITypeDefinition<int>
     {
         
     }
     
+    /// <summary>
+    /// 泛型实现。
+    /// </summary>
     public class TypeDefinitionLong : ITypeDefinition<long>
     {
         
