@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Insklab.Exceptions
+namespace Inkslab.Exceptions
 {
     /// <summary>
     /// 各服务层异常（<see cref="CodeException.ErrorCode"/>：10001 ~ 99999）。

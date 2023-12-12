@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Insklab.Exceptions
+namespace Inkslab.Exceptions
 {
     /// <summary>
     /// 异常。

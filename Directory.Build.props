@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.2</Version>
+		<Version>1.2.3</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
