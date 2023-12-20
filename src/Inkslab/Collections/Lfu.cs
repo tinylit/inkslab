@@ -8,7 +8,7 @@ namespace Inkslab.Collections
     /// 【线程安全】LFU 算法，移除最近最不常使用的数据。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
-    public class LFU<T> : IEliminationAlgorithm<T>
+    public class Lfu<T> : IEliminationAlgorithm<T>
     {
         private int version;
 
@@ -88,7 +88,7 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="capacity">容器大小。</param>
         /// <param name="equalityComparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
-        public LFU(int capacity, IEqualityComparer<T> equalityComparer)
+        public Lfu(int capacity, IEqualityComparer<T> equalityComparer)
         {
             if (capacity < 0)
             {
@@ -187,9 +187,9 @@ namespace Inkslab.Collections
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
-    public class LFU<TKey, TValue>
+    public class Lfu<TKey, TValue>
     {
-        private readonly LFU<TKey> lfu;
+        private readonly Lfu<TKey> lfu;
 
         private readonly Dictionary<TKey, TValue> cachings;
         private readonly Func<TKey, TValue> factory;
@@ -205,7 +205,7 @@ namespace Inkslab.Collections
         /// 默认容量。
         /// </summary>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LFU(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
+        public Lfu(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
         {
         }
 
@@ -214,7 +214,7 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="capacity">初始大小。</param>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LFU(int capacity, Func<TKey, TValue> factory) : this(capacity, null, factory)
+        public Lfu(int capacity, Func<TKey, TValue> factory) : this(capacity, null, factory)
         {
         }
 
@@ -224,7 +224,7 @@ namespace Inkslab.Collections
         /// <param name="capacity">初始大小。</param>
         /// <param name="comparer"> 在比较集中的值时使用的 <see cref="IEqualityComparer{T}"/> 实现，或为 null 以使用集类型的默认 <seealso cref="EqualityComparer{T}"/> 实现。</param>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
-        public LFU(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
+        public Lfu(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
         {
             if (capacity < 0)
             {
@@ -237,7 +237,7 @@ namespace Inkslab.Collections
 
             comparer ??= EqualityComparer<TKey>.Default;
 
-            lfu = new LFU<TKey>(capacity, comparer);
+            lfu = new Lfu<TKey>(capacity, comparer);
 
             for (int i = 0; i < 3; i++)
             {

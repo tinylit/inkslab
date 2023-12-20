@@ -53,7 +53,7 @@ namespace Inkslab.Map.Maps
                 ToSolveUniversal(sourceExpression, destinationExpression, propertyInfos, application));
         }
 
-        private Expression ToSolveDictionary(Expression sourceExpression, ParameterExpression destinationExpression, PropertyInfo[] propertyInfos, IMapApplication application)
+        private static Expression ToSolveDictionary(Expression sourceExpression, ParameterExpression destinationExpression, PropertyInfo[] propertyInfos, IMapApplication application)
         {
             var dictionaryVar = Variable(MapConstants.ObjectType);
 
@@ -71,7 +71,7 @@ namespace Inkslab.Map.Maps
             return Block(new ParameterExpression[] { dictionaryVar }, expressions);
         }
 
-        private Expression ToSolveUniversal(Expression sourceExpression, ParameterExpression destinationExpression, PropertyInfo[] propertyInfos, IMapApplication application)
+        private static Expression ToSolveUniversal(Expression sourceExpression, ParameterExpression destinationExpression, PropertyInfo[] propertyInfos, IMapApplication application)
         {
             LabelTarget breakLabel = Label(MapConstants.VoidType);
             LabelTarget continueLabel = Label(MapConstants.VoidType);

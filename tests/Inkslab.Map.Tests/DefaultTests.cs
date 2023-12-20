@@ -523,6 +523,8 @@ namespace Inkslab.Map.Tests
 
             var c1 = instance.Map<C2>(dic);
 
+            var c2 = instance.Map<object>(1);
+
             Assert.True(c1.I5 == 7042011313840586752L);
         }
 

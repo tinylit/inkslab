@@ -150,22 +150,24 @@ namespace Inkslab.Map
             {
                 var parameterInfos = constructorInfo.GetParameters();
 
-                if (parameterInfos.Length == 0 || parameterInfos.All(x => x.IsOptional || x.ParameterType == typeof(IMapConfiguration) || x.ParameterType == typeof(IConfiguration)))
+                if (parameterInfos.Length > 0 && !parameterInfos.All(x => x.IsOptional || x.ParameterType == typeof(IMapConfiguration) || x.ParameterType == typeof(IConfiguration)))
                 {
-                    AddProfile((Profile)constructorInfo.Invoke(Array.ConvertAll(parameterInfos, x =>
-                    {
-                        if (x.ParameterType == typeof(IConfiguration) || x.ParameterType == typeof(IMapConfiguration))
-                        {
-                            return this;
-                        }
-
-                        return x.DefaultValue;
-                    })));
-
-                    throwError = false;
-
-                    break;
+                    continue;
                 }
+
+                AddProfile((Profile)constructorInfo.Invoke(Array.ConvertAll(parameterInfos, x =>
+                {
+                    if (x.ParameterType == typeof(IConfiguration) || x.ParameterType == typeof(IMapConfiguration))
+                    {
+                        return this;
+                    }
+
+                    return x.DefaultValue;
+                })));
+
+                throwError = false;
+
+                break;
             }
 
             if (throwError)
@@ -222,7 +224,7 @@ namespace Inkslab.Map
 
                 if (sourceType.IsValueType)
                 {
-                    return Convert(Map(sourceExpression, sourceType, application), destinationType);
+                    return Convert(sourceExpression, destinationType);
                 }
 
                 conversionType = sourceType;
@@ -696,7 +698,7 @@ namespace Inkslab.Map
             {
                 this.node = node ?? throw new ArgumentNullException(nameof(node));
                 this.Test = test ?? throw new ArgumentNullException(nameof(test));
-                
+
                 this.keepNullable = keepNullable;
 
                 if (node.Type.IsNullable())
@@ -739,7 +741,7 @@ namespace Inkslab.Map
                 }
 
                 label_original:
-                
+
                 return node;
             }
 

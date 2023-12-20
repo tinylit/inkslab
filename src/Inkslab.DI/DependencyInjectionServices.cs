@@ -2,9 +2,12 @@
 using Inkslab.DI.Options;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text;
 using Inkslab.Annotations;
 
@@ -311,9 +314,16 @@ namespace Inkslab.DI
             return flag;
         }
 
+        private static readonly HashSet<Type> injectionFree = new HashSet<Type>
+        {
+            typeof(IServiceProvider),
+            typeof(IServiceScope),
+            typeof(IServiceScopeFactory)
+        };
+
         private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
-            if (serviceType == typeof(IServiceProvider) || serviceType == typeof(IServiceScope) || serviceType == typeof(IServiceScopeFactory))
+            if (injectionFree.Contains(serviceType))
             {
                 return true;
             }
@@ -569,6 +579,22 @@ namespace Inkslab.DI
             private readonly Type serviceType;
             private readonly Type[] interfaceTypes;
 
+            private static readonly HashSet<Type> systemTypes = new HashSet<Type>
+            {
+                typeof(IDisposable),
+                typeof(IAsyncDisposable),
+                typeof(ICloneable),
+                typeof(ISerializable),
+                typeof(IConvertible),
+                typeof(IContainer),
+                typeof(IComparable),
+                typeof(IStructuralEquatable),
+                typeof(IEquatable<>),
+                typeof(IComparable<>),
+                typeof(IEqualityComparer<>),
+                typeof(IEqualityComparer),
+            };
+
             public TypeComparer(Type serviceType, Type[] interfaceTypes)
             {
                 this.serviceType = serviceType;
@@ -581,27 +607,18 @@ namespace Inkslab.DI
 
                 if (serviceType.IsInterface)
                 {
-                    Type cloneType = typeof(ICloneable);
-                    Type disposableType = typeof(IDisposable);
-                    Type asyncDisposable = typeof(IAsyncDisposable);
-
                     var interfaces = implementationType.GetInterfaces();
-                    
+
                     for (int i = 0; i < interfaces.Length; i++)
                     {
                         Type interfaceType = interfaces[i];
-                        
+
                         if (interfaceType == serviceType || interfaceTypes.Contains(interfaceType)) //? 本身，或者是接口本身的继承接口。
                         {
                             continue;
                         }
 
-                        if (interfaceType == disposableType || interfaceType == asyncDisposable)
-                        {
-                            continue;
-                        }
-
-                        if (interfaceType == cloneType)
+                        if (systemTypes.Contains(interfaceType.IsGenericType ? interfaceType.GetGenericTypeDefinition() : interfaceType))
                         {
                             continue;
                         }
@@ -622,6 +639,7 @@ namespace Inkslab.DI
                     compare++;
 
                     implementationType = implementationType.BaseType;
+                    
                 } while (!(implementationType is null || implementationType == typeof(object)));
 
                 return int.MaxValue;

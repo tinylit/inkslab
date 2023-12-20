@@ -9,7 +9,7 @@ namespace Inkslab.Collections
     /// 【线程安全】LFU 算法，移除最近最少被搜索到的数据。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
-    public class LRS<T> : IEliminationAlgorithm<T>
+    public class Lrs<T> : IEliminationAlgorithm<T>
     {
         private int refCount = -1;
 
@@ -23,7 +23,7 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="capacity">容器大小。</param>
         /// <param name="comparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
-        public LRS(int capacity, IEqualityComparer<T> comparer)
+        public Lrs(int capacity, IEqualityComparer<T> comparer)
         {
             if (capacity < 0)
             {
@@ -61,18 +61,18 @@ namespace Inkslab.Collections
             int index = Interlocked.Increment(ref refCount);
 
             int offset = index % capacity;
+            
+            obsoleteValue = arrays[offset];
+            
+            if (comparer.Equals(value, obsoleteValue))
+            {
+                return false;
+            }
 
             bool flag = false;
-
-            obsoleteValue = arrays[offset];
-
+            
             if (index >= capacity)
             {
-                if (comparer.Equals(value, obsoleteValue))
-                {
-                    goto label_core;
-                }
-
                 if (keys.Count == capacity || keys.TryGetValue(obsoleteValue, out int local) && local == offset)
                 {
                     flag = true;
@@ -91,8 +91,6 @@ namespace Inkslab.Collections
                 }
             }
 
-            label_core:
-
             keys[value] = offset;
 
             arrays[offset] = value;
@@ -107,9 +105,9 @@ namespace Inkslab.Collections
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
-    public class LRS<TKey, TValue>
+    public class Lrs<TKey, TValue>
     {
-        private readonly LRS<TKey> lru;
+        private readonly Lrs<TKey> lru;
         private readonly Func<TKey, TValue> factory;
 
         private readonly Dictionary<TKey, TValue> cachings;
@@ -126,7 +124,7 @@ namespace Inkslab.Collections
         /// </summary>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
         /// <exception cref="ArgumentNullException"></exception>
-        public LRS(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
+        public Lrs(Func<TKey, TValue> factory) : this(DefaultCapacity, factory)
         {
         }
 
@@ -136,7 +134,7 @@ namespace Inkslab.Collections
         /// <param name="capacity">初始大小。</param>
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
         /// <param name="comparer"> 在比较集中的值时使用的 <see cref="IEqualityComparer{T}"/> 实现，或为 null 以使用集类型的默认 <seealso cref="EqualityComparer{T}"/> 实现。</param>
-        public LRS(int capacity, Func<TKey, TValue> factory, IEqualityComparer<TKey> comparer = null)
+        public Lrs(int capacity, Func<TKey, TValue> factory, IEqualityComparer<TKey> comparer = null)
         {
             if (capacity < 0)
             {
@@ -147,7 +145,7 @@ namespace Inkslab.Collections
 
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
-            lru = new LRS<TKey>(capacity, comparer);
+            lru = new Lrs<TKey>(capacity, comparer);
 
             for (int i = 0; i < 3; i++)
             {

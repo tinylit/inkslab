@@ -379,7 +379,7 @@ namespace Inkslab.Map
 
                 var declaringType = memberInfo.DeclaringType!;
 
-                var instanceExpression = Visit(node.Expression);
+                var instanceExpression = Visit(node.Expression)!;
 
                 if (declaringType.IsGenericType && originalSourceType.IsGenericType && (declaringType == originalSourceType || memberInfo.ReflectedType == originalSourceType))
                 {
@@ -870,7 +870,7 @@ namespace Inkslab.Map
                 var prepareVisitor = new ReplaceExpressionVisitor(parameterOfSet, originalSetCf);
 
                 //? 准备。
-                var prepareBodyEx = prepareVisitor.Visit(body);
+                var prepareBodyEx = prepareVisitor.Visit(body)!;
 
                 var destinationSetCf = new ConvertIfExpression(destinationListType);
 

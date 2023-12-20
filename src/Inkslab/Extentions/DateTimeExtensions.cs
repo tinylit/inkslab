@@ -3,7 +3,7 @@
     /// <summary>
     /// 日期精度。
     /// <para><see cref="None"/> -> yyyy-MM-dd 23:59:59.999</para>
-    /// <para><see cref="MySQL"/> -> yyyy-MM-dd 23:59:59.000</para>
+    /// <para><see cref="MySql"/> -> yyyy-MM-dd 23:59:59.000</para>
     /// <para><see cref="SqlServer"/> -> yyyy-MM-dd 23:59:59.997</para>
     /// </summary>
     public enum DatePrecision
@@ -15,7 +15,7 @@
         /// <summary>
         /// MySQL 数据库精度：yyyy-MM-dd 23:59:59。
         /// </summary>
-        MySQL = 1,
+        MySql = 1,
         /// <summary>
         /// SqlServer 数据库精度：yyyy-MM-dd 23:59:59.997。
         /// </summary>
@@ -44,7 +44,7 @@
         {
             return datePrecision switch
             {
-                DatePrecision.MySQL => date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerSecond),
+                DatePrecision.MySql => date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerSecond),
                 DatePrecision.SqlServer => date.Date.AddTicks(TimeSpan.TicksPerDay - 3L * TimeSpan.TicksPerMillisecond),
                 _ => date.Date.AddTicks(TimeSpan.TicksPerDay - TimeSpan.TicksPerMillisecond),
             };
@@ -66,7 +66,7 @@
         }
 
         /// <summary>
-        /// 周末（当 <paramref name="date"/>.Kind 等于 <see cref="DateTimeKind.Utc"/> 时，周六作为一周的最后一天；否则，周日作为一周的最后一天），当 <paramref name="datePrecision"/> 为 <seealso cref="DatePrecision.MySQL"/>时，返回：yyyy-MM-dd 23:59:59；否则，返回: yyyy-MM-dd 23:59:59.999。
+        /// 周末（当 <paramref name="date"/>.Kind 等于 <see cref="DateTimeKind.Utc"/> 时，周六作为一周的最后一天；否则，周日作为一周的最后一天），当 <paramref name="datePrecision"/> 为 <seealso cref="DatePrecision.MySql"/>时，返回：yyyy-MM-dd 23:59:59；否则，返回: yyyy-MM-dd 23:59:59.999。
         /// </summary>
         /// <param name="date">日期。</param>
         /// <param name="datePrecision">日期精度。</param>
@@ -113,7 +113,7 @@
 
             return datePrecision switch
             {
-                DatePrecision.MySQL => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, date.Kind),
+                DatePrecision.MySql => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, date.Kind),
                 DatePrecision.SqlServer => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, 997, date.Kind),
                 _ => new DateTime(year, month, month == 2 ? (IsLeapYear(year) ? 29 : 28) : ((month & 1) == 0 ? month < 7 : month > 8) ? 30 : 31, 23, 59, 59, 999, date.Kind),
             };

@@ -34,25 +34,14 @@ namespace System
     {
         private static SymmetricAlgorithm GetSymmetricAlgorithm(CryptoKind kind)
         {
-            SymmetricAlgorithm algorithm = null;
-
-            switch (kind)
+            return kind switch
             {
-                case CryptoKind.DES:
-                    algorithm = DES.Create();
-                    break;
-                case CryptoKind.TripleDES:
-                    algorithm = TripleDES.Create();
-                    break;
-                case CryptoKind.RC2:
-                    algorithm = RC2.Create();
-                    break;
-                case CryptoKind.AES:
-                    algorithm = Aes.Create();
-                    break;
-            }
-
-            return algorithm;
+                CryptoKind.DES => DES.Create(),
+                CryptoKind.TripleDES => TripleDES.Create(),
+                CryptoKind.RC2 => RC2.Create(),
+                CryptoKind.AES => Aes.Create(),
+                _ => throw new NotSupportedException()
+            };
         }
 
         /// <summary>

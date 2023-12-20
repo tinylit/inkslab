@@ -91,7 +91,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
                     foreach (var interfaceType in serviceType.GetInterfaces())
                     {
-                        if (interfaceType == typeof(IDisposable) | interfaceType == typeof(IAsyncDisposable))
+                        if (interfaceType == typeof(IDisposable) || interfaceType == typeof(IAsyncDisposable))
                         {
                             continue;
                         }

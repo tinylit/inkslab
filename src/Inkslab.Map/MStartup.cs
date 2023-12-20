@@ -25,6 +25,7 @@ namespace Inkslab.Map
         {
             var profileType = typeof(Profile);
             var mapperInstanceType = typeof(MapperInstance);
+            
             var assemblies = AssemblyFinder.FindAll();
 
             foreach (var assemblyType in assemblies.SelectMany(x => x.GetTypes())
@@ -35,7 +36,7 @@ namespace Inkslab.Map
                     continue;
                 }
 
-                if (assemblyType.IsAssignableFrom(mapperInstanceType)) // 默认不添加全局配置。
+                if (assemblyType.IsSubclassOf(mapperInstanceType)) // 默认不添加全局配置。
                 {
                     continue;
                 }

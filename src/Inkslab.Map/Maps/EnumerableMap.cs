@@ -24,10 +24,10 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
             => !sourceType.IsPrimitive && !destinationType.IsPrimitive
-                && sourceType != MapConstants.StringType
-                && destinationType != MapConstants.StringType
-                && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
-                && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
+                                       && sourceType != MapConstants.StringType
+                                       && destinationType != MapConstants.StringType
+                                       && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
+                                       && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
 
         /// <inheritdoc/>
         public override Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
@@ -108,35 +108,35 @@ namespace Inkslab.Map.Maps
 
             var destinationListType = typeof(List<>).MakeGenericType(elementType);
 
-            var addElementMtd = destinationListType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null);
+            var addElementMtd = destinationListType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null)!;
 
             var variableExp = Variable(destinationListType);
 
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             return Block(new ParameterExpression[]
-              {
+            {
                 indexExp,
                 lengthExp
-              }, new Expression[]
-              {
+            }, new Expression[]
+            {
                 Assign(indexExp, Constant(0)),
                 Assign(lengthExp, ArrayLength(sourceExpression)),
-                Assign(variableExp, New(destinationListType.GetConstructor(new Type[]{ typeof(int) }), lengthExp)),
+                Assign(variableExp, New(destinationListType.GetConstructor(new Type[] { typeof(int) })!, lengthExp)),
                 Loop(
                     IfThenElse(
                         GreaterThan(lengthExp, indexExp),
                         Block(
                             Call(variableExp, addElementMtd, application.Map(ArrayIndex(sourceExpression, indexExp), elementType)),
                             AddAssign(indexExp, Constant(1)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
                 ),
                 Call(MapConstants.ToArrayMtd.MakeGenericMethod(elementType), variableExp)
-              });
+            });
         }
 
         private static Expression ToArray(Expression sourceExpression, Type destinationElementType, IMapApplication application)
@@ -145,18 +145,20 @@ namespace Inkslab.Map.Maps
 
             foreach (var interfaceType in sourceType.GetInterfaces())
             {
-                if (interfaceType.IsGenericType)
+                if (!interfaceType.IsGenericType)
                 {
-                    var typeDefinition = interfaceType.GetGenericTypeDefinition();
+                    continue;
+                }
 
-                    if (typeDefinition == typeof(IList<>)
-                        || typeDefinition == typeof(IReadOnlyList<>)
-                        || typeDefinition == typeof(ICollection<>)
-                        || typeDefinition == typeof(IReadOnlyCollection<>)
-                        || typeDefinition == typeof(IEnumerable<>))
-                    {
-                        return ToArrayByGeneric(sourceExpression, interfaceType.GetGenericArguments()[0], destinationElementType, application);
-                    }
+                var typeDefinition = interfaceType.GetGenericTypeDefinition();
+
+                if (typeDefinition == typeof(IList<>)
+                    || typeDefinition == typeof(IReadOnlyList<>)
+                    || typeDefinition == typeof(ICollection<>)
+                    || typeDefinition == typeof(IReadOnlyCollection<>)
+                    || typeDefinition == typeof(IEnumerable<>))
+                {
+                    return ToArrayByGeneric(sourceExpression, interfaceType.GetGenericArguments()[0], destinationElementType, application);
                 }
             }
 
@@ -165,22 +167,22 @@ namespace Inkslab.Map.Maps
 
         private static Expression ToArrayByGeneral(Expression sourceExpression, Type destinationElementType, IMapApplication configuration)
         {
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             var conversionType = typeof(List<>).MakeGenericType(destinationElementType);
 
-            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, null, new Type[] { destinationElementType }, null);
+            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, null, new Type[] { destinationElementType }, null)!;
 
             var variableExp = Variable(conversionType);
             var enumeratorExp = Variable(MapConstants.EnumeratorType);
 
             return Block(new ParameterExpression[]
-             {
+            {
                 variableExp,
                 enumeratorExp
-             }, new Expression[]
-             {
+            }, new Expression[]
+            {
                 Assign(variableExp, New(conversionType)),
                 Assign(enumeratorExp, Call(sourceExpression, getEnumeratorMtd)),
                 Loop(
@@ -189,52 +191,52 @@ namespace Inkslab.Map.Maps
                         Block(
                             MapConstants.VoidType,
                             Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, enumeratorCurrentProp), destinationElementType)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
-                 ),
-                 Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), variableExp)
-             });
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
+                ),
+                Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), variableExp)
+            });
         }
 
         private static Expression ToArrayByGeneric(Expression sourceExpression, Type sourceElementType, Type destinationElementType, IMapApplication configuration)
         {
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             var conversionType = typeof(List<>).MakeGenericType(destinationElementType);
 
             var enumerableType = MapConstants.Enumerable_T_Type.MakeGenericType(sourceElementType);
             var enumeratorType = MapConstants.Enumerator_T_Type.MakeGenericType(sourceElementType);
 
-            var propertyInfo = enumeratorType.GetProperty("Current");
+            var propertyInfo = enumeratorType.GetProperty("Current")!;
 
-            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, null, new Type[] { destinationElementType }, null);
+            var addElementMtd = conversionType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public, null, new Type[] { destinationElementType }, null)!;
 
             var variableExp = Variable(conversionType);
             var enumeratorExp = Variable(enumeratorType);
 
             return Block(new ParameterExpression[]
-             {
+            {
                 variableExp,
                 enumeratorExp
-             }, new Expression[]
-             {
+            }, new Expression[]
+            {
                 Assign(variableExp, New(conversionType)),
-                Assign(enumeratorExp, Call(sourceExpression, enumerableType.GetMethod("GetEnumerator", Type.EmptyTypes))),
+                Assign(enumeratorExp, Call(sourceExpression, enumerableType.GetMethod("GetEnumerator", Type.EmptyTypes)!)),
                 Loop(
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
                             Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, propertyInfo), destinationElementType)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
-                 ),
-                 Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), variableExp)
-             });
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
+                ),
+                Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), variableExp)
+            });
         }
 
         private static Expression ArrayTo(Expression sourceExpression, ParameterExpression destinationExpression, Type elementType, MethodInfo addElementMtd, IMapApplication configuration)
@@ -243,15 +245,15 @@ namespace Inkslab.Map.Maps
 
             var lengthExp = Variable(typeof(int));
 
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             return Block(new ParameterExpression[]
-              {
+            {
                 indexExp,
                 lengthExp
-              }, new Expression[]
-              {
+            }, new Expression[]
+            {
                 Assign(indexExp, Constant(0)),
                 Assign(lengthExp, ArrayLength(sourceExpression)),
                 Loop(
@@ -260,30 +262,32 @@ namespace Inkslab.Map.Maps
                         Block(
                             Call(destinationExpression, addElementMtd, configuration.Map(ArrayIndex(sourceExpression, indexExp), elementType)),
                             AddAssign(indexExp, Constant(1)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
                 )
-              });
+            });
         }
 
         private static Expression ToEnumerable(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
             foreach (var interfaceType in sourceType.GetInterfaces())
             {
-                if (interfaceType.IsGenericType)
+                if (!interfaceType.IsGenericType)
                 {
-                    var typeDefinition = interfaceType.GetGenericTypeDefinition();
+                    continue;
+                }
 
-                    if (typeDefinition == typeof(IList<>)
-                        || typeDefinition == typeof(IReadOnlyList<>)
-                        || typeDefinition == typeof(ICollection<>)
-                        || typeDefinition == typeof(IReadOnlyCollection<>)
-                        || typeDefinition == typeof(IEnumerable<>))
-                    {
-                        return ToEnumerableByGeneric(sourceExpression, interfaceType.GetGenericArguments()[0], destinationExpression, destinationElementType, addElementMtd, configuration);
-                    }
+                var typeDefinition = interfaceType.GetGenericTypeDefinition();
+
+                if (typeDefinition == typeof(IList<>)
+                    || typeDefinition == typeof(IReadOnlyList<>)
+                    || typeDefinition == typeof(ICollection<>)
+                    || typeDefinition == typeof(IReadOnlyCollection<>)
+                    || typeDefinition == typeof(IEnumerable<>))
+                {
+                    return ToEnumerableByGeneric(sourceExpression, interfaceType.GetGenericArguments()[0], destinationExpression, destinationElementType, addElementMtd, configuration);
                 }
             }
 
@@ -292,59 +296,59 @@ namespace Inkslab.Map.Maps
 
         private static Expression ToEnumerableByGeneral(Expression sourceExpression, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             var enumeratorExp = Variable(MapConstants.EnumeratorType);
 
             return Block(new ParameterExpression[]
-             {
+            {
                 enumeratorExp
-             }, new Expression[]
-             {
+            }, new Expression[]
+            {
                 Assign(enumeratorExp, Call(sourceExpression, getEnumeratorMtd)),
                 Loop(
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
                             Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, enumeratorCurrentProp), destinationElementType)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
-                 )
-             });
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
+                )
+            });
         }
 
         private static Expression ToEnumerableByGeneric(Expression sourceExpression, Type sourceElementType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
-            LabelTarget break_label = Label(MapConstants.VoidType);
-            LabelTarget continue_label = Label(MapConstants.VoidType);
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
 
             var enumerableType = MapConstants.Enumerable_T_Type.MakeGenericType(sourceElementType);
             var enumeratorType = MapConstants.Enumerator_T_Type.MakeGenericType(sourceElementType);
 
-            var propertyInfo = enumeratorType.GetProperty("Current");
+            var propertyInfo = enumeratorType.GetProperty("Current")!;
 
             var enumeratorExp = Variable(enumeratorType);
 
             return Block(new ParameterExpression[]
-             {
+            {
                 enumeratorExp
-             }, new Expression[]
-             {
-                Assign(enumeratorExp, Call(sourceExpression, enumerableType.GetMethod("GetEnumerator", Type.EmptyTypes))),
+            }, new Expression[]
+            {
+                Assign(enumeratorExp, Call(sourceExpression, enumerableType.GetMethod("GetEnumerator", Type.EmptyTypes)!)),
                 Loop(
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
                             Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, propertyInfo), destinationElementType)),
-                            Continue(continue_label)
+                            Continue(continueLabel)
                         ),
-                        Break(break_label)), // push to eax/rax --> return value
-                    break_label, continue_label
-                 )
-             });
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
+                )
+            });
         }
 
         /// <summary>
@@ -359,17 +363,14 @@ namespace Inkslab.Map.Maps
         /// <exception cref="InvalidCastException">目标类型 <paramref name="destinationType"/> 为集合，但没有找到添加元素的方法！</exception>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication configuration)
         {
-            if (TryGet(destinationType, out Type elementType, out MethodInfo addElementMtd))
+            if (!TryGet(destinationType, out Type elementType, out MethodInfo addElementMtd))
             {
-                if (sourceType.IsArray)
-                {
-                    return ArrayTo(sourceExpression, destinationExpression, elementType, addElementMtd, configuration);
-                }
-
-                return ToEnumerable(sourceExpression, sourceType, destinationExpression, elementType, addElementMtd, configuration);
+                throw new InvalidCastException($"目标【{destinationType}】为集合，但没有找到添加元素的方法！");
             }
 
-            throw new InvalidCastException($"目标【{destinationType}】为集合，但没有找到添加元素的方法！");
+            return sourceType.IsArray
+                ? ArrayTo(sourceExpression, destinationExpression, elementType, addElementMtd, configuration)
+                : ToEnumerable(sourceExpression, sourceType, destinationExpression, elementType, addElementMtd, configuration);
         }
     }
 }

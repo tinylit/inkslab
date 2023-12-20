@@ -130,17 +130,12 @@ namespace Inkslab.Serialize.Xml
         /// <returns>是否相同。</returns>
         public readonly override bool Equals(object obj)
         {
-            if (obj is CData data)
+            return obj switch
             {
-                return Equals(data);
-            }
-
-            if (obj is string text)
-            {
-                return Equals(text);
-            }
-
-            return false;
+                CData data => Equals(data),
+                string text => Equals(text),
+                _ => false
+            };
         }
 
         /// <summary>
