@@ -166,7 +166,7 @@
     using var instance = new MapperInstance();
 
     instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
-                                            //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+      //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
         .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
         .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
         .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
