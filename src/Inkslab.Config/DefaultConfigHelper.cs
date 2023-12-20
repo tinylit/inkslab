@@ -175,17 +175,17 @@ namespace Inkslab.Config
                 if (!flag) break;
             }
 
-            if (keys.Length == index)
+            if (keys.Length != index)
             {
-                if (sectionGroup is T sectionValue)
-                {
-                    return sectionValue;
-                }
-
-                return (T)(object)sectionGroup;
+                return defaultValue;
             }
 
-            return defaultValue;
+            if (sectionGroup is T sectionValue)
+            {
+                return sectionValue;
+            }
+
+            return (T)(sectionGroup as object);
         }
 #else
         /// <summary>

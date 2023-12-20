@@ -28,7 +28,7 @@ namespace System
 
                 foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
                 {
-                    var constantValue = info.GetRawConstantValue();
+                    var constantValue = info.GetRawConstantValue()!;
 
                     if (!Nested<TEnum>.Contains(@enum, (TEnum)constantValue))
                     {
@@ -54,7 +54,7 @@ namespace System
             {
                 foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
                 {
-                    var constantValue = info.GetRawConstantValue();
+                    var constantValue = info.GetRawConstantValue()!;
 
                     if (!Nested<TEnum>.Equals(@enum, (TEnum)constantValue))
                     {
@@ -104,27 +104,22 @@ namespace System
         {
             var type = typeof(TEnum);
 
-            if (Convert<TEnum>.IsFlags)
+            if (!Convert<TEnum>.IsFlags)
             {
-                var results = new List<TEnum>();
+                return Enum.IsDefined(type, @enum) ? new TEnum[1] { @enum } : Array.Empty<TEnum>();
+            }
 
-                foreach (TEnum item in Enum.GetValues(type))
+            var results = new List<TEnum>();
+
+            foreach (TEnum item in Enum.GetValues(type))
+            {
+                if (Nested<TEnum>.Contains(@enum, item))
                 {
-                    if (Nested<TEnum>.Contains(@enum, item))
-                    {
-                        results.Add(item);
-                    }
+                    results.Add(item);
                 }
-
-                return results.ToArray();
             }
 
-            if (!Enum.IsDefined(type, @enum))
-            {
-                return Array.Empty<TEnum>();
-            }
-
-            return new TEnum[1] { @enum };
+            return results.ToArray();
         }
 
         private static class Nested<TEnum> where TEnum : struct, Enum

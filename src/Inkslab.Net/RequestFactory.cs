@@ -155,6 +155,7 @@ namespace Inkslab.Net
             [".yml"] = new MediaTypeHeaderValue("text/yaml"),
             [".zip"] = new MediaTypeHeaderValue("application/zip")
         };
+
         private readonly IRequestInitialize initialize;
 
         private static Func<object, string, List<KeyValuePair<string, object>>> MakeTypeResults(Type type)
@@ -219,9 +220,13 @@ namespace Inkslab.Net
                 {
                     expressions.Add(IfThen(Property(propertyExp, "HasValue"), bodyCallExp));
                 }
-                else
+                else if (propertyType.IsValueType)
                 {
                     expressions.Add(bodyCallExp);
+                }
+                else
+                {
+                    expressions.Add(IfThen(NotEqual(propertyExp, Constant(null, propertyType)), bodyCallExp));
                 }
             }
 
@@ -494,14 +499,12 @@ namespace Inkslab.Net
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
                 var results = cachings.GetOrAdd(typeof(TBody), MakeTypeResults)
-                     .Invoke(body, dateFormatString);
+                    .Invoke(body, dateFormatString);
 
-                if (namingType == NamingType.Normal)
-                {
-                    return Form(results, dateFormatString);
-                }
-
-                return Form(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
+                return Form(namingType == NamingType.Normal
+                        ? results
+                        : results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value))
+                    , dateFormatString);
             }
 
             public IRequestableContent Json(string json) => Body(json, "application/json");
@@ -562,7 +565,7 @@ namespace Inkslab.Net
                 {
                     var c = param[startIndex];
 
-                    if (c == ' ' || c == '?' || c == '&')
+                    if (c is ' ' or '?' or '&')
                     {
                         continue;
                     }
@@ -575,10 +578,18 @@ namespace Inkslab.Net
                     return requestable;
                 }
 
-                sb.Append(hasQueryString ? '&' : '?')
-                    .Append(param, startIndex, length - startIndex);
+                if (hasQueryString)
+                {
+                    sb.Append('&');
+                }
+                else
+                {
+                    sb.Append('?');
 
-                hasQueryString = true;
+                    hasQueryString = true;
+                }
+
+                sb.Append(param, startIndex, length - startIndex);
 
                 return requestable;
             }
@@ -590,12 +601,9 @@ namespace Inkslab.Net
                     throw new ArgumentException($"“{nameof(name)}”不能为 null 或空。", nameof(name));
                 }
 
-                if (value.IsEmpty())
-                {
-                    return requestable;
-                }
-
-                return AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
+                return value.IsEmpty()
+                    ? requestable
+                    : AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
             }
 
             public TRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => AppendQueryString(name, value.ToString(dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK"));
@@ -672,22 +680,15 @@ namespace Inkslab.Net
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
                 var results = cachings.GetOrAdd(typeof(TParam), MakeTypeResults)
-                     .Invoke(param, dateFormatString);
+                    .Invoke(param, dateFormatString);
 
-                if (namingType == NamingType.Normal)
-                {
-                    return AppendQueryString(results, dateFormatString);
-                }
-                else
-                {
-                    return AppendQueryString(results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value)), dateFormatString);
-                }
+                return AppendQueryString(namingType == NamingType.Normal
+                        ? results
+                        : results.ConvertAll(x => new KeyValuePair<string, object>(x.Key.ToNamingCase(namingType), x.Value))
+                    , dateFormatString);
             }
 
-            public override string ToString()
-            {
-                return sb.ToString();
-            }
+            public override string ToString() => sb.ToString();
         }
 
         private class Requestable : RequestableEncoding, IRequestable, IRequestableBase
@@ -810,7 +811,6 @@ namespace Inkslab.Net
                 AppendQueryString(name, value, dateFormatString);
 
                 return this;
-
             }
 
             IRequestableBase IRequestableBase<IRequestableBase>.AppendQueryString<TParam>(TParam param)
@@ -874,6 +874,7 @@ namespace Inkslab.Net
                 this.whenStatus = whenStatus;
                 this.thenAsync = thenAsync;
             }
+
             public override RequestOptions GetOptions(HttpMethod method, double timeout) => requestable.GetOptions(method, timeout);
 
             public override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
@@ -977,14 +978,14 @@ namespace Inkslab.Net
                     var keys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                     foreach (var param in queryStrings
-                        .Split('&'))
+                                 .Split('&'))
                     {
                         keys.Add(param.Split('=')[0]);
                     }
 
                     foreach (var param in requestUri
-                        .Substring(indexOf + 1)
-                        .Split('&'))
+                                 .Substring(indexOf + 1)
+                                 .Split('&'))
                     {
                         if (keys.Contains(param.Split('=')[0]))
                         {
@@ -1355,7 +1356,6 @@ namespace Inkslab.Net
         /// </summary>
         protected RequestFactory() : this(new RequestInitialize())
         {
-
         }
 
         /// <summary>
@@ -1405,7 +1405,7 @@ namespace Inkslab.Net
                 throw new ArgumentException("文件后缀必须以“.”开头！");
             }
 
-            mediaTypes[mediaType.ToLower()] = new MediaTypeHeaderValue(mediaType);
+            mediaTypes[fileSuffix.ToLower()] = new MediaTypeHeaderValue(mediaType);
         }
 
         /// <summary>
@@ -1432,7 +1432,7 @@ namespace Inkslab.Net
             using (var httpMsg = new HttpRequestMessage(options.Method, options.RequestUri))
             {
                 httpMsg.Content = options.Content;
-                
+
                 if (options.Headers.Count > 0)
                 {
                     foreach (var kv in options.Headers)

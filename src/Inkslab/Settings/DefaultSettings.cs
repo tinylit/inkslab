@@ -55,26 +55,17 @@ namespace Inkslab.Settings
                 case string text: return ValuePackaging(text, typeof(string));
                 case IEnumerable: return ToString(value);
                 default:
-                    {
-                        var valueType = value.GetType();
+                {
+                    var valueType = value.GetType();
 
-                        if (valueType.IsEnum)
-                        {
-                            return ValuePackaging(ToString(value), valueType);
-                        }
-
-                        if (valueType.IsMini())
-                        {
-                            return value.ToString();
-                        }
-
-                        if (valueType.IsSimple())
-                        {
-                            return ValuePackaging(ToString(value), valueType);
-                        }
-
-                        return ToString(value);
-                    }
+                    return valueType.IsEnum
+                        ? ValuePackaging(ToString(value), valueType)
+                        : valueType.IsMini()
+                            ? value.ToString()
+                            : valueType.IsSimple()
+                                ? ValuePackaging(ToString(value), valueType)
+                                : ToString(value);
+                }
             }
         }
 
@@ -90,53 +81,50 @@ namespace Inkslab.Settings
                 case string text: return text;
                 case DateTime date: return date.ToString(DateFormatString);
                 case IEnumerable enumerable:
-                    {
-                        // ReSharper disable once NotDisposedResource
-                        var enumerator = enumerable.GetEnumerator();
+                {
+                    // ReSharper disable once NotDisposedResource
+                    var enumerator = enumerable.GetEnumerator();
 
+                    if (!enumerator.MoveNext())
+                    {
+                        return null;
+                    }
+
+                    while (enumerator.Current is null)
+                    {
                         if (!enumerator.MoveNext())
                         {
                             return null;
                         }
-
-                        while (enumerator.Current is null)
-                        {
-                            if (!enumerator.MoveNext())
-                            {
-                                return null;
-                            }
-                        }
-
-                        var sb = new StringBuilder();
-
-                        sb.Append('[')
-                            .Append(ToString(enumerator.Current));
-
-                        while (enumerator.MoveNext())
-                        {
-                            if (enumerator.Current is null)
-                            {
-                                continue;
-                            }
-
-                            sb.Append(',')
-                                .Append(ToString(enumerator.Current));
-                        }
-
-                        return sb.Append(']')
-                            .ToString();
                     }
-                default:
+
+                    var sb = new StringBuilder();
+
+                    sb.Append('[')
+                        .Append(ToString(enumerator.Current));
+
+                    while (enumerator.MoveNext())
                     {
-                        var valueType = value.GetType();
-
-                        if (valueType.IsSimple())
+                        if (enumerator.Current is null)
                         {
-                            return value.ToString();
+                            continue;
                         }
 
-                        return JsonHelper.ToJson(value);
+                        sb.Append(',')
+                            .Append(ToString(enumerator.Current));
                     }
+
+                    return sb.Append(']')
+                        .ToString();
+                }
+                default:
+                {
+                    var valueType = value.GetType();
+
+                    return valueType.IsSimple()
+                        ? value.ToString()
+                        : JsonHelper.ToJson(value);
+                }
             }
         }
 

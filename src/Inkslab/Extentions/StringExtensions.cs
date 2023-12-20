@@ -60,47 +60,28 @@ namespace System
                     return patternCamelCase.Replace(name, x => char.ToUpper(x.Value[1]).ToString());
 
                 case NamingType.PascalCase:
-                    return patternPascalCase.Replace(name, x =>
-                    {
-                        if (x.Index == 0)
-                        {
-                            return x.Value.ToUpper();
-                        }
-
-                        return char.ToUpper(x.Value[1]).ToString();
-                    });
+                    return patternPascalCase.Replace(name, x => x.Index == 0
+                        ? x.Value.ToUpper()
+                        : char.ToUpper(x.Value[1]).ToString()
+                    );
 
                 case NamingType.SnakeCase:
-                    return patternSnakeCase.Replace(name, x =>
-                    {
-                        if (x.Index == 0)
-                        {
-                            return x.Value.ToLower();
-                        }
-
-                        if (x.Value.Length == 2)
-                        {
-                            return string.Concat("_", char.ToLower(x.Value[1]).ToString());
-                        }
-
-                        return string.Concat("_", x.Value.ToLower());
-                    });
+                    return patternSnakeCase.Replace(name, x => x.Index == 0
+                        ? x.Value.ToLower()
+                        : string.Concat("_", x.Value.Length == 2
+                            ? char.ToLower(x.Value[1]).ToString()
+                            : x.Value.ToLower()
+                        )
+                    );
 
                 case NamingType.KebabCase:
-                    return patternKebabCase.Replace(name, x =>
-                    {
-                        if (x.Index == 0)
-                        {
-                            return x.Value.ToLower();
-                        }
-
-                        if (x.Value.Length == 2)
-                        {
-                            return string.Concat("-", char.ToLower(x.Value[1]).ToString());
-                        }
-
-                        return string.Concat("-", x.Value.ToLower());
-                    });
+                    return patternKebabCase.Replace(name, x => x.Index == 0
+                        ? x.Value.ToLower()
+                        : string.Concat("-", x.Value.Length == 2
+                            ? char.ToLower(x.Value[1]).ToString()
+                            : x.Value.ToLower()
+                        )
+                    );
 
                 default:
                     throw new NotSupportedException();
@@ -228,8 +209,8 @@ namespace System
             var sugar = stringSugar.CreateSugar(source, settings);
 
             return stringSugar
-                    .RegularExpression
-                    .Replace(value, sugar.Format);
+                .RegularExpression
+                .Replace(value, sugar.Format);
         }
     }
 }

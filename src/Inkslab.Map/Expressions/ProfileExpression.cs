@@ -312,7 +312,10 @@ namespace Inkslab.Map.Expressions
                     {
                         if (runtimeType.IsAssignableFrom(sourceType))
                         {
-                            conversionType = sourceType;
+                            if (conversionType.IsAbstract) //? 避免推测类型支持转换，但源类型不支持转换的问题。
+                            {
+                                conversionType = sourceType;
+                            }
                         }
                         else if (destinationType.IsInterface)
                         {

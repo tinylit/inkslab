@@ -49,7 +49,7 @@ namespace Inkslab
                 {
                     char c = searchPattern[i];
 
-                    if (c == '*' || c == '.')
+                    if (c is '*' or '.')
                     {
                         continue;
                     }
