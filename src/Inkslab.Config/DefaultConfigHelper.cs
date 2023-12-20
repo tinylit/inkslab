@@ -13,7 +13,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace Inkslab.Config
 {
-
 #if NET_Traditional
     /// <summary>
     /// 运行环境。
@@ -211,7 +210,7 @@ namespace Inkslab.Config
             }
 
             var builder = new ConfigurationBuilder()
-                    .SetBasePath(baseDir);
+                .SetBasePath(baseDir);
 
             var path = Path.Combine(baseDir, "appsettings.json");
 
@@ -249,7 +248,6 @@ namespace Inkslab.Config
         /// </summary>
         public DefaultConfigHelper() : this(ConfigurationBuilder())
         {
-
         }
 
         /// <summary>
@@ -334,8 +332,10 @@ namespace Inkslab.Config
                 // 复杂类型
                 return configuration.Get<T>();
             }
-            catch
+            catch (Exception e)
             {
+                var a = e.Message;
+                
                 return defaultValue;
             }
         }
