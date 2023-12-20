@@ -7,7 +7,7 @@ using Xunit;
 namespace Inkslab.Tests
 {
     /// <summary>
-    /// <see cref="LFU{TKey, TValue}"/> 算法测试。
+    /// <see cref="Lfu{TKey, TValue}"/> 算法测试。
     /// </summary>
     public class LFUTests
     {
@@ -24,7 +24,7 @@ namespace Inkslab.Tests
 
             int length = 1000;
             int capacity = length / 10;
-            var lfu = new LFU<int, int>(capacity, x => x * x);
+            var lfu = new Lfu<int, int>(capacity, x => x * x);
 
             var tasks = new List<Task>(50);
 
@@ -70,7 +70,7 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lfu = new LFU<int, int>(capacity, x => x * x);
+            var lfu = new Lfu<int, int>(capacity, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {
@@ -99,7 +99,7 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lfu = new LFU<int, int>(capacity / 2, x => x * x);
+            var lfu = new Lfu<int, int>(capacity / 2, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {

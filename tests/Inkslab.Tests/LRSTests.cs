@@ -7,7 +7,7 @@ using Xunit;
 namespace Inkslab.Tests
 {
     /// <summary>
-    /// <see cref="LRS{TKey, TValue}"/> 算法测试。
+    /// <see cref="Lrs{TKey, TValue}"/> 算法测试。
     /// </summary>
     public class LRSTests
     {
@@ -25,7 +25,7 @@ namespace Inkslab.Tests
             int length = 1000;
 
             int capacity = length / 2;
-            var lru = new LRS<int, int>(capacity, x => x * x);
+            var lru = new Lrs<int, int>(capacity, x => x * x);
 
             var tasks = new List<Task>(capacity);
 
@@ -73,7 +73,7 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lru = new LRS<int, int>(capacity, x => x * x);
+            var lru = new Lrs<int, int>(capacity, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {
@@ -102,7 +102,7 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lru = new LRS<int, int>(capacity / 2, x => x * x);
+            var lru = new Lrs<int, int>(capacity / 2, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {

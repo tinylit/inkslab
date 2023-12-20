@@ -52,12 +52,12 @@ namespace Inkslab.Net
         private static readonly MethodInfo dateToStringFn = dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
 #if NET_Traditional
-        private static readonly LFU<double, HttpClient> clients = new LFU<double, HttpClient>(100, timeout => new HttpClient
+        private static readonly Lfu<double, HttpClient> clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient
         {
             Timeout = TimeSpan.FromMilliseconds(timeout)
         });
 #else
-        private static readonly LFU<double, HttpClient> clients = new LFU<double, HttpClient>(100, timeout => new HttpClient(new HttpClientHandler
+        private static readonly Lfu<double, HttpClient> clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient(new HttpClientHandler
         {
             ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
         })

@@ -61,16 +61,8 @@ namespace Inkslab.Map.Expressions
                 return default;
             }
 
-            var sourceType = source.GetType();
-            var destinationType = typeof(TDestination);
-
-            if (sourceType.IsValueType || destinationType.IsValueType)
-            {
-                return Mapper<TDestination>.Map(this, source);
-            }
-
-            return (TDestination)routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
-                .Map(source);
+            return routerCachings.GetOrAdd(typeof(TDestination), runtimeType => new MapperDestination(runtimeType))
+                .Map<TDestination>(this, source);
         }
 
         /// <summary>
@@ -92,8 +84,8 @@ namespace Inkslab.Map.Expressions
                 return null;
             }
 
-            return routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(this, runtimeType))
-                .Map(source);
+            return routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(runtimeType))
+                .Map(this, source);
         }
 
         /// <summary>
@@ -117,10 +109,71 @@ namespace Inkslab.Map.Expressions
 
         private readonly ConcurrentDictionary<Type, MapperDestination> routerCachings = new ConcurrentDictionary<Type, MapperDestination>();
 
-        private class Mapper
+        private class MapperDestination : IDisposable
         {
-            protected static Tuple<BlockExpression, ParameterExpression> Map(IMapApplication application, Type sourceType, Type destinationType)
+            private readonly Type runtimeType;
+            private readonly ConcurrentDictionary<Type, Delegate> valueTypeCachings = new ConcurrentDictionary<Type, Delegate>();
+            private readonly ConcurrentDictionary<Type, Func<object, object>> cachings = new ConcurrentDictionary<Type, Func<object, object>>();
+
+            public MapperDestination(Type runtimeType)
             {
+                this.runtimeType = runtimeType;
+
+                if (runtimeType.IsInterface)
+                {
+                    if (runtimeType.IsGenericType)
+                    {
+                        var typeDefinition = runtimeType.GetGenericTypeDefinition();
+
+                        if (typeDefinition == typeof(IList<>)
+                            || typeDefinition == typeof(IReadOnlyList<>)
+                            || typeDefinition == typeof(ICollection<>)
+                            || typeDefinition == typeof(IReadOnlyCollection<>)
+                            || typeDefinition == typeof(IEnumerable<>))
+                        {
+                            this.runtimeType = typeof(List<>).MakeGenericType(runtimeType.GetGenericArguments());
+                        }
+                        else if (typeDefinition == typeof(IDictionary<,>)
+                                 || typeDefinition == typeof(IReadOnlyDictionary<,>))
+                        {
+                            this.runtimeType = typeof(Dictionary<,>).MakeGenericType(runtimeType.GetGenericArguments());
+                        }
+                    }
+                    else if (runtimeType == typeof(IEnumerable)
+                             || runtimeType == typeof(ICollection)
+                             || runtimeType == typeof(IList))
+                    {
+                        this.runtimeType = typeof(List<object>);
+                    }
+                }
+            }
+
+            private static Type ToDestinationType(Type sourceType, Type runtimeType)
+            {
+                if (runtimeType.IsInterface || runtimeType.IsAbstract)
+                {
+                    if (runtimeType.IsAssignableFrom(sourceType))
+                    {
+                        return sourceType;
+                    }
+
+                    if (runtimeType.IsInterface)
+                    {
+                        throw new InvalidCastException($"无法推测有效的接口（{runtimeType.Name}）实现，无法进行({sourceType.Name}=>{runtimeType.Name})转换!");
+                    }
+
+                    throw new InvalidCastException($"无法推测有效的抽象类（{runtimeType.Name}）实现，无法进行({sourceType.Name}=>{runtimeType.Name})转换!");
+                }
+
+                return runtimeType == MapConstants.ObjectType
+                    ? sourceType
+                    : runtimeType;
+            }
+
+            private static Tuple<BlockExpression, ParameterExpression> Map(IMapApplication application, Type sourceType, Type runtimeType)
+            {
+                var destinationType = ToDestinationType(sourceType, runtimeType);
+
                 var sourceExp = Variable(sourceType, "source");
 
                 var bodyExp = application.Map(sourceExp, destinationType);
@@ -137,6 +190,8 @@ namespace Inkslab.Map.Expressions
                     Assign(sourceExp, Convert(parameterExp, sourceType))
                 };
 
+                bool destinationTypeIsObject = runtimeType == MapConstants.ObjectType;
+
                 switch (bodyExp)
                 {
                     case LambdaExpression lambdaExp:
@@ -146,192 +201,49 @@ namespace Inkslab.Map.Expressions
                             throw new InvalidOperationException();
                         }
 
-                        var parameterByLambdaExp = lambdaExp.Parameters[0];
+                        var parameter = lambdaExp.Parameters[0];
 
-                        if (!ReferenceEquals(parameterByLambdaExp, sourceExp))
+                        if (!ReferenceEquals(parameter, sourceExp))
                         {
-                            if (parameterByLambdaExp.Type.IsAssignableFrom(sourceExp.Type))
+                            if (!parameter.Type.IsAssignableFrom(sourceExp.Type))
                             {
-                                var visitor = new ReplaceExpressionVisitor(parameterByLambdaExp, sourceExp);
-
-                                expressions.Add(visitor.Visit(lambdaExp.Body));
-
-                                break;
+                                throw new InvalidOperationException();
                             }
 
-                            throw new InvalidOperationException();
+                            var visitor = new ReplaceExpressionVisitor(parameter, sourceExp);
+
+                            var body = visitor.Visit(lambdaExp.Body)!;
+
+                            expressions.Add(destinationTypeIsObject
+                                ? Convert(body, MapConstants.ObjectType)
+                                : body);
+
+                            break;
                         }
 
-                        expressions.Add(lambdaExp.Body);
+                        expressions.Add(destinationTypeIsObject
+                            ? Convert(lambdaExp.Body, MapConstants.ObjectType)
+                            : lambdaExp.Body);
 
                         break;
                     default:
-                        expressions.Add(bodyExp);
+                        expressions.Add(destinationTypeIsObject
+                            ? Convert(bodyExp, MapConstants.ObjectType)
+                            : bodyExp);
 
                         break;
                 }
 
-                return Tuple.Create(Block(new ParameterExpression[] { sourceExp }, expressions), parameterExp);
-            }
-        }
-
-        private class Mapper<TDestination> : Mapper
-        {
-            private static readonly Type runtimeType;
-
-            private static readonly Type destinationType;
-
-            static Mapper()
-            {
-                runtimeType = destinationType = typeof(TDestination);
-
-                if (destinationType.IsInterface)
-                {
-                    if (destinationType.IsGenericType)
-                    {
-                        var typeDefinition = destinationType.GetGenericTypeDefinition();
-
-                        if (typeDefinition == typeof(IList<>)
-                            || typeDefinition == typeof(IReadOnlyList<>)
-                            || typeDefinition == typeof(ICollection<>)
-                            || typeDefinition == typeof(IReadOnlyCollection<>)
-                            || typeDefinition == typeof(IEnumerable<>))
-                        {
-                            destinationType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
-                        }
-                        else if (typeDefinition == typeof(IDictionary<,>)
-                                 || typeDefinition == typeof(IReadOnlyDictionary<,>))
-                        {
-                            destinationType = typeof(Dictionary<,>).MakeGenericType(destinationType.GetGenericArguments());
-                        }
-                    }
-                    else if (destinationType == typeof(IEnumerable)
-                             || destinationType == typeof(ICollection)
-                             || destinationType == typeof(IList))
-                    {
-                        destinationType = typeof(List<object>);
-                    }
-                }
+                return Tuple.Create(Block(runtimeType, new ParameterExpression[] { sourceExp }, expressions), parameterExp);
             }
 
-            private static readonly ConcurrentDictionary<Type, Func<object, TDestination>> cachings = new ConcurrentDictionary<Type, Func<object, TDestination>>();
-
-            public static TDestination Map(IMapApplication application, object source)
+            public object Map(IMapApplication application, object source)
             {
                 var sourceType = source.GetType();
 
                 var factory = cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    var conversionType = destinationType;
-
-                    if (runtimeType.IsInterface || runtimeType.IsAbstract)
-                    {
-                        if (runtimeType.IsAssignableFrom(sourceType))
-                        {
-                            if (conversionType.IsAbstract) //? 避免推测类型支持转换，但源类型不支持转换的问题。
-                            {
-                                conversionType = sourceType;
-                            }
-                        }
-                        else if (conversionType.IsInterface)
-                        {
-                            throw new InvalidCastException($"无法推测有效的接口（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                        }
-                        else if (conversionType.IsAbstract)
-                        {
-                            throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                        }
-                    }
-                    else if (runtimeType == MapConstants.ObjectType)
-                    {
-                        conversionType = sourceType;
-                    }
-
-                    var tuple = Map(application, type, conversionType);
-
-                    var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
-
-                    return lambda.Compile();
-                });
-
-                return factory.Invoke(source);
-            }
-        }
-
-        private class MapperDestination : Mapper, IDisposable
-        {
-            private readonly IMapApplication application;
-            private readonly Type runtimeType;
-            private readonly Type destinationType;
-            private readonly ConcurrentDictionary<Type, Func<object, object>> cachings = new ConcurrentDictionary<Type, Func<object, object>>();
-
-            public MapperDestination(IMapApplication application, Type destinationType)
-            {
-                this.application = application;
-
-                this.destinationType = runtimeType = destinationType;
-
-                if (destinationType.IsInterface)
-                {
-                    if (destinationType.IsGenericType)
-                    {
-                        var typeDefinition = destinationType.GetGenericTypeDefinition();
-
-                        if (typeDefinition == typeof(IList<>)
-                            || typeDefinition == typeof(IReadOnlyList<>)
-                            || typeDefinition == typeof(ICollection<>)
-                            || typeDefinition == typeof(IReadOnlyCollection<>)
-                            || typeDefinition == typeof(IEnumerable<>))
-                        {
-                            this.destinationType = typeof(List<>).MakeGenericType(destinationType.GetGenericArguments());
-                        }
-                        else if (typeDefinition == typeof(IDictionary<,>)
-                                 || typeDefinition == typeof(IReadOnlyDictionary<,>))
-                        {
-                            this.destinationType = typeof(Dictionary<,>).MakeGenericType(destinationType.GetGenericArguments());
-                        }
-                    }
-                    else if (destinationType == typeof(IEnumerable)
-                             || destinationType == typeof(ICollection)
-                             || destinationType == typeof(IList))
-                    {
-                        this.destinationType = typeof(List<object>);
-                    }
-                }
-            }
-
-            public object Map(object source)
-            {
-                var sourceType = source.GetType();
-
-                var factory = cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
-                {
-                    var conversionType = destinationType;
-
-                    if (runtimeType.IsInterface || runtimeType.IsAbstract)
-                    {
-                        if (runtimeType.IsAssignableFrom(sourceType))
-                        {
-                            if (conversionType.IsAbstract) //? 避免推测类型支持转换，但源类型不支持转换的问题。
-                            {
-                                conversionType = sourceType;
-                            }
-                        }
-                        else if (destinationType.IsInterface)
-                        {
-                            throw new InvalidCastException($"无法推测有效的接口（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                        }
-                        else if (destinationType.IsAbstract)
-                        {
-                            throw new InvalidCastException($"无法推测有效的抽象类（{destinationType.Name}）实现，无法进行({sourceType.Name}=>{destinationType.Name})转换!");
-                        }
-                    }
-                    else if (runtimeType == MapConstants.ObjectType)
-                    {
-                        conversionType = sourceType;
-                    }
-
-                    var tuple = Map(application, type, conversionType);
+                    var tuple = Map(application, type, runtimeType);
 
                     var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
 
@@ -341,7 +253,34 @@ namespace Inkslab.Map.Expressions
                 return factory.Invoke(source);
             }
 
-            public void Dispose() => cachings.Clear();
+            public TDestination Map<TDestination>(IMapApplication application, object source)
+            {
+                if (!runtimeType.IsValueType)
+                {
+                    return (TDestination)Map(application, source);
+                }
+
+                var sourceType = source.GetType();
+
+                var factory = valueTypeCachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
+                {
+                    var tuple = Map(application, type, runtimeType);
+
+                    var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
+
+                    return lambda.Compile();
+                });
+
+                return ((Func<object, TDestination>)factory).Invoke(source);
+            }
+
+            public void Dispose()
+            {
+                cachings.Clear();
+                valueTypeCachings.Clear();
+
+                GC.SuppressFinalize(this);
+            }
         }
     }
 }

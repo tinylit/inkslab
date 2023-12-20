@@ -14,7 +14,7 @@ namespace Inkslab
     {
         private static readonly string assemblyPath;
 
-        private static readonly LFU<string, Assembly> assemblyLoads = new LFU<string, Assembly>(x =>
+        private static readonly Lfu<string, Assembly> assemblyLoads = new Lfu<string, Assembly>(x =>
         {
             try
             {
