@@ -10,6 +10,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Inkslab.Config\Inkslab.Config.csproj" />
     <ProjectReference Include="..\..\src\Inkslab.DI\Inkslab.DI.csproj" />
   </ItemGroup>
 

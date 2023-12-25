@@ -18,15 +18,13 @@ namespace Inkslab.DI.Tests
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public Startup(IConfiguration configuration)
+        public Startup()
         {
-            Configuration = configuration;
+            using (var startup = new XStartup())
+            {
+                startup.DoStartup();
+            }
         }
-
-        /// <summary>
-        /// <inheritdoc/>
-        /// </summary>
-        public IConfiguration Configuration { get; }
 
         /// <summary>
         /// <inheritdoc/>
@@ -37,10 +35,10 @@ namespace Inkslab.DI.Tests
 
             services.AddMvc(options => options.EnableEndpointRouting = false);
 
-            services.DependencyInjection() //? ◊¢»Î IConfigureServices  µœ÷°£
+            services.DependencyInjection() //? ◊¢ÔøΩÔøΩ IConfigureServices  µÔøΩ÷°ÔøΩ
                 .SeekAssemblies("Inkslab.DI.*")
                 .ConfigureByDefined()
-                .ConfigureByAuto(new Options.DependencyInjectionOptions()); //? ƒ¨»œ◊¢»Î°£
+                .ConfigureByAuto(new Options.DependencyInjectionOptions()); //? ƒ¨ÔøΩÔøΩ◊¢ÔøΩÎ°£
 
             services.AddCors(options =>
             {
@@ -54,14 +52,13 @@ namespace Inkslab.DI.Tests
                     });
             });
 
-            //‘ˆº”XMLŒƒµµΩ‚Œˆ
             services.AddSwaggerGen(ConfigureSwaggerGen);
         }
 
         /// <summary>
-        /// ≈‰÷√SwaggerGen°£
+        ///  Swagger ÈÖçÁΩÆ„ÄÇ
         /// </summary>
-        /// <param name="options">SwaggerGen≈‰÷√œÓ°£</param>
+        /// <param name="options">Swagger ÈÖçÁΩÆ„ÄÇ</param>
         protected virtual void ConfigureSwaggerGen(SwaggerGenOptions options)
         {
             options.SwaggerDoc("swagger:version".Config("1.0.0"), new OpenApiInfo { Title = "swagger:title".Config("v3"), Version = "v3" });
@@ -94,7 +91,7 @@ namespace Inkslab.DI.Tests
                 app.UseExceptionHandler("/Error");
             }
 
-            //? øÁ”Ú
+            //? ÔøΩÔøΩÔøΩÔøΩ
             app.UseCors("Allow")
                 .UseRouting()
                 .UseMvc()
