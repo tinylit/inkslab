@@ -6,7 +6,6 @@ using System.Web.Configuration;
 using System.Collections.Generic;
 using Inkslab.Map;
 #else
-using System.IO;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Configuration;
 #endif
@@ -311,10 +310,8 @@ namespace Inkslab.Config
                 // 复杂类型
                 return configuration.Get<T>();
             }
-            catch (Exception e)
+            catch
             {
-                var a = e.Message;
-
                 return defaultValue;
             }
         }
