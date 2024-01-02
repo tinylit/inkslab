@@ -1,6 +1,7 @@
 ﻿using Inkslab.DI;
 using System;
 using System.Collections.Generic;
+using Inkslab.DI.Options;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -13,20 +14,40 @@ namespace Microsoft.Extensions.DependencyInjection
         /// 依赖注入。
         /// </summary>
         /// <param name="services">服务集合。</param>
+        /// <param name="options">依赖注入配置。</param>
         /// <returns>服务集合。</returns>
-        public static IDependencyInjectionServices DependencyInjection(this IServiceCollection services) => DependencyInjection(services, Array.Empty<object>());
+        public static IDependencyInjectionServices DependencyInjection(this IServiceCollection services, DependencyInjectionOptions options)
+        {
+            if (services is null)
+            {
+                throw new ArgumentNullException(nameof(services));
+            }
+
+            if (options is null)
+            {
+                throw new ArgumentNullException(nameof(options));
+            }
+
+            return DependencyInjection(services, options, Array.Empty<object>());
+        }
 
         /// <summary>
         /// 依赖注入。
         /// </summary>
         /// <param name="services">服务集合。</param>
+        /// <param name="options">依赖注入配置。</param>
         /// <param name="serviceObjects">指定创建“<see cref="IConfigureServices"/>”实现的构造函数注入服务对象。</param>
         /// <returns>服务集合。</returns>
-        public static IDependencyInjectionServices DependencyInjection(this IServiceCollection services, params object[] serviceObjects)
+        public static IDependencyInjectionServices DependencyInjection(this IServiceCollection services, DependencyInjectionOptions options, params object[] serviceObjects)
         {
             if (services is null)
             {
                 throw new ArgumentNullException(nameof(services));
+            }
+
+            if (options is null)
+            {
+                throw new ArgumentNullException(nameof(options));
             }
 
             if (serviceObjects is null)
@@ -34,20 +55,26 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentNullException(nameof(serviceObjects));
             }
 
-            return DependencyInjection(services, new ServiceObjectServiceProvider(serviceObjects));
+            return DependencyInjection(services, options, new ServiceObjectServiceProvider(serviceObjects));
         }
 
         /// <summary>
         /// 依赖注入。
         /// </summary>
         /// <param name="services">服务集合。</param>
+        /// <param name="options">依赖注入配置。</param>
         /// <param name="service">指定创建“<see cref="IConfigureServices"/>”实现的构造函数注入服务。</param>
         /// <returns>服务集合。</returns>
-        public static IDependencyInjectionServices DependencyInjection(this IServiceCollection services, IServiceProvider service)
+        public static IDependencyInjectionServices DependencyInjection(this IServiceCollection services, DependencyInjectionOptions options, IServiceProvider service)
         {
             if (services is null)
             {
                 throw new ArgumentNullException(nameof(services));
+            }
+
+            if (options is null)
+            {
+                throw new ArgumentNullException(nameof(options));
             }
 
             if (service is null)
@@ -55,7 +82,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 throw new ArgumentNullException(nameof(service));
             }
 
-            return new DependencyInjectionServices(services, service);
+            return new DependencyInjectionServices(services, options, service);
         }
 
         private class ServiceObjectServiceProvider : IServiceProvider
@@ -109,7 +136,6 @@ namespace Microsoft.Extensions.DependencyInjection
                         }
 
                         serviceDic[serviceType] = serviceObj;
-
                     } while (true);
                 }
             }

@@ -7,6 +7,7 @@ using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System;
 using System.IO;
+using Inkslab.DI.Options;
 
 namespace Inkslab.DI.Tests
 {
@@ -35,10 +36,11 @@ namespace Inkslab.DI.Tests
 
             services.AddMvc(options => options.EnableEndpointRouting = false);
 
-            services.DependencyInjection() //? ע�� IConfigureServices ʵ�֡�
+            services.DependencyInjection(new DependencyInjectionOptions()) //? ע�� IConfigureServices ʵ�֡�
                 .SeekAssemblies("Inkslab.DI.*")
                 .ConfigureByDefined()
-                .ConfigureByAuto(new Options.DependencyInjectionOptions()); //? Ĭ��ע�롣
+                .ConfigureServices(new DependencyInjectionServicesOptions())
+                .ConfigureByAuto(); //? Ĭ��ע�롣
 
             services.AddCors(options =>
             {

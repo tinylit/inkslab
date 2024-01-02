@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text;
 using Inkslab.Exceptions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,7 +10,7 @@ namespace Inkslab.DI.Options
     /// <summary>
     /// 依赖注入基础配置。
     /// </summary>
-    public class DependencyInjectionBaseOptions
+    public class DependencyInjectionOptions
     {
         /// <summary>
         /// 最大依赖注入深度，默认：8。
@@ -20,7 +21,7 @@ namespace Inkslab.DI.Options
         /// 参数注入的声明周期，默认：<see cref="ServiceLifetime.Scoped"/>。
         /// </summary>
         public ServiceLifetime Lifetime { get; set; } = ServiceLifetime.Scoped;
-        
+
         /// <summary>
         /// 过滤服务类型。
         /// </summary>
@@ -34,6 +35,27 @@ namespace Inkslab.DI.Options
         /// <param name="serviceType">服务类。</param>
         /// <param name="implementationTypes">实现类集合。</param>
         /// <returns>实现类。</returns>
-        public virtual Type ResolveConflictingTypes(Type serviceType, List<Type> implementationTypes) => throw new CodeException($"Service '{serviceType.Name}' analyzes to multiple independent service implementations (service implementations with no inheritance relationship), please specify the implementation!");
+        public virtual Type ResolveConflictingTypes(Type serviceType, List<Type> implementationTypes)
+        {
+            var sb = new StringBuilder(200);
+
+            sb.Append("Service \'")
+                .Append(serviceType.Name)
+                .Append("\' analyzes to multiple independent service implementations[");
+
+            for (int i = 0; i < implementationTypes.Count; i++)
+            {
+                if (i > 0)
+                {
+                    sb.Append(',');
+                }
+
+                sb.Append(implementationTypes[i].Name);
+            }
+
+            sb.Append("] (service implementations with no inheritance relationship), please specify the implementation!");
+
+            throw new CodeException(sb.ToString());
+        }
     }
 }

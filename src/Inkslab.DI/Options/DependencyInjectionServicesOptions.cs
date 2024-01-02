@@ -9,7 +9,7 @@ namespace Inkslab.DI.Options
     /// <summary>
     /// 服务依赖注入配置。
     /// </summary>
-    public class DependencyInjectionServiceOptions
+    public class DependencyInjectionServicesOptions
     {
 #if NET_Traditional
         private static readonly Type controllerType;
@@ -17,7 +17,7 @@ namespace Inkslab.DI.Options
         private static readonly Type controllerAttrType;
         private static readonly Type fromServicesAttrType;
 #endif
-        static DependencyInjectionServiceOptions()
+        static DependencyInjectionServicesOptions()
         {
 #if NET6_0_OR_GREATER
             controllerAttrType = typeof(ControllerAttribute);
@@ -97,7 +97,7 @@ namespace Inkslab.DI.Options
         /// <summary>
         /// 单列。
         /// </summary>
-        public static DependencyInjectionServiceOptions Instance => Nested.Instance;
+        public static DependencyInjectionServicesOptions Instance => Nested.Instance;
         
         private sealed class Nested
         {
@@ -105,7 +105,7 @@ namespace Inkslab.DI.Options
             {
             }
 
-            public static readonly DependencyInjectionServiceOptions Instance = new DependencyInjectionServiceOptions();
+            public static readonly DependencyInjectionServicesOptions Instance = new DependencyInjectionServicesOptions();
         }
     }
 }
