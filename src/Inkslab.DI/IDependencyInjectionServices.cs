@@ -11,7 +11,7 @@ namespace Inkslab.DI
     /// <summary>
     /// 依赖注入。
     /// </summary>
-    public interface IDependencyInjectionServices
+    public interface IDependencyInjectionServices : IDisposable
     {
         /// <summary>
         /// 程序集。
@@ -24,7 +24,7 @@ namespace Inkslab.DI
         /// <param name="assembly">程序集。</param>
         /// <returns>依赖注入服务。</returns>
         IDependencyInjectionServices AddAssembly(Assembly assembly);
-        
+
         /// <summary>
         /// 查找程序集。
         /// </summary>
@@ -57,7 +57,7 @@ namespace Inkslab.DI
         /// </summary>
         /// <returns>依赖注入服务。</returns>
         IDependencyInjectionServices ConfigureByAuto();
-        
+
         /// <summary>
         /// 配置服务（自动注入服务需要的所有依赖项），使用注入配置的声明周期注入。
         /// </summary>
@@ -87,7 +87,7 @@ namespace Inkslab.DI
         /// <param name="implementationType">服务实现。</param>
         /// <returns>依赖注入服务。</returns>
         IDependencyInjectionServices Add(Type serviceType, Type implementationType);
-        
+
         /// <summary>
         /// 配置服务（自动注入服务需要的所有依赖项）。
         /// </summary>
@@ -117,7 +117,7 @@ namespace Inkslab.DI
         /// <param name="implementationType">服务实现。</param>
         /// <returns>依赖注入服务。</returns>
         IDependencyInjectionServices AddTransient(Type serviceType, Type implementationType);
-        
+
         /// <summary>
         /// 配置服务（自动注入服务需要的所有依赖项）。
         /// </summary>
@@ -147,8 +147,8 @@ namespace Inkslab.DI
         /// <param name="implementationType">服务实现。</param>
         /// <returns>依赖注入服务。</returns>
         IDependencyInjectionServices AddScoped(Type serviceType, Type implementationType);
-        
-        
+
+
         /// <summary>
         /// 配置服务（自动注入服务需要的所有依赖项）。
         /// </summary>
