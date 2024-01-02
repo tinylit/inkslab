@@ -6,7 +6,6 @@ using System.Web.Configuration;
 using System.Collections.Generic;
 using Inkslab.Map;
 #else
-using System.IO;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Configuration;
 #endif
@@ -193,40 +192,19 @@ namespace Inkslab.Config
         /// <returns></returns>
         private static IConfigurationBuilder ConfigurationBuilder()
         {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string environmentVariable = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
 
-            string variable = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            var builder = new ConfigurationBuilder();
 
-            bool isDevelopment = string.Equals(variable, "Development", StringComparison.OrdinalIgnoreCase);
+            builder.SetBasePath(Environment.OSVersion.Platform is PlatformID.Win32NT or PlatformID.Win32S or PlatformID.Win32Windows or PlatformID.WinCE
+                ? AppContext.BaseDirectory
+                : Environment.CurrentDirectory);
 
-            if (isDevelopment)
+            builder.AddJsonFile("appsettings.json", true, true);
+
+            if (environmentVariable is { Length: > 0 })
             {
-                string dir = Directory.GetCurrentDirectory();
-
-                if (File.Exists(Path.Combine(dir, "appsettings.json")))
-                {
-                    baseDir = dir;
-                }
-            }
-
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(baseDir);
-
-            var path = Path.Combine(baseDir, "appsettings.json");
-
-            if (File.Exists(path))
-            {
-                builder.AddJsonFile(path, false, true);
-            }
-
-            if (isDevelopment)
-            {
-                var pathDev = Path.Combine(baseDir, "appsettings.Development.json");
-
-                if (File.Exists(pathDev))
-                {
-                    builder.AddJsonFile(pathDev, true, true);
-                }
+                builder.AddJsonFile($"appsettings.{environmentVariable}.json", true, true);
             }
 
             return builder;
@@ -332,10 +310,8 @@ namespace Inkslab.Config
                 // 复杂类型
                 return configuration.Get<T>();
             }
-            catch (Exception e)
+            catch
             {
-                var a = e.Message;
-                
                 return defaultValue;
             }
         }

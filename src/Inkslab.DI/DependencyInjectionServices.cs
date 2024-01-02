@@ -16,18 +16,65 @@ namespace Inkslab.DI
     class DependencyInjectionServices : IDependencyInjectionServices
     {
         private readonly IServiceCollection services;
+        private readonly DependencyInjectionOptions options;
         private readonly IServiceProvider service;
         private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
+        private readonly HashSet<Type> assemblyTypes = new HashSet<Type>();
+        private readonly HashSet<Type> effectiveTypes = new HashSet<Type>();
+        private readonly HashSet<Type> implementTypes = new HashSet<Type>();
 
-        public DependencyInjectionServices(IServiceCollection services, IServiceProvider service)
+        public DependencyInjectionServices(IServiceCollection services, DependencyInjectionOptions options, IServiceProvider service)
         {
             this.services = services;
+            this.options = options;
             this.service = service;
         }
 
         public IReadOnlyCollection<Assembly> Assemblies
         {
             get => assemblies;
+        }
+
+        public IDependencyInjectionServices AddAssembly(Assembly assembly)
+        {
+            if (assembly is null)
+            {
+                throw new ArgumentNullException(nameof(assembly));
+            }
+
+            if (!assemblies.Add(assembly))
+            {
+                return this;
+            }
+
+            foreach (var type in assembly.GetTypes())
+            {
+                if (type.IsValueType)
+                {
+                    continue;
+                }
+
+                if (!type.IsAbstract)
+                {
+                    assemblyTypes.Add(type);
+                }
+
+                if (options.Ignore(type))
+                {
+                    continue;
+                }
+
+                effectiveTypes.Add(type);
+
+                if (type.IsAbstract)
+                {
+                    continue;
+                }
+
+                implementTypes.Add(type);
+            }
+
+            return this;
         }
 
         public IDependencyInjectionServices SeekAssemblies(string pattern = "*")
@@ -41,7 +88,7 @@ namespace Inkslab.DI
 
             foreach (var assembly in assemblies)
             {
-                this.assemblies.Add(assembly);
+                AddAssembly(assembly);
             }
 
             return this;
@@ -58,7 +105,7 @@ namespace Inkslab.DI
 
             foreach (var assembly in assemblies)
             {
-                this.assemblies.Add(assembly);
+                AddAssembly(assembly);
             }
 
             return this;
@@ -66,39 +113,85 @@ namespace Inkslab.DI
 
         public IDependencyInjectionServices ConfigureByDefined()
         {
-            var assemblyTypes = Assemblies
-                .SelectMany(x => x.GetTypes())
-                .Where(x => !x.IsValueType && !x.IsAbstract)
-                .ToList();
-
-            DiConfigureServices(assemblyTypes);
+            DiConfigureServices(services, service, assemblyTypes);
 
             return this;
         }
 
-
-        public IServiceCollection ConfigureByAuto(DependencyInjectionOptions options)
+        public IDependencyInjectionServices ConfigureServices(DependencyInjectionServicesOptions servicesOptions)
         {
-            if (options is null)
+            if (servicesOptions is null)
             {
-                throw new ArgumentNullException(nameof(options));
+                throw new ArgumentNullException(nameof(servicesOptions));
             }
 
-            var assemblyTypes = Assemblies
-                .SelectMany(x => x.GetTypes())
-                .SkipWhile(options.Ignore)
-                .ToList();
+            DiController(services, options, servicesOptions, implementTypes);
 
-            var effectiveTypes = assemblyTypes.FindAll(x => !x.IsValueType && !x.IsAbstract);
-
-            DiController(services, options, effectiveTypes);
-
-            DiByExport(services, options, assemblyTypes, effectiveTypes);
-
-            return services;
+            return this;
         }
 
-        private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, List<Type> assemblyTypes, List<Type> effectiveTypes)
+        public IDependencyInjectionServices ConfigureByAuto()
+        {
+            DiByExport(services, options, effectiveTypes, implementTypes);
+
+            return this;
+        }
+
+        public IDependencyInjectionServices Add<TService>() where TService : class => Add(typeof(TService));
+
+        public IDependencyInjectionServices Add(Type serviceType) => Add(serviceType, serviceType);
+
+        public IDependencyInjectionServices Add<TService, TImplementation>() where TService : class where TImplementation : TService => Add(typeof(TService), typeof(TImplementation));
+
+        public IDependencyInjectionServices Add(Type serviceType, Type implementationType) => Add(serviceType, options.Lifetime, implementationType);
+
+        public IDependencyInjectionServices AddTransient<TService>() where TService : class => AddTransient(typeof(TService));
+
+        public IDependencyInjectionServices AddTransient(Type serviceType) => AddTransient(serviceType, serviceType);
+
+        public IDependencyInjectionServices AddTransient<TService, TImplementation>() where TService : class where TImplementation : TService => AddTransient(typeof(TService), typeof(TImplementation));
+
+        public IDependencyInjectionServices AddTransient(Type serviceType, Type implementationType) => Add(serviceType, ServiceLifetime.Transient, implementationType);
+
+        public IDependencyInjectionServices AddScoped<TService>() where TService : class => AddScoped(typeof(TService));
+
+        public IDependencyInjectionServices AddScoped(Type serviceType) => AddScoped(serviceType, serviceType);
+
+        public IDependencyInjectionServices AddScoped<TService, TImplementation>() where TService : class where TImplementation : TService => AddScoped(typeof(TService), typeof(TImplementation));
+
+        public IDependencyInjectionServices AddScoped(Type serviceType, Type implementationType) => Add(serviceType, ServiceLifetime.Scoped, implementationType);
+
+        public IDependencyInjectionServices AddSingleton<TService>() where TService : class => AddSingleton(typeof(TService));
+
+        public IDependencyInjectionServices AddSingleton(Type serviceType) => AddSingleton(serviceType, serviceType);
+
+        public IDependencyInjectionServices AddSingleton<TService, TImplementation>() where TService : class where TImplementation : TService => AddSingleton(typeof(TService), typeof(TImplementation));
+
+        public IDependencyInjectionServices AddSingleton(Type serviceType, Type implementationType) => Add(serviceType, ServiceLifetime.Singleton, implementationType);
+
+        public IDependencyInjectionServices Add(Type serviceType, ServiceLifetime lifetime, Type implementationType)
+        {
+            if (serviceType == null)
+            {
+                throw new ArgumentNullException(nameof(serviceType));
+            }
+
+            if (implementationType == null)
+            {
+                throw new ArgumentNullException(nameof(implementationType));
+            }
+
+            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
+
+            if (DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 0, dependencies, false))
+            {
+                return this;
+            }
+
+            throw DiError("Service", serviceType, options.MaxDepth, dependencies);
+        }
+
+        private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, IReadOnlyCollection<Type> assemblyTypes, IReadOnlyCollection<Type> effectiveTypes)
         {
             var exportAttributeType = typeof(ExportAttribute);
 
@@ -133,13 +226,13 @@ namespace Inkslab.DI
             }
         }
 
-        private void DiConfigureServices(List<Type> assemblyTypes)
+        private static void DiConfigureServices(IServiceCollection services, IServiceProvider service, IReadOnlyCollection<Type> assemblyTypes)
         {
             var configureServices = new List<IConfigureServices>();
 
             var configureServicesType = typeof(IConfigureServices);
 
-            foreach (var type in assemblyTypes.Where(x => x.IsClass && !x.IsAbstract && configureServicesType.IsAssignableFrom(x)))
+            foreach (var type in assemblyTypes.Where(configureServicesType.IsAssignableFrom))
             {
                 configureServices.Add((IConfigureServices)ActivatorUtilities.CreateInstance(service, type));
             }
@@ -150,18 +243,18 @@ namespace Inkslab.DI
             }
         }
 
-        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, List<Type> effectiveTypes)
+        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, DependencyInjectionServicesOptions servicesOptions, IReadOnlyCollection<Type> effectiveTypes)
         {
             List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
-            foreach (var controllerType in effectiveTypes.Where(options.IsControllerType))
+            foreach (var controllerType in effectiveTypes.Where(servicesOptions.IsServicesType))
             {
                 if (!DiConstructor(services, options, controllerType, effectiveTypes, dependencies))
                 {
                     throw DiError("Controller", controllerType, options.MaxDepth, dependencies);
                 }
 
-                if (!options.DiControllerActionIsFromServicesParameters)
+                if (!servicesOptions.DiServicesActionIsFromServicesParameters)
                 {
                     continue;
                 }
@@ -175,7 +268,7 @@ namespace Inkslab.DI
 
                     foreach (var parameterInfo in methodInfo.GetParameters())
                     {
-                        if (!options.ActionParameterIsFromServices(parameterInfo))
+                        if (!servicesOptions.ActionParameterIsFromServices(parameterInfo))
                         {
                             continue;
                         }
@@ -250,16 +343,16 @@ namespace Inkslab.DI
             return new TypeLoadException(sb.Append('.').ToString());
         }
 
-        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, List<Type> dependencies)
+        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
             => Di(services, options, serviceType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies);
 
-        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> effectiveTypes, List<Type> dependencies)
+        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
             => DiConstructor(services, options, implementationType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies);
 
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> effectiveTypes, List<Type> dependencies)
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
             => DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, ServiceLifetime.Transient, 0, dependencies, false);
 
-        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
+        private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
             bool flag = false;
 
@@ -321,7 +414,7 @@ namespace Inkslab.DI
             typeof(IServiceScopeFactory)
         };
 
-        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
+        private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
             if (injectionFree.Contains(serviceType))
             {
@@ -378,7 +471,7 @@ namespace Inkslab.DI
             return serviceType.IsGenericType && DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
         }
 
-        private static bool DiTypeDefinition(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
+        private static bool DiTypeDefinition(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
         {
             var typeDefinition = serviceType.IsGenericTypeDefinition
                 ? serviceType
@@ -453,7 +546,7 @@ namespace Inkslab.DI
             return flag;
         }
 
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, List<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
         {
             if (implementationTypes.Count == 0)
             {
@@ -639,7 +732,6 @@ namespace Inkslab.DI
                     compare++;
 
                     implementationType = implementationType.BaseType;
-                    
                 } while (!(implementationType is null || implementationType == typeof(object)));
 
                 return int.MaxValue;
