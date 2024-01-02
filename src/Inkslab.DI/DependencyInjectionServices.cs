@@ -778,5 +778,29 @@ namespace Inkslab.DI
                 return CardinalityCode(x) - CardinalityCode(y);
             }
         }
+
+        private void ReleaseUnmanagedResources()
+        {
+            assemblies.Clear();
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            ReleaseUnmanagedResources();
+            
+            if (disposing)
+            {
+                assemblyTypes.Clear();
+                effectiveTypes.Clear();
+                implementTypes.Clear();
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            
+            GC.SuppressFinalize(this);
+        }
     }
 }
