@@ -112,7 +112,7 @@ namespace Inkslab.Tests
         public void StringPropertySyntaxTest()
         {
             DateTimeKind? i = DateTimeKind.Utc;
-            var date = DateTime.Now;
+            var date = new DateTime(2023, 10, 23);
             int j = 2;
             var 测试中文 = "方程式";
 
