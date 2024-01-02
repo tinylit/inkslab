@@ -13,7 +13,7 @@ using Inkslab.Annotations;
 
 namespace Inkslab.DI
 {
-    class DependencyInjectionServices : IDependencyInjectionServices
+    sealed class DependencyInjectionServices : IDependencyInjectionServices
     {
         private readonly IServiceCollection services;
         private readonly DependencyInjectionOptions options;
@@ -171,19 +171,19 @@ namespace Inkslab.DI
 
         public IDependencyInjectionServices Add(Type serviceType, ServiceLifetime lifetime, Type implementationType)
         {
-            if (serviceType == null)
+            if (serviceType is null)
             {
                 throw new ArgumentNullException(nameof(serviceType));
             }
 
-            if (implementationType == null)
+            if (implementationType is null)
             {
                 throw new ArgumentNullException(nameof(implementationType));
             }
 
-            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
+            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 1);
 
-            if (DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 0, dependencies, false))
+            if (DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies, false))
             {
                 return this;
             }
@@ -784,7 +784,7 @@ namespace Inkslab.DI
             assemblies.Clear();
         }
 
-        protected virtual void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
             ReleaseUnmanagedResources();
             
