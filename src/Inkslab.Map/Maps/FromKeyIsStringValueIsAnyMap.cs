@@ -11,7 +11,7 @@ namespace Inkslab.Map.Maps
     /// <summary>
     /// 从 <see cref="IEnumerable{T}"/>, T is <seealso cref="kvString"/> 中映射。
     /// </summary>
-    public class FromKeyIsStringValueIsObjectMap : AbstractMap, IMap
+    public class FromKeyIsStringValueIsAnytMap : AbstractMap, IMap
     {
         private static readonly Type kvStringType = typeof(kvString);
         private static readonly Type kvStringEnumerableType = typeof(IEnumerable<kvString>);
