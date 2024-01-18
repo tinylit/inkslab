@@ -1,6 +1,7 @@
 using Inkslab.Map.Maps;
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Text;
 using Xunit;
 
@@ -205,6 +206,27 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
+    /// 递归测试。
+    /// </summary>
+    public class Recursive
+    {
+        /// <summary>
+        /// 主键。
+        /// </summary>
+        public int Id { get; set; }
+
+        /// <summary>
+        /// 名称。
+        /// </summary>
+        public string Name { get; set; }
+
+        /// <summary>
+        /// 子节点。
+        /// </summary>
+        public List<Recursive> Childrens { get; set; }
+    }
+
+    /// <summary>
     /// DefaultTests
     /// </summary>
     public class DefaultTests
@@ -336,7 +358,7 @@ namespace Inkslab.Map.Tests
         }
 
         /// <summary>
-        /// <see cref="FromKeyIsStringValueIsObjectMap"/>.
+        /// <see cref="FromKeyIsStringValueIsAnyMap"/>.
         /// </summary>
         [Fact]
         public void FromKeyIsStringValueIsObjectTest()
@@ -523,7 +545,51 @@ namespace Inkslab.Map.Tests
 
             var c1 = instance.Map<C2>(dic);
 
-            var c2 = instance.Map<object>(1);
+            Assert.True(c1.I5 == 7042011313840586752L);
+        }
+
+        /// <summary>
+        /// <see cref="FromKeyIsStringValueIsAnyMap"/>.
+        /// </summary>
+        [Fact]
+        public void MapFromDictionaryByString()
+        {
+            using var instance = new MapperInstance();
+
+            //? 通过【TryGetValue】方法，获得数据则进行映射，否则不映射。
+            var dic = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["i5"] = "7042011313840586752",
+                ["p3"] = "2023-10-12",
+                ["p2"] = "test",
+                ["p1"] = "1",
+                ["d4"] = "1"
+            };
+
+            var c1 = instance.Map<C2>(dic);
+
+            Assert.True(c1.I5 == 7042011313840586752L);
+        }
+
+        /// <summary>
+        /// <see cref="FromKeyIsStringValueIsAnyMap"/>.
+        /// </summary>
+        [Fact]
+        public void MapFromDictionaryByLong()
+        {
+            using var instance = new MapperInstance();
+
+            //? 通过【TryGetValue】方法，获得数据则进行映射，否则不映射。
+            var dic = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["i5"] = 7042011313840586752,
+                ["p3"] = DateTime.Now.Ticks,
+                ["p2"] = 100,
+                ["p1"] = 1,
+                ["d4"] = 1
+            };
+
+            var c1 = instance.Map<C1>(dic);
 
             Assert.True(c1.I5 == 7042011313840586752L);
         }
@@ -547,6 +613,37 @@ namespace Inkslab.Map.Tests
             var dic = instance.Map<Dictionary<string, object>>(sourceC1);
 
             Assert.True(Convert.ToInt64(dic["I5"]) == sourceC1.I5);
+        }
+
+        /// <summary>
+        /// 递归测试。
+        /// </summary>
+        [Fact]
+        public void RecursiveTest()
+        {
+            var source = new Recursive
+            {
+                Id = 1,
+                Name = "测试1",
+                Childrens = new List<Recursive>
+                {
+                    new Recursive
+                    {
+                        Id = 2,
+                        Name = "测试2"
+                    },
+                    new Recursive
+                    {
+                        Id = 3,
+                        Name = "测试3"
+                    }
+                }
+            };
+
+            using var instance = new MapperInstance();
+
+            //? 不支持递归关系处理。
+            Assert.Throws<NotSupportedException>(() => instance.Map<Recursive>(source));
         }
     }
 }

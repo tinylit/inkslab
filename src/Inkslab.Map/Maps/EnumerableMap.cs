@@ -23,11 +23,12 @@ namespace Inkslab.Map.Maps
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
-            => !sourceType.IsPrimitive && !destinationType.IsPrimitive
-                                       && sourceType != MapConstants.StringType
-                                       && destinationType != MapConstants.StringType
-                                       && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
-                                       && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
+            => !sourceType.IsPrimitive
+               && !destinationType.IsPrimitive
+               && sourceType != MapConstants.StringType
+               && destinationType != MapConstants.StringType
+               && (sourceType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(sourceType))
+               && (destinationType.IsArray || MapConstants.EnumerableType.IsAssignableFrom(destinationType));
 
         /// <inheritdoc/>
         public override Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
@@ -59,8 +60,38 @@ namespace Inkslab.Map.Maps
             {
                 return ToArray(sourceExpression, destinationType.GetElementType(), application);
             }
+            
+            var conversionType = destinationType;
 
-            return base.ToSolve(sourceExpression, destinationType, application);
+            if (conversionType.IsInterface)
+            {
+                if (conversionType.IsGenericType)
+                {
+                    var typeDefinition = conversionType.GetGenericTypeDefinition();
+
+                    if (typeDefinition == typeof(IList<>)
+                        || typeDefinition == typeof(IReadOnlyList<>)
+                        || typeDefinition == typeof(ICollection<>)
+                        || typeDefinition == typeof(IReadOnlyCollection<>)
+                        || typeDefinition == typeof(IEnumerable<>))
+                    {
+                        conversionType = typeof(List<>).MakeGenericType(conversionType.GetGenericArguments());
+                    }
+                    else if (typeDefinition == typeof(IDictionary<,>)
+                             || typeDefinition == typeof(IReadOnlyDictionary<,>))
+                    {
+                        conversionType = typeof(Dictionary<,>).MakeGenericType(conversionType.GetGenericArguments());
+                    }
+                }
+                else if (conversionType == typeof(IEnumerable)
+                         || conversionType == typeof(ICollection)
+                         || conversionType == typeof(IList))
+                {
+                    conversionType = typeof(List<object>);
+                }
+            }
+            
+            return base.ToSolve(sourceExpression, conversionType, application);
         }
 
         private static bool TryGet(Type destinationType, out Type elementType, out MethodInfo addElementMtd)
@@ -118,7 +149,8 @@ namespace Inkslab.Map.Maps
             return Block(new ParameterExpression[]
             {
                 indexExp,
-                lengthExp
+                lengthExp,
+                variableExp
             }, new Expression[]
             {
                 Assign(indexExp, Constant(0)),

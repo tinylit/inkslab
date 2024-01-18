@@ -481,11 +481,11 @@ namespace Inkslab.Map
                     {
                         memberExpressions.Clear();
                     }
-                    
+
                     disposedValue = true;
                 }
             }
-            
+
             // ~BaseMapSlot()
             // {
             //     // 不要更改此代码。请将清理代码放入“Dispose(bool disposing)”方法中
@@ -1095,7 +1095,10 @@ namespace Inkslab.Map
 
                     var destinationPrt = Property(destinationExpression, propertyInfo);
 
-                    if (TrySolve(propertyInfo, destinationPrt, sourcePrt, application, out var destinationRs))
+                    if (TrySolve(destinationPrt,
+                            sourcePrt,
+                            application,
+                            out var destinationRs))
                     {
                         yield return destinationRs;
                     }
@@ -1113,6 +1116,7 @@ namespace Inkslab.Map
                 }
 
                 label_auto:
+
                 propertyInfos ??= sourceType.GetProperties();
 
                 foreach (var memberInfo in propertyInfos)
@@ -1122,7 +1126,10 @@ namespace Inkslab.Map
                         var sourcePrt = Property(sourceExpression, memberInfo);
                         var destinationPrt = Property(destinationExpression, propertyInfo);
 
-                        if (TrySolve(propertyInfo, destinationPrt, sourcePrt, application, out var destinationRs))
+                        if (TrySolve(destinationPrt,
+                                sourcePrt,
+                                application,
+                                out var destinationRs))
                         {
                             yield return destinationRs;
                         }
@@ -1198,7 +1205,10 @@ namespace Inkslab.Map
         /// <param name="destinationType">目标类型。</param>
         /// <param name="application">配置应用程序。</param>
         /// <returns>目标类型<paramref name="destinationType"/>的映射结果表达式。</returns>
-        public Expression Map(Expression sourceExpression, Type destinationType, IMapApplication application)
+        public Expression Map(Expression sourceExpression, Type destinationType, IMapApplication application) => ToSolve(sourceExpression, destinationType, application);
+
+        /// <inheritdoc />
+        protected override Expression ToSolveCore(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
             var sourceType = sourceExpression.Type;
 
@@ -1219,7 +1229,7 @@ namespace Inkslab.Map
 
                 expressions.Add(Assign(destinationVariable, instanceExpression));
 
-                var bodyExp = ToSolve(sourceExpression, sourceType, destinationVariable, destinationType, application);
+                var bodyExp = base.ToSolve(sourceExpression, sourceType, destinationVariable, destinationType, application);
 
                 expressions.Add(bodyExp);
 
@@ -1228,7 +1238,7 @@ namespace Inkslab.Map
                 return Block(destinationType, variables, expressions);
             }
 
-            return ToSolve(sourceExpression, destinationType, application);
+            return base.ToSolveCore(sourceExpression, destinationType, application);
         }
 
         /// <summary>

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Reflection;
 
 namespace Inkslab.Map
 {
@@ -134,7 +133,7 @@ namespace Inkslab.Map
     /// </summary>
     /// <typeparam name="TSource">源。</typeparam>
     /// <typeparam name="TMember">成员。</typeparam>
-    public interface IValueResolver<in TSource, TMember>
+    public interface IValueResolver<in TSource, out TMember>
     {
         /// <summary>
         /// 解决。
@@ -157,19 +156,5 @@ namespace Inkslab.Map
         /// <param name="sourceMember">源成员值。</param>
         /// <returns>目标成员值。</returns>
         TDestinationMember Convert(TSourceMember sourceMember);
-    }
-
-    /// <summary>
-    /// 比较器。
-    /// </summary>
-    public interface IMemberComparator
-    {
-        /// <summary>
-        /// 成员是否匹配。
-        /// </summary>
-        /// <param name="x">左成员。</param>
-        /// <param name="y">右成员。</param>
-        /// <returns>是否匹配。</returns>
-        bool IsMacth(MemberInfo x, MemberInfo y);
     }
 }

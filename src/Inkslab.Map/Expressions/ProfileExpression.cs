@@ -246,7 +246,7 @@ namespace Inkslab.Map.Expressions
                     var tuple = Map(application, type, runtimeType);
 
                     var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
-
+                    
                     return lambda.Compile();
                 });
 

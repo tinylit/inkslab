@@ -49,6 +49,8 @@ namespace Inkslab.Map
         /// <returns>目标对象<paramref name="destinationType"/>的映射逻辑表达式。</returns>
         protected abstract Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application);
 
+        #region 私有方法
+
         private static NewExpression CreateNew(Type destinationType)
         {
             var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, Type.EmptyTypes, null);
@@ -74,5 +76,6 @@ namespace Inkslab.Map
 
             return Constant(x.DefaultValue, x.ParameterType);
         }
+        #endregion
     }
 }
