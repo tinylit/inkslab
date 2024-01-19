@@ -1,6 +1,7 @@
 using Inkslab.Map.Maps;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
 using Xunit;
@@ -644,6 +645,78 @@ namespace Inkslab.Map.Tests
 
             //? 不支持递归关系处理。
             Assert.Throws<NotSupportedException>(() => instance.Map<Recursive>(source));
+        }
+
+        /// <summary>
+        /// 数组到数组的测试。
+        /// </summary>
+        [Fact]
+        public void ArrayToArray()
+        {
+            var sourceC = new C
+            {
+                A1 = 100,
+                A2 = "Test",
+                A3 = DateTime.Now
+            };
+
+            var sourceArr = new C[] { sourceC };
+
+            var destinationArr = Mapper.Map<D[]>(sourceArr);
+
+            var destinationD = destinationArr.Single();
+
+            Assert.True(destinationD.A1 == sourceC.A1);
+            Assert.True(destinationD.A2 == sourceC.A2);
+            Assert.True(destinationD.A3 == sourceC.A3);
+        }
+
+        /// <summary>
+        /// 数组中存在为 Null 的原生到数组的映射。
+        /// </summary>
+        [Fact]
+        public void ArrayWithNullItemToArray()
+        {
+            var sourceC = new C
+            {
+                A1 = 100,
+                A2 = "Test",
+                A3 = DateTime.Now
+            };
+
+            var sourceArr = new C[] { null, sourceC };
+
+            var destinationArr = Mapper.Map<D[]>(sourceArr);
+
+            var destinationD = destinationArr.Single();
+
+            Assert.True(destinationD.A1 == sourceC.A1);
+            Assert.True(destinationD.A2 == sourceC.A2);
+            Assert.True(destinationD.A3 == sourceC.A3);
+        }
+        
+        /// <summary>
+        /// 数组中存在为 Null 的原生到集合的映射。
+        /// </summary>
+        [Fact]
+        public void ArrayWithNullItemToCollect()
+        {
+            var sourceC = new C
+            {
+                A1 = 100,
+                A2 = "Test",
+                A3 = DateTime.Now
+            };
+
+            var sourceArr = new C[] { null, sourceC };
+
+            var destinationArr = Mapper.Map<IEnumerable<D>>(sourceArr);
+
+            var destinationD = destinationArr.Single();
+
+            Assert.True(destinationD.A1 == sourceC.A1);
+            Assert.True(destinationD.A2 == sourceC.A2);
+            Assert.True(destinationD.A3 == sourceC.A3);
         }
     }
 }

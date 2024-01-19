@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
@@ -657,54 +658,6 @@ namespace Inkslab.Map
                 return base.VisitBinary(node);
             }
 
-            protected override Expression VisitNew(NewExpression node)
-            {
-                return node.Update(node.Arguments.Select(argument => Autogiration(argument)));
-            }
-
-            private Expression Autogiration(Expression argument)
-            {
-                switch (argument)
-                {
-                    case ConditionalExpression conditional:
-                        return base.VisitConditional(conditional);
-                    case MethodCallExpression methodCall:
-                        return base.VisitMethodCall(methodCall);
-                    case BinaryExpression binary:
-                        return base.VisitBinary(binary);
-                    case NewExpression @new:
-                        return base.VisitNew(@new);
-                    case BlockExpression block when block.Expressions.Count == 1
-                                                    || CheckValidExpression(block.Expressions, block.Variables):
-                        return block.Update(block.Variables, block.Expressions.Select(Autogiration));
-                    default:
-                        return Visit(argument);
-                }
-            }
-
-            private static bool CheckValidExpression(IList<Expression> expressions, IList<ParameterExpression> variables)
-            {
-                if (variables.Count == 0)
-                {
-                    return false;
-                }
-
-                for (int i = expressions.Count - 1; i >= 0; i--)
-                {
-                    var node = expressions[i];
-
-                    if (node.NodeType == ExpressionType.Parameter
-                        && variables.IndexOf((ParameterExpression)node) > -1)
-                    {
-                        continue;
-                    }
-
-                    return i == 0;
-                }
-
-                return false;
-            }
-
             protected override Expression VisitMemberInit(MemberInitExpression node)
             {
                 var bindings = new List<MemberBinding>(node.Bindings.Count);
@@ -755,12 +708,31 @@ namespace Inkslab.Map
                 return Block(new ParameterExpression[] { instanceVar }, expressions);
             }
 
+            protected override Expression VisitBlock(BlockExpression node)
+            {
+                if (node.Variables.Count == 0)
+                {
+                    return base.VisitBlock(node);
+                }
+
+                var visitor = new BlockIgnoreIfNullExpressionVisitor(this, node.Variables);
+
+                var body = node.Update(node.Variables, node.Expressions.Select(visitor.Visit));
+
+                if (visitor.HasIgnore)
+                {
+                    return IfThen(visitor.Test, body);
+                }
+
+                return body;
+            }
+
             /// <summary>
             /// 访问为空忽略表达式。
             /// </summary>
             /// <param name="node">判空节点。</param>
             /// <returns>新的表达式。</returns>
-            public Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
+            protected internal virtual Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
             {
                 IgnoreIfNull(node.Test);
 
@@ -783,6 +755,25 @@ namespace Inkslab.Map
                     }
                 }
             }
+
+            private class BlockIgnoreIfNullExpressionVisitor : IgnoreIfNullExpressionVisitor
+            {
+                private readonly IgnoreIfNullExpressionVisitor visitor;
+                private readonly ReadOnlyCollection<ParameterExpression> variables;
+
+                public BlockIgnoreIfNullExpressionVisitor(IgnoreIfNullExpressionVisitor visitor, ReadOnlyCollection<ParameterExpression> variables)
+                {
+                    this.visitor = visitor;
+                    this.variables = variables;
+                }
+
+                protected internal override Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
+                {
+                    return variables.Contains(node.Original)
+                        ? base.VisitIgnoreIfNull(node)
+                        : visitor.VisitIgnoreIfNull(node);
+                }
+            }
         }
 
         /// <summary>
@@ -791,7 +782,6 @@ namespace Inkslab.Map
         [DebuggerDisplay("IIF({Test},{Reduce()})")]
         private class IgnoreIfNullExpression : Expression
         {
-            private readonly Expression node;
             private readonly bool keepNullable;
 
             /// <summary>
@@ -803,7 +793,7 @@ namespace Inkslab.Map
             /// <exception cref="ArgumentNullException"></exception>
             public IgnoreIfNullExpression(Expression node, Expression test, bool keepNullable)
             {
-                this.node = node ?? throw new ArgumentNullException(nameof(node));
+                this.Original = node ?? throw new ArgumentNullException(nameof(node));
                 this.Test = test ?? throw new ArgumentNullException(nameof(test));
 
                 this.keepNullable = keepNullable;
@@ -824,6 +814,11 @@ namespace Inkslab.Map
             public Expression Test { get; }
 
             /// <summary>
+            /// 原始节点。
+            /// </summary>
+            public Expression Original { get; }
+
+            /// <summary>
             /// 类型。
             /// </summary>
             public override Type Type { get; }
@@ -842,14 +837,14 @@ namespace Inkslab.Map
                     goto label_original;
                 }
 
-                if (node.Type.IsNullable())
+                if (Original.Type.IsNullable())
                 {
-                    return Property(node, "Value");
+                    return Property(Original, "Value");
                 }
 
                 label_original:
 
-                return node;
+                return Original;
             }
 
             /// <summary>

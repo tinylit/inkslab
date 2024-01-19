@@ -28,7 +28,7 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public override bool IsMatch(Type sourceType, Type destinationType) => kvStringCollectionType.IsAssignableFrom(destinationType);
+        public override bool IsMatch(Type sourceType, Type destinationType) => !sourceType.IsSimple() && kvStringCollectionType.IsAssignableFrom(destinationType);
 
         /// <inheritdoc/>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)

@@ -139,6 +139,8 @@ namespace Inkslab.Map.Maps
 
             var destinationListType = typeof(List<>).MakeGenericType(elementType);
 
+            var destinationListCtor = destinationListType.GetConstructor(new Type[] { typeof(int) })!;
+
             var addElementMtd = destinationListType.GetMethod("Add", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { elementType }, null)!;
 
             var variableExp = Variable(destinationListType);
@@ -155,7 +157,7 @@ namespace Inkslab.Map.Maps
             {
                 Assign(indexExp, Constant(0)),
                 Assign(lengthExp, ArrayLength(sourceExpression)),
-                Assign(variableExp, New(destinationListType.GetConstructor(new Type[] { typeof(int) })!, lengthExp)),
+                Assign(variableExp, New(destinationListCtor, lengthExp)),
                 Loop(
                     IfThenElse(
                         GreaterThan(lengthExp, indexExp),

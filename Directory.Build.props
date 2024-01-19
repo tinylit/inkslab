@@ -132,7 +132,7 @@
         <When Condition="$(MSBuildProjectName)=='Inkslab.Map' ">
             <PropertyGroup>
                 <!-- 版本 -->
-                <Version>1.2.5.1</Version>
+                <Version>1.2.6</Version>
                 <Description>A convention-based object-object mapper.</Description>
             </PropertyGroup>
 

@@ -51,7 +51,7 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public override bool IsMatch(Type sourceType, Type destinationType) => TryKeyValue(sourceType, out _);
+        public override bool IsMatch(Type sourceType, Type destinationType) => !destinationType.IsSimple() && TryKeyValue(sourceType, out _);
 
         /// <inheritdoc/>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
@@ -62,7 +62,7 @@ namespace Inkslab.Map.Maps
             {
                 return Empty();
             }
-            
+
             if (!TryKeyValue(sourceType, out Type valueType))
             {
                 throw new NotSupportedException();
