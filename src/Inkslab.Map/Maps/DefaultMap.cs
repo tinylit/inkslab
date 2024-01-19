@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -15,9 +16,9 @@ namespace Inkslab.Map.Maps
         /// <summary>
         /// 目标类型 <paramref name="destinationType"/> 不是抽象类型，且源类型 <paramref name="sourceType"/> 和目标类型 <paramref name="destinationType"/> 均不是基础类型。
         /// </summary>
-        /// <param name="sourceType"></param>
-        /// <param name="destinationType"></param>
-        /// <returns></returns>
+        /// <param name="sourceType"><inheritdoc/></param>
+        /// <param name="destinationType"><inheritdoc/></param>
+        /// <returns><inheritdoc/></returns>
         public override bool IsMatch(Type sourceType, Type destinationType)
         {
             if (destinationType.IsAbstract)
@@ -25,13 +26,22 @@ namespace Inkslab.Map.Maps
                 return false;
             }
 
-            if (sourceType.IsSimple() || destinationType.IsSimple())
-            {
-                return false;
-            }
-
-            return true;
+            return !sourceType.IsSimple() && !destinationType.IsSimple();
         }
+
+        /// <inheritdoc />
+        public sealed override Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
+            => ToSolveCore(sourceExpression, destinationType, new MapApplication(sourceExpression.Type, destinationType, application));
+
+        /// <summary>
+        /// 解决。
+        /// </summary>
+        /// <param name="sourceExpression">源对象表达式。</param>
+        /// <param name="destinationType">目标对象表达式。</param>
+        /// <param name="application">映射程序。</param>
+        /// <returns>目标对象<paramref name="destinationType"/>的映射逻辑表达式。</returns>
+        protected virtual Expression ToSolveCore(Expression sourceExpression, Type destinationType, IMapApplication application)
+            => base.ToSolve(sourceExpression, destinationType, application);
 
         /// <inheritdoc/>
         protected sealed override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
@@ -69,16 +79,19 @@ namespace Inkslab.Map.Maps
                     continue;
                 }
 
-                foreach (var property in propertyInfos)
+                foreach (var memberInfo in propertyInfos)
                 {
-                    if (property.CanRead)
+                    if (memberInfo.CanRead)
                     {
-                        if (string.Equals(property.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
+                        if (string.Equals(memberInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
                         {
-                            var sourcePrt = Property(sourceExpression, property);
+                            var sourcePrt = Property(sourceExpression, memberInfo);
                             var destinationPrt = Property(destinationExpression, propertyInfo);
 
-                            if (TrySolve(propertyInfo, destinationPrt, sourcePrt, application, out Expression destinationRs))
+                            if (TrySolve(destinationPrt,
+                                    sourcePrt,
+                                    application,
+                                    out Expression destinationRs))
                             {
                                 yield return destinationRs;
                             }
@@ -93,17 +106,16 @@ namespace Inkslab.Map.Maps
         /// <summary>
         /// 解决属性赋值。
         /// </summary>
-        /// <param name="propertyInfo">目标属性。</param>
         /// <param name="destinationPrt">目标属性表达式。</param>
         /// <param name="sourcePrt">数据源表达式。</param>
         /// <param name="application">映射程序。</param>
         /// <param name="destinationRs">目标表达式。</param>
         /// <returns>是否可以处理。</returns>
-        protected virtual bool TrySolve(PropertyInfo propertyInfo, MemberExpression destinationPrt, Expression sourcePrt, IMapApplication application, out Expression destinationRs)
+        protected virtual bool TrySolve(MemberExpression destinationPrt, Expression sourcePrt, IMapApplication application, out Expression destinationRs)
         {
-            var destinationType = propertyInfo.PropertyType;
+            var destinationType = destinationPrt.Type;
 
-            if (propertyInfo.CanWrite)
+            if (destinationPrt.Member is PropertyInfo { CanWrite: true } or FieldInfo { IsInitOnly: false })
             {
                 destinationRs = Assign(destinationPrt, application.Map(sourcePrt, destinationType));
 
@@ -152,6 +164,48 @@ namespace Inkslab.Map.Maps
             return true;
         }
 
+        #region 内嵌类。
+
+        private class MapApplication : IMapApplication
+        {
+            private static readonly EnumerableMap enumerableMap = new EnumerableMap();
+
+            private readonly Type sourceHostType;
+            private readonly Type destinationHostType;
+            private readonly IMapApplication application;
+
+            public MapApplication(Type sourceHostType, Type destinationHostType, IMapApplication application)
+            {
+                this.sourceHostType = sourceHostType;
+                this.destinationHostType = destinationHostType;
+                this.application = application;
+            }
+
+            public Expression Map(Expression sourceExpression, Type destinationType)
+            {
+                Type sourceType = sourceExpression.Type;
+
+                if (IsRecursive(sourceHostType, destinationHostType, sourceType, destinationType))
+                {
+                    throw new NotSupportedException($"将类型“{sourceHostType}”转换为“{destinationHostType}”类型的表达式中，存在递归关系！");
+                }
+
+                if (!enumerableMap.IsMatch(sourceType, destinationType))
+                {
+                    return application.Map(sourceExpression, destinationType);
+                }
+
+                return enumerableMap.ToSolve(sourceExpression, destinationType, this);
+            }
+
+            private static bool IsRecursive(Type sourceHostType, Type destinationHostType, Type sourceType, Type destinationType)
+                => sourceHostType == sourceType && destinationHostType == destinationType;
+        }
+
+        #endregion
+
+        #region 私有方法
+
         private static readonly MethodInfo customAddFn = typeof(DefaultMap).GetMethod(nameof(Add), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
 
         private static void Add<TCollection, TItem>(TCollection collection, TItem[] items) where TCollection : ICollection<TItem>
@@ -193,11 +247,11 @@ namespace Inkslab.Map.Maps
             LabelTarget continueLabel = Label(MapConstants.VoidType, "label_continue");
 
             return Block(new ParameterExpression[]
-              {
+            {
                 indexExp,
                 lengthExp
-              }, new Expression[]
-              {
+            }, new Expression[]
+            {
                 Assign(indexExp, Constant(0)),
                 Assign(lengthExp, ArrayLength(sourceExpression)),
                 Loop(
@@ -211,7 +265,9 @@ namespace Inkslab.Map.Maps
                         Break(breakLabel)), // push to eax/rax --> return value
                     breakLabel, continueLabel
                 )
-              });
+            });
         }
+
+        #endregion
     }
 }

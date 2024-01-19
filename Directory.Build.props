@@ -1,165 +1,167 @@
 <Project>
-	<PropertyGroup>
-		<!-- 版本 -->
-		<Version>1.2.5</Version>
-		<!-- C#语法版本-->
-		<LangVersion>9.0</LangVersion>
+    <PropertyGroup>
+        <!-- 版本 -->
+        <Version>1.2.5</Version>
+        <!-- C#语法版本-->
+        <LangVersion>9.0</LangVersion>
 
-		<!-- 语法提示 -->
-		<Features>strict</Features>
-		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <!-- 语法提示 -->
+        <Features>strict</Features>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
-		<Authors>影子和树</Authors>
-		<Company>TINYLIT</Company>
-		<Copyright>2022 TINYLIT.</Copyright>
-		<RepositoryType>git</RepositoryType>
-		<Copyright>..\..\LICENSE</Copyright>
-		<PackageIcon>inkslab-mini.jpg</PackageIcon>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<RepositoryUrl>https://github.com/tinylit/inkslab</RepositoryUrl>
-		<PackageProjectUrl>https://github.com/tinylit/inkslab</PackageProjectUrl>
+        <Authors>影子和树</Authors>
+        <Company>TINYLIT</Company>
+        <Copyright>2022 TINYLIT.</Copyright>
+        <RepositoryType>git</RepositoryType>
+        <Copyright>..\..\LICENSE</Copyright>
+        <PackageIcon>inkslab-mini.jpg</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/tinylit/inkslab</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/tinylit/inkslab</PackageProjectUrl>
 
-		<!-- 生成 xml 文件。 -->
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-	</PropertyGroup>
+        <!-- 生成 xml 文件。 -->
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
 
-	<ItemGroup>
-		<None Include="..\..\README.md">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-	</ItemGroup>
-	<ItemGroup>
-		<None Include="..\..\inkslab-mini.jpg">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-	</ItemGroup>
+    <ItemGroup>
+        <None Include="..\..\README.md">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="..\..\inkslab-mini.jpg">
+            <Pack>True</Pack>
+            <PackagePath>\</PackagePath>
+        </None>
+    </ItemGroup>
 
-	<!-- .NETFramework 的预编译条件 -->
-	<PropertyGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
-		<DefineConstants>$(DefineConstants);NET_Traditional</DefineConstants>
-	</PropertyGroup>
+    <!-- .NETFramework 的预编译条件 -->
+    <PropertyGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
+        <DefineConstants>$(DefineConstants);NET_Traditional</DefineConstants>
+    </PropertyGroup>
 
-	<!-- .NETFramework 默认引用 -->
-	<ItemGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
-		<Reference Include="Microsoft.CSharp" />
-		<Reference Include="System" />
-		<Reference Include="System.Xml" />
-	</ItemGroup>
+    <!-- .NETFramework 默认引用 -->
+    <ItemGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
+        <Reference Include="Microsoft.CSharp"/>
+        <Reference Include="System"/>
+        <Reference Include="System.Xml"/>
+    </ItemGroup>
 
-	<!-- 以下是针对每个项目的描述和包依赖关系。 -->
+    <!-- 以下是针对每个项目的描述和包依赖关系。 -->
 
-	<Choose>
-		<When Condition="$(MSBuildProjectName)=='Inkslab' ">
-			<PropertyGroup>
-				<Description>A lightweight infrastructure.</Description>
-			</PropertyGroup>
+    <Choose>
+        <When Condition="$(MSBuildProjectName)=='Inkslab' ">
+            <PropertyGroup>
+                <Description>A lightweight infrastructure.</Description>
+            </PropertyGroup>
 
-			<ItemGroup>
-				<None Include="..\..\*.md">
-					<Pack>True</Pack>
-					<PackagePath>\</PackagePath>
-				</None>
-			</ItemGroup>
-		</When>
-	</Choose>
+            <ItemGroup>
+                <None Include="..\..\*.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
+        </When>
+    </Choose>
 
-	<Choose>
-		<When Condition="$(MSBuildProjectName)=='Inkslab.Config' ">
-			<PropertyGroup>
-				<Description>The configured reader.</Description>
-			</PropertyGroup>
-			
-			<ItemGroup>
-				<None Include="..\..\Inkslab.Config.md">
-					<Pack>True</Pack>
-					<PackagePath>\</PackagePath>
-				</None>
-			</ItemGroup>
-			
-			<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
-				<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0" />
-				<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0" />
-			</ItemGroup>
+    <Choose>
+        <When Condition="$(MSBuildProjectName)=='Inkslab.Config' ">
+            <PropertyGroup>
+                <Description>The configured reader.</Description>
+            </PropertyGroup>
 
-			<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
-				<FrameworkReference Include="Microsoft.AspNetCore.App" />
-			</ItemGroup>
+            <ItemGroup>
+                <None Include="..\..\Inkslab.Config.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
 
-			<ItemGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
-				<Reference Include="System.Configuration" />
-				<Reference Include="System.Web" />
-			</ItemGroup>
-		</When>
-	</Choose>
+            <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
+                <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="6.0.0"/>
+                <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="6.0.0"/>
+            </ItemGroup>
 
-	<Choose>
-		<When Condition="$(MSBuildProjectName)=='Inkslab.DI' ">
-			<PropertyGroup>
-				<Description>An automated dependency injection extension.</Description>
-			</PropertyGroup>
-			
-			<ItemGroup Condition="'$(TargetFramework)' == 'net461' OR '$(TargetFramework)' == 'netstandard2.1'">
-				<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
-			</ItemGroup>
-			<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
-				<FrameworkReference Include="Microsoft.AspNetCore.App"/>
-			</ItemGroup>
-		</When>
-	</Choose>
+            <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+                <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+            </ItemGroup>
 
-	<Choose>
-		<When Condition="$(MSBuildProjectName)=='Inkslab.Json' ">
-			<PropertyGroup>
-				<Description>A high-performance JSON framework.</Description>
-			</PropertyGroup>
+            <ItemGroup Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
+                <Reference Include="System.Configuration"/>
+                <Reference Include="System.Web"/>
+            </ItemGroup>
+        </When>
+    </Choose>
 
-			<ItemGroup>
-				<None Include="..\..\Inkslab.Json.md">
-					<Pack>True</Pack>
-					<PackagePath>\</PackagePath>
-				</None>
-			</ItemGroup>
-			
-			<ItemGroup>
-				<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-			</ItemGroup>
-		</When>
-	</Choose>
+    <Choose>
+        <When Condition="$(MSBuildProjectName)=='Inkslab.DI' ">
+            <PropertyGroup>
+                <Description>An automated dependency injection extension.</Description>
+            </PropertyGroup>
 
-	<Choose>
-		<When Condition="$(MSBuildProjectName)=='Inkslab.Map' ">
-			<PropertyGroup>
-				<Description>A convention-based object-object mapper.</Description>
-			</PropertyGroup>
+            <ItemGroup Condition="'$(TargetFramework)' == 'net461' OR '$(TargetFramework)' == 'netstandard2.1'">
+                <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0"/>
+            </ItemGroup>
+            <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+                <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+            </ItemGroup>
+        </When>
+    </Choose>
 
-			<ItemGroup>
-				<None Include="..\..\Inkslab.Map.md">
-					<Pack>True</Pack>
-					<PackagePath>\</PackagePath>
-				</None>
-			</ItemGroup>
-		</When>
-	</Choose>
+    <Choose>
+        <When Condition="$(MSBuildProjectName)=='Inkslab.Json' ">
+            <PropertyGroup>
+                <Description>A high-performance JSON framework.</Description>
+            </PropertyGroup>
 
-	<Choose>
-		<When Condition="$(MSBuildProjectName)=='Inkslab.Net' ">
-			<PropertyGroup>
-				<Description>A network communications assistant.</Description>
-			</PropertyGroup>
+            <ItemGroup>
+                <None Include="..\..\Inkslab.Json.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
 
-			<ItemGroup>
-				<None Include="..\..\Inkslab.Net.md">
-					<Pack>True</Pack>
-					<PackagePath>\</PackagePath>
-				</None>
-			</ItemGroup>
-			
-			<ItemGroup Condition="'$(TargetFramework)' == 'net461'">
-				<Reference Include="System.Web" />
-				<Reference Include="System.Net.Http" />
-			</ItemGroup>
-		</When>
-	</Choose>
+            <ItemGroup>
+                <PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>
+            </ItemGroup>
+        </When>
+    </Choose>
+
+    <Choose>
+        <When Condition="$(MSBuildProjectName)=='Inkslab.Map' ">
+            <PropertyGroup>
+                <!-- 版本 -->
+                <Version>1.2.6</Version>
+                <Description>A convention-based object-object mapper.</Description>
+            </PropertyGroup>
+
+            <ItemGroup>
+                <None Include="..\..\Inkslab.Map.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
+        </When>
+    </Choose>
+
+    <Choose>
+        <When Condition="$(MSBuildProjectName)=='Inkslab.Net' ">
+            <PropertyGroup>
+                <Description>A network communications assistant.</Description>
+            </PropertyGroup>
+
+            <ItemGroup>
+                <None Include="..\..\Inkslab.Net.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
+
+            <ItemGroup Condition="'$(TargetFramework)' == 'net461'">
+                <Reference Include="System.Web"/>
+                <Reference Include="System.Net.Http"/>
+            </ItemGroup>
+        </When>
+    </Choose>
 </Project>

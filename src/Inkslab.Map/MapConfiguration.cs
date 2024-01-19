@@ -2,6 +2,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -31,8 +33,8 @@ namespace Inkslab.Map
             new StringToEnumMap(),
             new KeyValueMap(),
             new ConstructorMap(),
-            new FromKeyIsStringValueIsObjectMap(),
             new ToKeyIsStringValueIsObjectMap(),
+            new FromKeyIsStringValueIsAnyMap(),
             new CloneableMap(),
             new DefaultMap()
         };
@@ -451,7 +453,7 @@ namespace Inkslab.Map
         {
             var visitor = new IgnoreIfNullExpressionVisitor();
 
-            var sourceIgnore = visitor.Visit(sourceExpression);
+            var sourceIgnore = visitor.Visit(sourceExpression)!;
 
             if (visitor.HasIgnore)
             {
@@ -503,7 +505,19 @@ namespace Inkslab.Map
 
         #region ExpressionVisitor
 
-        private static Expression Ignore(Expression node) => MapperExpressionVisitor.Instance.Visit(node);
+        private static Expression Ignore(Expression node)
+        {
+            var visitor = new IgnoreIfNullExpressionVisitor();
+
+            var body = visitor.Visit(node)!;
+
+            if (visitor.HasIgnore)
+            {
+                return IfThen(visitor.Test, body);
+            }
+
+            return body;
+        }
 
         private static Expression IgnoreIfNull(Expression node, bool keepNullable = false)
         {
@@ -517,17 +531,12 @@ namespace Inkslab.Map
                 return node;
             }
 
-            if (node.NodeType == ExpressionType.Parameter)
-            {
-                if (keepNullable || !node.Type.IsNullable())
-                {
-                    return node;
-                }
-
-                return Property(node, "Value");
-            }
-
             Expression ignoreIf = node;
+
+            if (ignoreIf.NodeType == ExpressionType.Parameter)
+            {
+                goto label_core;
+            }
 
             while (ignoreIf is MethodCallExpression methodCall)
             {
@@ -538,6 +547,8 @@ namespace Inkslab.Map
 
                 ignoreIf = methodCall.Object ?? methodCall.Arguments[0];
             }
+
+            label_core:
 
             if (ignoreIf.Type.IsValueType)
             {
@@ -554,24 +565,97 @@ namespace Inkslab.Map
 
         private static Expression IgnoreIfNull(Expression node, Expression test) => new IgnoreIfNullExpression(node, test, true);
 
-        private class MapperExpressionVisitor : ExpressionVisitor
+        /// <summary>
+        /// 忽略表达式枚举值。
+        /// </summary>
+        private const ExpressionType IgnoreIf = (ExpressionType)(-1);
+
+        /// <summary>
+        /// 为 <see langword="null"/> 时，忽略。
+        /// </summary>
+        private class IgnoreIfNullExpressionVisitor : ExpressionVisitor
         {
-            private MapperExpressionVisitor()
+            private readonly HashSet<Expression> ignoreIfNull = new HashSet<Expression>();
+
+            /// <summary>
+            /// 是否含有忽略条件。
+            /// </summary>
+            public bool HasIgnore { private set; get; }
+
+            /// <summary>
+            /// 是否不为空。
+            /// </summary>
+            public Expression Test { private set; get; }
+
+            protected override Expression VisitConditional(ConditionalExpression node)
             {
+                var visitor = new IgnoreIfNullExpressionVisitor();
+
+                visitor.IgnoreIfNull(visitor.Visit(node.Test)!);
+
+                var ifTrue = visitor.Visit(node.IfTrue)!;
+
+                var ifFalse = Visit(node.IfFalse)!;
+
+                return node.Update(visitor.Test, ifTrue, ifFalse);
+            }
+
+            protected override Expression VisitMethodCall(MethodCallExpression node)
+            {
+                if (node.Type != MapConstants.VoidType)
+                {
+                    return base.VisitMethodCall(node);
+                }
+
+                var visitor = new IgnoreIfNullExpressionVisitor();
+
+                var arguments = new List<Expression>(node.Arguments.Count);
+
+                var instance = visitor.Visit(node.Object);
+
+                foreach (var argument in node.Arguments)
+                {
+                    arguments.Add(argument.NodeType is ExpressionType.Block
+                        or ExpressionType.Loop
+                        or ExpressionType.New
+                        or ExpressionType.MemberInit
+                        ? Visit(argument)
+                        : visitor.Visit(argument));
+                }
+
+                if (visitor.HasIgnore)
+                {
+                    return IfThen(visitor.Test, node.Update(instance, arguments));
+                }
+
+                return node.Update(instance, arguments);
             }
 
             protected override Expression VisitBinary(BinaryExpression node)
             {
-                var visitor = new IgnoreIfNullExpressionVisitor();
-
-                var body = visitor.Visit(node.Right);
-
-                if (visitor.HasIgnore)
+                if (node.NodeType is ExpressionType.Assign
+                    or ExpressionType.AddAssign
+                    or ExpressionType.SubtractAssign
+                    or ExpressionType.MultiplyAssign
+                    or ExpressionType.DivideAssign
+                    or ExpressionType.AndAssign
+                    or ExpressionType.OrAssign
+                    or ExpressionType.PowerAssign
+                   )
                 {
-                    return IfThen(visitor.Test, node.Update(node.Left, node.Conversion, body));
+                    var visitor = new IgnoreIfNullExpressionVisitor();
+
+                    var body = visitor.Visit(node.Right)!;
+
+                    if (visitor.HasIgnore)
+                    {
+                        return IfThen(visitor.Test, node.Update(node.Left, node.Conversion, body));
+                    }
+
+                    return node.Update(node.Left, node.Conversion, body);
                 }
 
-                return node;
+                return base.VisitBinary(node);
             }
 
             protected override Expression VisitMemberInit(MemberInitExpression node)
@@ -579,19 +663,26 @@ namespace Inkslab.Map
                 var bindings = new List<MemberBinding>(node.Bindings.Count);
                 var expressionTests = new List<Tuple<Expression, MemberInfo, Expression>>();
 
-                foreach (MemberAssignment assignment in node.Bindings.Cast<MemberAssignment>())
+                foreach (MemberBinding binding in node.Bindings)
                 {
-                    var visitor = new IgnoreIfNullExpressionVisitor();
-
-                    var body = visitor.Visit(assignment.Expression);
-
-                    if (visitor.HasIgnore)
+                    if (binding is MemberAssignment assignment)
                     {
-                        expressionTests.Add(Tuple.Create(visitor.Test, assignment.Member, body));
+                        var visitor = new IgnoreIfNullExpressionVisitor();
+
+                        var body = visitor.Visit(assignment.Expression);
+
+                        if (visitor.HasIgnore)
+                        {
+                            expressionTests.Add(Tuple.Create(visitor.Test, assignment.Member, body));
+                        }
+                        else
+                        {
+                            bindings.Add(assignment);
+                        }
                     }
                     else
                     {
-                        bindings.Add(assignment);
+                        bindings.Add(base.VisitMemberBinding(binding));
                     }
                 }
 
@@ -617,74 +708,80 @@ namespace Inkslab.Map
                 return Block(new ParameterExpression[] { instanceVar }, expressions);
             }
 
-            public static readonly MapperExpressionVisitor Instance = new MapperExpressionVisitor();
-        }
-
-        /// <summary>
-        /// 忽略表达式枚举值。
-        /// </summary>
-        private const ExpressionType IgnoreIf = (ExpressionType)(-1);
-
-        /// <summary>
-        /// 为 <see langword="null"/> 时，忽略。
-        /// </summary>
-        private class IgnoreIfNullExpressionVisitor : ExpressionVisitor
-        {
-            private readonly HashSet<Expression> ignoreIfNull = new HashSet<Expression>();
-
-            /// <summary>
-            /// 是否含有忽略条件。
-            /// </summary>
-            public bool HasIgnore { private set; get; }
-
-            /// <summary>
-            /// 是否不为空。
-            /// </summary>
-            public Expression Test { private set; get; }
-
-            /// <inheritdoc/>
-            protected override Expression VisitSwitch(SwitchExpression node)
+            protected override Expression VisitBlock(BlockExpression node)
             {
-                return node.Update(base.Visit(node.SwitchValue), node.Cases, node.DefaultBody);
+                if (node.Variables.Count == 0)
+                {
+                    return base.VisitBlock(node);
+                }
+
+                var visitor = new BlockIgnoreIfNullExpressionVisitor(this, node.Variables);
+
+                var body = node.Update(node.Variables, node.Expressions.Select(visitor.Visit));
+
+                if (visitor.HasIgnore)
+                {
+                    return IfThen(visitor.Test, body);
+                }
+
+                return body;
             }
-
-            /// <inheritdoc/>
-            protected override Expression VisitBinary(BinaryExpression node) => node;
-
-            /// <inheritdoc/>
-            protected override MemberAssignment VisitMemberAssignment(MemberAssignment node) => node;
 
             /// <summary>
             /// 访问为空忽略表达式。
             /// </summary>
             /// <param name="node">判空节点。</param>
             /// <returns>新的表达式。</returns>
-            public Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
+            protected internal virtual Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
             {
-                if (ignoreIfNull.Add(node.Test))
+                IgnoreIfNull(node.Test);
+
+                return node.CanReduce ? node.Reduce() : node;
+            }
+
+            private void IgnoreIfNull(Expression node)
+            {
+                if (ignoreIfNull.Add(node))
                 {
                     if (HasIgnore)
                     {
-                        Test = AndAlso(Test, node.Test);
+                        Test = AndAlso(Test, node);
                     }
                     else
                     {
                         HasIgnore = true;
 
-                        Test = node.Test;
+                        Test = node;
                     }
                 }
+            }
 
-                return node.CanReduce ? node.Reduce() : node;
+            private class BlockIgnoreIfNullExpressionVisitor : IgnoreIfNullExpressionVisitor
+            {
+                private readonly IgnoreIfNullExpressionVisitor visitor;
+                private readonly ReadOnlyCollection<ParameterExpression> variables;
+
+                public BlockIgnoreIfNullExpressionVisitor(IgnoreIfNullExpressionVisitor visitor, ReadOnlyCollection<ParameterExpression> variables)
+                {
+                    this.visitor = visitor;
+                    this.variables = variables;
+                }
+
+                protected internal override Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
+                {
+                    return variables.Contains(node.Original)
+                        ? base.VisitIgnoreIfNull(node)
+                        : visitor.VisitIgnoreIfNull(node);
+                }
             }
         }
 
         /// <summary>
         /// 忽略表达式。
         /// </summary>
+        [DebuggerDisplay("IIF({Test},{Reduce()})")]
         private class IgnoreIfNullExpression : Expression
         {
-            private readonly Expression node;
             private readonly bool keepNullable;
 
             /// <summary>
@@ -696,18 +793,18 @@ namespace Inkslab.Map
             /// <exception cref="ArgumentNullException"></exception>
             public IgnoreIfNullExpression(Expression node, Expression test, bool keepNullable)
             {
-                this.node = node ?? throw new ArgumentNullException(nameof(node));
+                this.Original = node ?? throw new ArgumentNullException(nameof(node));
                 this.Test = test ?? throw new ArgumentNullException(nameof(test));
 
                 this.keepNullable = keepNullable;
 
-                if (node.Type.IsNullable())
+                if (keepNullable || !node.Type.IsNullable())
                 {
-                    Type = keepNullable ? node.Type : Nullable.GetUnderlyingType(node.Type)!;
+                    Type = node.Type;
                 }
                 else
                 {
-                    Type = node.Type;
+                    Type = Nullable.GetUnderlyingType(node.Type)!;
                 }
             }
 
@@ -715,6 +812,11 @@ namespace Inkslab.Map
             /// 非空条件。
             /// </summary>
             public Expression Test { get; }
+
+            /// <summary>
+            /// 原始节点。
+            /// </summary>
+            public Expression Original { get; }
 
             /// <summary>
             /// 类型。
@@ -735,14 +837,14 @@ namespace Inkslab.Map
                     goto label_original;
                 }
 
-                if (node.Type.IsNullable())
+                if (Original.Type.IsNullable())
                 {
-                    return Property(node, "Value");
+                    return Property(Original, "Value");
                 }
 
                 label_original:
 
-                return node;
+                return Original;
             }
 
             /// <summary>
