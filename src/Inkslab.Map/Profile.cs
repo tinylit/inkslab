@@ -526,7 +526,7 @@ namespace Inkslab.Map
                     var sourceTypeDefinition = sourceType.GetGenericTypeDefinition();
                     var destinationTypeDefinition = destinationType.GetGenericTypeDefinition();
 
-                    if (destinationTypeDefinition == this.destinationTypeDefinition && this.sourceTypeDefinition.IsLike(sourceTypeDefinition, TypeLikeKind.IsGenericTypeDefinition))
+                    if (destinationTypeDefinition == this.destinationTypeDefinition && this.sourceTypeDefinition.IsAmongOf(sourceTypeDefinition, TypeLikeKind.IsGenericTypeDefinition))
                     {
                         var sourceGenericArguments = sourceType.GetGenericArguments();
                         var destinationGenericArguments = destinationType.GetGenericArguments();

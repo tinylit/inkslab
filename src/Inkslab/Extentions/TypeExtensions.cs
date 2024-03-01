@@ -114,24 +114,43 @@ namespace System
         public static bool IsKeyValuePair(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == keyValuePairTKeyTValueType;
 
         /// <summary>
-        /// 类型 <paramref name="implementationType"/> 是 <paramref name="type"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="type"/> 相同（泛型数相等、顺序相同且约束相似）。
+        /// 类型 <paramref name="implementationType"/> 是 <paramref name="typeConstraint"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="typeConstraint"/> 相同（泛型数相等、顺序相同且约束相似）。
         /// </summary>
-        /// <param name="type">指定类型。</param>
+        /// <param name="typeConstraint">约束类型。</param>
         /// <param name="implementationType">比较类型。</param>
-        /// <returns>是否相似。</returns>
-        public static bool IsLike(this Type type, Type implementationType)
-            => IsLike(type, implementationType, TypeLikeKind.Template);
+        /// <returns><paramref name="typeConstraint"/> 是 <paramref name="implementationType"/> 的约束之一。</returns>
+        public static bool IsAmongOf(this Type typeConstraint, Type implementationType)
+            => IsAmongOf(typeConstraint, implementationType, TypeLikeKind.Template);
 
         /// <summary>
-        /// 类型 <paramref name="implementationType"/> 是 <paramref name="type"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="type"/> 相同（泛型数相等、顺序相同且约束相似）。
+        /// 类型 <paramref name="implementationType"/> 是 <paramref name="typeConstraint"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="typeConstraint"/> 相同（泛型数相等、顺序相同且约束相似）。
         /// </summary>
-        /// <param name="type">指定类型。</param>
+        /// <param name="typeConstraint">约束类型。</param>
         /// <param name="implementationType">比较类型。</param>
         /// <param name="likeKind">相似比较。</param>
-        /// <returns>是否相似。</returns>
-        public static bool IsLike(this Type type, Type implementationType, TypeLikeKind likeKind)
+        /// <returns><paramref name="typeConstraint"/> 是 <paramref name="implementationType"/> 的约束之一。</returns>
+        public static bool IsAmongOf(this Type typeConstraint, Type implementationType, TypeLikeKind likeKind)
+            => IsLike(implementationType, typeConstraint, likeKind);
+
+        /// <summary>
+        /// 类型 <paramref name="implementationType"/> 是 <paramref name="typeConstraint"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="typeConstraint"/> 相同（泛型数相等、顺序相同且约束相似）。
+        /// </summary>
+        /// <param name="typeConstraint">约束类型。</param>
+        /// <param name="implementationType">比较类型。</param>
+        /// <returns> <paramref name="implementationType"/> 是否相似于 <paramref name="typeConstraint"/>。</returns>
+        public static bool IsLike(this Type implementationType, Type typeConstraint)
+            => IsLike(implementationType, typeConstraint, TypeLikeKind.Template);
+
+        /// <summary>
+        /// 类型 <paramref name="implementationType"/> 是 <paramref name="typeConstraint"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="typeConstraint"/> 相同（泛型数相等、顺序相同且约束相似）。
+        /// </summary>
+        /// <param name="implementationType">指定类型。</param>
+        /// <param name="typeConstraint">比较类型。</param>
+        /// <param name="likeKind">相似比较。</param>
+        /// <returns> <paramref name="implementationType"/> 是否相似于 <paramref name="typeConstraint"/>。</returns>
+        public static bool IsLike(this Type implementationType, Type typeConstraint, TypeLikeKind likeKind)
         {
-            if (type == implementationType)
+            if (typeConstraint == implementationType)
             {
                 return true;
             }
@@ -141,30 +160,30 @@ namespace System
                 return false;
             }
 
-            if (implementationType.IsInterface && (type.IsClass || type.IsValueType))
+            if (implementationType.IsInterface && (typeConstraint.IsClass || typeConstraint.IsValueType))
             {
                 return false;
             }
 
-            if (type.IsGenericParameter)
+            if (typeConstraint.IsGenericParameter)
             {
                 if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeParameter) == TypeLikeKind.IsGenericTypeParameter)
                 {
                     if (implementationType.IsGenericParameter)
                     {
-                        return IsLikeGenericParameter(type, implementationType);
+                        return IsLikeGenericParameter(typeConstraint, implementationType);
                     }
 
-                    return likeKind <= TypeLikeKind.Template && IsLikeGenericParameterAssign(type, implementationType);
+                    return likeKind <= TypeLikeKind.Template && IsLikeGenericParameterAssign(typeConstraint, implementationType);
                 }
             }
-            else if (type.IsGenericTypeDefinition)
+            else if (typeConstraint.IsGenericTypeDefinition)
             {
                 if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeDefinition) == TypeLikeKind.IsGenericTypeDefinition)
                 {
                     if (implementationType.IsGenericTypeDefinition)
                     {
-                        if (IsLikeTypeDefinition(type, implementationType))
+                        if (IsLikeTypeDefinition(typeConstraint, implementationType))
                         {
                             goto label_generic_type_definition;
                         }
@@ -173,13 +192,13 @@ namespace System
                     }
                 }
             }
-            else if (type.IsGenericType)
+            else if (typeConstraint.IsGenericType)
             {
                 if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericType) == TypeLikeKind.IsGenericType)
                 {
                     if (implementationType.IsGenericType)
                     {
-                        if (IsLikeTypeDefinition(type.GetGenericTypeDefinition(), implementationType))
+                        if (IsLikeTypeDefinition(typeConstraint.GetGenericTypeDefinition(), implementationType))
                         {
                             goto label_generic_type_definition;
                         }
@@ -194,16 +213,16 @@ namespace System
                 return false;
             }
 
-            if (type == typeof(object))
+            if (typeConstraint == typeof(object))
             {
                 return true;
             }
 
-            bool isGenericTypeDefinition = type.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition;
+            bool isGenericTypeDefinition = typeConstraint.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition;
 
-            if (type.IsInterface)
+            if (typeConstraint.IsInterface)
             {
-                if (IsLikeInterfaces(type, implementationType.GetInterfaces()))
+                if (IsLikeInterfaces(typeConstraint, implementationType.GetInterfaces()))
                 {
                     if (isGenericTypeDefinition)
                     {
@@ -216,7 +235,7 @@ namespace System
                 return false;
             }
 
-            if (IsLikeClass(type, implementationType))
+            if (IsLikeClass(typeConstraint, implementationType))
             {
                 if (isGenericTypeDefinition)
                 {
@@ -228,18 +247,18 @@ namespace System
 
             return false;
 
-            label_generic_type_definition:
+label_generic_type_definition:
 
-            return IsLikeGenericArguments(type.GetGenericArguments(), implementationType.GetGenericArguments());
+            return IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments());
         }
 
-        private static bool IsLikeClass(Type type, Type implementationType)
+        private static bool IsLikeClass(Type typeConstraint, Type implementationType)
         {
-            if (type.IsGenericType)
+            if (typeConstraint.IsGenericType)
             {
-                var typeDefinition = type.IsGenericTypeDefinition
-                    ? type
-                    : type.GetGenericTypeDefinition();
+                var typeDefinition = typeConstraint.IsGenericTypeDefinition
+                    ? typeConstraint
+                    : typeConstraint.GetGenericTypeDefinition();
 
                 do
                 {
@@ -255,7 +274,7 @@ namespace System
             {
                 do
                 {
-                    if (type == implementationType)
+                    if (typeConstraint == implementationType)
                     {
                         return true;
                     }
@@ -378,13 +397,13 @@ namespace System
 
             foreach (var interfaceType in typeArgument.GetInterfaces())
             {
-                if (!IsLike(interfaceType, implementationTypeArgument))
+                if (!IsAmongOf(interfaceType, implementationTypeArgument))
                 {
                     return false;
                 }
             }
 
-            return IsLike(typeArgument.BaseType, implementationTypeArgument.BaseType);
+            return IsAmongOf(typeArgument.BaseType, implementationTypeArgument.BaseType);
         }
 
         private static bool IsLikeTypeDefinition(Type typeDefinition, Type implementationType)
@@ -451,13 +470,13 @@ namespace System
 
             foreach (var interfaceType in typeDefinition.GetInterfaces())
             {
-                if (!IsLike(interfaceType, implementationType))
+                if (!IsAmongOf(interfaceType, implementationType))
                 {
                     return false;
                 }
             }
 
-            return typeDefinition.BaseType is null || IsLike(typeDefinition.BaseType, implementationType);
+            return typeDefinition.BaseType is null || IsAmongOf(typeDefinition.BaseType, implementationType);
         }
     }
 }

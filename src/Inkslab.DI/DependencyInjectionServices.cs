@@ -478,7 +478,7 @@ namespace Inkslab.DI
                 : serviceType.GetGenericTypeDefinition();
 
             var typeDefinitionTypes = effectiveTypes
-                .Where(typeDefinition.IsLike)
+                .Where(typeDefinition.IsAmongOf)
                 .ToList();
 
             typeDefinitionTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
@@ -634,7 +634,7 @@ namespace Inkslab.DI
             {
                 Type target = implementationTypes[i];
 
-                while (len > i && target.IsLike(implementationTypes[i + 1]))
+                while (len > i && target.IsAmongOf(implementationTypes[i + 1]))
                 {
                     i++;
                 }

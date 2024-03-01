@@ -200,7 +200,7 @@ namespace Inkslab.Config
                 ? AppContext.BaseDirectory
                 : Environment.CurrentDirectory);
 
-            builder.AddJsonFile("appsettings.json", true, true);
+            builder.AddJsonFile("appsettings.json", false, true);
 
             if (environmentVariable is { Length: > 0 })
             {
