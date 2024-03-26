@@ -54,9 +54,9 @@ namespace Inkslab.DI.Tests.DependencyInjections
     [Transient]
     public interface ITypeDefinition<T>
     {
-        
+
     }
-    
+
     /// <summary>
     /// 泛型测试。
     /// </summary>
@@ -70,7 +70,7 @@ namespace Inkslab.DI.Tests.DependencyInjections
         /// <param name="simpleType">简单类型。</param>
         public TypeDefinition(SimpleType simpleType)
         {
-            
+
         }
     }
 
@@ -79,15 +79,15 @@ namespace Inkslab.DI.Tests.DependencyInjections
     /// </summary>
     public class TypeDefinitionInt : ITypeDefinition<int>
     {
-        
+
     }
-    
+
     /// <summary>
     /// 泛型实现。
     /// </summary>
     public class TypeDefinitionLong : ITypeDefinition<long>
     {
-        
+
     }
 
     /// <summary>
@@ -95,9 +95,9 @@ namespace Inkslab.DI.Tests.DependencyInjections
     /// </summary>
     public class SimpleType
     {
-        
+
     }
-    
+
     /// <summary>
     /// 测试实现选举。
     /// </summary>

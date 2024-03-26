@@ -6,7 +6,7 @@ using System.Threading;
 namespace Inkslab.Collections
 {
     /// <summary>
-    /// 【线程安全】LFU 算法，移除最近最少被搜索到的数据。
+    /// 【线程安全】LRS 算法，移除最近最少被搜索到的数据。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
     public class Lrs<T> : IEliminationAlgorithm<T>
@@ -61,16 +61,16 @@ namespace Inkslab.Collections
             int index = Interlocked.Increment(ref refCount);
 
             int offset = index % capacity;
-            
+
             obsoleteValue = arrays[offset];
-            
+
             if (comparer.Equals(value, obsoleteValue))
             {
                 return false;
             }
 
             bool flag = false;
-            
+
             if (index >= capacity)
             {
                 if (keys.Count == capacity || keys.TryGetValue(obsoleteValue, out int local) && local == offset)
@@ -199,6 +199,10 @@ namespace Inkslab.Collections
                         if (obsoleteValue is IDisposable disposable)
                         {
                             disposable.Dispose();
+                        }
+                        else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+                        {
+                            asyncDisposable.DisposeAsync().AsTask().Wait();
                         }
                     }
 #endif

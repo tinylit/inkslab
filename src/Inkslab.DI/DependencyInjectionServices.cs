@@ -478,7 +478,7 @@ namespace Inkslab.DI
                 : serviceType.GetGenericTypeDefinition();
 
             var typeDefinitionTypes = effectiveTypes
-                .Where(typeDefinition.IsAmongOf)
+                .Where(x => x.IsLike(typeDefinition, TypeLikeKind.IsGenericTypeDefinition))
                 .ToList();
 
             typeDefinitionTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
@@ -779,15 +779,10 @@ namespace Inkslab.DI
             }
         }
 
-        private void ReleaseUnmanagedResources()
-        {
-            assemblies.Clear();
-        }
-
         private void Dispose(bool disposing)
         {
-            ReleaseUnmanagedResources();
-            
+            assemblies.Clear();
+
             if (disposing)
             {
                 assemblyTypes.Clear();
@@ -799,8 +794,50 @@ namespace Inkslab.DI
         public void Dispose()
         {
             Dispose(true);
-            
+
             GC.SuppressFinalize(this);
+        }
+
+        public IDependencyInjectionServices ConfigureByExamine(Predicate<Type> match)
+        {
+            if (match is null)
+            {
+                throw new ArgumentNullException(nameof(match));
+            }
+
+            var exportAttributeType = typeof(ExportAttribute);
+
+            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
+
+            var serviceDescriptors = services.Where(x => match(x.ServiceType)).ToList();
+
+            foreach (var descriptor in serviceDescriptors)
+            {
+                if (descriptor.ImplementationInstance != null
+                    || descriptor.ImplementationFactory != null)
+                {
+                    continue;
+                }
+
+                Type descriptorType = descriptor.ImplementationType;
+
+                if (descriptorType.FullName.StartsWith("Microsoft.")) //? 微软自带的注入实现，不做自动检查。
+                {
+                    continue;
+                }
+
+                if (DiConstructor(services, options, descriptorType, implementTypes, descriptor.Lifetime, 0, dependencies))
+                {
+                    continue;
+                }
+
+                dependencies.Add(descriptorType);
+                dependencies.Add(descriptor.ServiceType);
+
+                throw DiError("Service", descriptorType, options.MaxDepth, dependencies);
+            }
+
+            return this;
         }
     }
 }

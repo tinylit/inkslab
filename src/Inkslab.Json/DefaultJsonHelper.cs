@@ -65,6 +65,7 @@ namespace Inkslab.Json
             }
         }
 
+        private static readonly DefaultContractResolver contractResolver;
 
         private static readonly Dictionary<NamingType, IContractResolver> resolvers;
 
@@ -78,6 +79,8 @@ namespace Inkslab.Json
             {
                 resolvers.Add(namingType, new JsonContractResolver(namingType));
             }
+
+            contractResolver = new DefaultContractResolver();
         }
 
         private readonly JsonSerializerSettings settings;
@@ -107,15 +110,13 @@ namespace Inkslab.Json
         /// <returns></returns>
         private static JsonSerializerSettings LoadSetting(JsonSerializerSettings settings, NamingType namingType, bool indented = false)
         {
-            if (resolvers.TryGetValue(namingType, out var resolver))
-            {
-                settings.ContractResolver = resolver;
-            }
+            settings.ContractResolver = resolvers.TryGetValue(namingType, out var resolver)
+                ? resolver
+                : contractResolver;
 
-            if (indented)
-            {
-                settings.Formatting = Formatting.Indented;
-            }
+            settings.Formatting = indented
+                    ? Formatting.Indented
+                    : Formatting.None;
 
             return settings;
         }

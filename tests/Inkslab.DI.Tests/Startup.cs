@@ -8,6 +8,7 @@ using Swashbuckle.AspNetCore.SwaggerGen;
 using System;
 using System.IO;
 using Inkslab.DI.Options;
+using Inkslab.DI.Tests.Services;
 
 namespace Inkslab.DI.Tests
 {
@@ -36,11 +37,14 @@ namespace Inkslab.DI.Tests
 
             services.AddMvc(options => options.EnableEndpointRouting = false);
 
+            services.AddHostedService<TestServies>();
+
             services.DependencyInjection(new DependencyInjectionOptions()) //? ע�� IConfigureServices ʵ�֡�
                 .SeekAssemblies("Inkslab.DI.*")
                 .ConfigureByDefined()
+                .ConfigureByExamine(typeof(IHostedService).IsAssignableFrom) //? 自动注入宿主服务的构造参数。
                 .ConfigureServices(new DependencyInjectionServicesOptions())
-                .ConfigureByAuto(); //? Ĭ��ע�롣
+                .ConfigureByAuto(); // 自动配置。
 
             services.AddCors(options =>
             {

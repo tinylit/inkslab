@@ -23,20 +23,16 @@ namespace Inkslab.DI.Tests.Controllers
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, IServiceProvider serviceProvider)
+        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, ITypeDefinition<int> typeDefinitionInt, ITypeDefinition<DateTime> typeDefinitionDateTime)
         {
             this.controllerCtor = controllerCtor;
             this.singletonTest = singletonTest;
             this.implementElectionsByOne = implementElectionsByOne;
             this.logger = logger;
 
-            var a = serviceProvider.GetRequiredService<ITypeDefinition<int>>();
+            Debug.Assert(typeDefinitionInt is TypeDefinitionInt);
 
-            Debug.Assert(a is TypeDefinitionInt);
-
-            var b = serviceProvider.GetRequiredService<ITypeDefinition<DateTime>>();
-            
-            Debug.Assert(b is TypeDefinition<DateTime>);
+            Debug.Assert(typeDefinitionDateTime is TypeDefinition<DateTime>);
         }
 
         /// <summary>
