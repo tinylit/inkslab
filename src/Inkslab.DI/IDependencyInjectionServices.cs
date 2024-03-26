@@ -53,6 +53,13 @@ namespace Inkslab.DI
         IDependencyInjectionServices ConfigureServices(DependencyInjectionServicesOptions servicesOptions);
 
         /// <summary>
+        /// 审查，遍历服务中的注入服务类，检查服务类的注入情况，补全依赖注入关系，确保服务能苟正常注入。
+        /// </summary>
+        /// <param name="match"></param>
+        /// <returns></returns>
+        IDependencyInjectionServices ConfigureByExamine(Predicate<Type> match);
+
+        /// <summary>
         /// 自动检查接口参数，注入标记“<see cref="ExportAttribute"/>”的类型。
         /// </summary>
         /// <returns>依赖注入服务。</returns>

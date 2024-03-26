@@ -20,9 +20,9 @@ namespace Inkslab.Map.Maps
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType) =>
-            (sourceType == MapConstants.StringType && destinationType == typeof(DateTime)) ||
-            (sourceType == typeof(DateTime) && destinationType == MapConstants.StringType) ||
-            (IsPrimitive(sourceType) && IsPrimitive(destinationType));
+            sourceType == MapConstants.StringType && (destinationType.IsArray ? destinationType == typeof(byte[]) : destinationType == typeof(DateTime)) ||
+            destinationType == MapConstants.StringType && (sourceType.IsArray ? sourceType == typeof(byte[]) : sourceType == typeof(DateTime)) ||
+            IsPrimitive(sourceType) && IsPrimitive(destinationType);
 
         /// <inheritdoc/>
         public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
@@ -34,7 +34,13 @@ namespace Inkslab.Map.Maps
                 return sourceExpression;
             }
 
-            var convertMethod = typeof(Convert).GetMethod("To" + destinationType.Name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null)!;
+            string name = sourceType.IsArray
+                ? "ToBase64String"
+                : destinationType.IsArray
+                ? "FromBase64String"
+                : "To" + destinationType.Name;
+
+            var convertMethod = typeof(Convert).GetMethod(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null)!;
 
             return Call(convertMethod, sourceExpression);
         }

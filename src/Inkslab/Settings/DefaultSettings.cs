@@ -55,17 +55,17 @@ namespace Inkslab.Settings
                 case string text: return ValuePackaging(text, typeof(string));
                 case IEnumerable: return ToString(value);
                 default:
-                {
-                    var valueType = value.GetType();
+                    {
+                        var valueType = value.GetType();
 
-                    return valueType.IsEnum
-                        ? ValuePackaging(ToString(value), valueType)
-                        : valueType.IsMini()
-                            ? value.ToString()
-                            : valueType.IsSimple()
-                                ? ValuePackaging(ToString(value), valueType)
-                                : ToString(value);
-                }
+                        return valueType.IsEnum
+                            ? ValuePackaging(ToString(value), valueType)
+                            : valueType.IsMini()
+                                ? value.ToString()
+                                : valueType.IsSimple()
+                                    ? ValuePackaging(ToString(value), valueType)
+                                    : ToString(value);
+                    }
             }
         }
 
@@ -79,52 +79,53 @@ namespace Inkslab.Settings
             {
                 case null: return null;
                 case string text: return text;
+                case byte[] buffer: return System.Convert.ToBase64String(buffer);
                 case DateTime date: return date.ToString(DateFormatString);
                 case IEnumerable enumerable:
-                {
-                    // ReSharper disable once NotDisposedResource
-                    var enumerator = enumerable.GetEnumerator();
-
-                    if (!enumerator.MoveNext())
                     {
-                        return null;
-                    }
+                        // ReSharper disable once NotDisposedResource
+                        var enumerator = enumerable.GetEnumerator();
 
-                    while (enumerator.Current is null)
-                    {
                         if (!enumerator.MoveNext())
                         {
                             return null;
                         }
-                    }
 
-                    var sb = new StringBuilder();
-
-                    sb.Append('[')
-                        .Append(ToString(enumerator.Current));
-
-                    while (enumerator.MoveNext())
-                    {
-                        if (enumerator.Current is null)
+                        while (enumerator.Current is null)
                         {
-                            continue;
+                            if (!enumerator.MoveNext())
+                            {
+                                return null;
+                            }
                         }
 
-                        sb.Append(',')
+                        var sb = new StringBuilder();
+
+                        sb.Append('[')
                             .Append(ToString(enumerator.Current));
+
+                        while (enumerator.MoveNext())
+                        {
+                            if (enumerator.Current is null)
+                            {
+                                continue;
+                            }
+
+                            sb.Append(',')
+                                .Append(ToString(enumerator.Current));
+                        }
+
+                        return sb.Append(']')
+                            .ToString();
                     }
-
-                    return sb.Append(']')
-                        .ToString();
-                }
                 default:
-                {
-                    var valueType = value.GetType();
+                    {
+                        var valueType = value.GetType();
 
-                    return valueType.IsSimple()
-                        ? value.ToString()
-                        : JsonHelper.ToJson(value);
-                }
+                        return valueType.IsSimple()
+                            ? value.ToString()
+                            : JsonHelper.ToJson(value);
+                    }
             }
         }
 

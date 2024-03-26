@@ -16,7 +16,6 @@ namespace Inkslab.Map.Maps
         private static readonly PropertyInfo lengthPrt = MapConstants.StringType.GetProperty("length");
         private static readonly MethodInfo concatMtd = MapConstants.StringType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StringType, MapConstants.StringType, MapConstants.StringType }, null);
 
-
         /// <summary>
         /// 字符串转枚举映射。
         /// </summary>

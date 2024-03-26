@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 
@@ -10,7 +11,7 @@ namespace Inkslab
     /// </summary>
     public class XStartup : IDisposable
     {
-        private readonly List<Type> types;
+        private readonly List<Type> _types;
         private static readonly HashSet<Type> startupCachings = new HashSet<Type>();
         private static readonly Type startupType = typeof(IStartup);
 
@@ -26,6 +27,14 @@ namespace Inkslab
         /// </summary>
         /// <param name="pattern">DLL过滤规则。</param>
         public XStartup(string pattern) : this(AssemblyFinder.Find(pattern))
+        {
+        }
+
+        /// <summary>
+        /// 启动（满足指定条件的程序集）<see cref="AssemblyFinder.Find(string[])"/>。
+        /// </summary>
+        /// <param name="patterns">DLL过滤规则。<see cref="Directory.GetFiles(string, string)"/></param>
+        public XStartup(params string[] patterns) : this(AssemblyFinder.Find(patterns))
         {
         }
 
@@ -49,7 +58,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(types));
             }
 
-            this.types = types.Where(x => x.IsClass && !x.IsAbstract && startupType.IsAssignableFrom(x)).ToList();
+            _types = types.Where(x => x.IsClass && !x.IsAbstract && startupType.IsAssignableFrom(x)).ToList();
         }
 
         /// <summary>
@@ -57,9 +66,9 @@ namespace Inkslab
         /// </summary>
         public void DoStartup()
         {
-            var startups = new List<IStartup>(types.Count);
+            var startups = new List<IStartup>(_types.Count);
 
-            foreach (var type in types)
+            foreach (var type in _types)
             {
                 if (startupCachings.Contains(type))
                 {
@@ -82,7 +91,7 @@ namespace Inkslab
                             {
                                 startup.Startup();
                             }
-                            
+
                             break;
                         }
                     }
@@ -107,7 +116,7 @@ namespace Inkslab
         {
             if (disposing && !disposedValue)
             {
-                types.Clear();
+                _types.Clear();
 
                 disposedValue = true;
             }

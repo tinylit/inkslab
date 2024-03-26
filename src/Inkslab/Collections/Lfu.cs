@@ -294,6 +294,10 @@ namespace Inkslab.Collections
                             {
                                 disposable.Dispose();
                             }
+                            else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+                            {
+                                asyncDisposable.DisposeAsync().AsTask().Wait();
+                            }
                         }
 #endif
                     }
@@ -323,6 +327,10 @@ namespace Inkslab.Collections
                         if (removeValue is IDisposable disposable)
                         {
                             disposable.Dispose();
+                        }
+                        else if (removeValue is IAsyncDisposable asyncDisposable)
+                        {
+                            asyncDisposable.DisposeAsync().AsTask().Wait();
                         }
                     }
 #endif
