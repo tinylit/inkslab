@@ -60,6 +60,11 @@ namespace Inkslab.Map.Tests
         public DateTimeKind? D4 { get; set; }
 
         /// <summary>
+        /// 布尔。
+        /// </summary>
+        public bool B1 { get; set; }
+
+        /// <summary>
         /// <inheritdoc/>.
         /// </summary>
         public long? I5 { get; set; } = long.MaxValue;
@@ -404,7 +409,7 @@ namespace Inkslab.Map.Tests
 
             instance.Map<C1, C2>()
                 .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -464,10 +469,10 @@ namespace Inkslab.Map.Tests
             using var instance = new MapperInstance();
 
             instance.New<C1, G1<C1>>(x => new G1<C1>(x)
-                {
-                    Version = 1,
-                    Time = x.P3
-                })
+            {
+                Version = 1,
+                Time = x.P3
+            })
                 .Map(x => x.P3, x => x.From(y => y.P3))
                 .IncludeConstraints((x /* 源类型 */, y /* 原类型泛型参数，不是泛型时为空数组 */, z /* 目标类型泛型参数类型数组 */) => x == z[0] || x.IsSubclassOf(z[0])); //! 目标类型必须是泛型。
 
@@ -504,7 +509,7 @@ namespace Inkslab.Map.Tests
             using var instance = new MapperInstance();
 
             instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -543,7 +548,7 @@ namespace Inkslab.Map.Tests
                 .IncludeConstraints((x, y, z) => true);
 
             instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -581,7 +586,7 @@ namespace Inkslab.Map.Tests
             instance.Map<C1, C2>()
                 .NewEnumerable<PagedList<C1>, PagedList<C2>>((x, y) => new PagedList<C2>(y, x.PageIndex, x.PageSize, x.Count))
                 .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -632,7 +637,7 @@ namespace Inkslab.Map.Tests
             instance.Map<C1, C2>()
                 .NewEnumerable<IEnumerable<C1>, PagedList<C2>>((x, y) => new PagedList<C2>(y, 0, y.Count, y.Count))
                 .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -683,7 +688,7 @@ namespace Inkslab.Map.Tests
             instance.Map<C1, C2>()
                 .NewEnumerable<PagedList<C1>, PagedList<C2>>((x, y) => new PagedList<C2>(y, x.PageIndex, x.PageSize, x.Count))
                 .Map(x => x.R1, y => y.From(z => z.P1)) //? 指定映射。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                        //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(constant)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -796,7 +801,7 @@ namespace Inkslab.Map.Tests
                 .Map(x => x.C4s, y => y.Auto());
 
             instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(DateTimeKind.Utc)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。
@@ -829,7 +834,7 @@ namespace Inkslab.Map.Tests
                 .Map(x => x.C4s, y => y.Auto());
 
             instance.New<C1, C4>(x => new C4(x.P1)) //? 指定构造函数创建对象。
-                //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
+                                                    //.Map(x => x.P2, y => y.From(z => z.P2)) // 名称相同可不指定，按照通用映射处理。
                 .Map(x => x.T3, y => y.From(z => z.P3.ToString())) //? 指定映射规则。
                 .Map(x => x.D4, y => y.Constant(DateTimeKind.Utc)) //? 指定目标值为常量。
                 .Map(x => x.I5, y => y.Ignore()); //? 忽略属性映射。

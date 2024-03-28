@@ -563,6 +563,7 @@ namespace Inkslab.Map.Tests
                 ["i5"] = "7042011313840586752",
                 ["p3"] = "2023-10-12",
                 ["p2"] = "test",
+                ["b1"] = "False",
                 ["p1"] = "1",
                 ["d4"] = "1"
             };
@@ -694,7 +695,7 @@ namespace Inkslab.Map.Tests
             Assert.True(destinationD.A2 == sourceC.A2);
             Assert.True(destinationD.A3 == sourceC.A3);
         }
-        
+
         /// <summary>
         /// 数组中存在为 Null 的原生到集合的映射。
         /// </summary>
