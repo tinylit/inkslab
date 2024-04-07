@@ -21,10 +21,10 @@ namespace Inkslab.Config
         {
 #if !NET_Traditional
             /// <summary> 配置文件变更事件。 </summary>
-            public event Action<object> OnConfigChanged { add { } remove { } }
+            event Action<object> IConfigHelper.OnConfigChanged { add { } remove { } }
 #endif
 
-            public T Get<T>(string key, T defaultValue = default) => defaultValue;
+            T IConfigHelper.Get<T>(string key, T defaultValue) => defaultValue;
         }
 
 #if !NET_Traditional

@@ -519,6 +519,12 @@ namespace Inkslab.Map
             return body;
         }
 
+        /// <summary>
+        /// 忽略空。
+        /// </summary>
+        /// <param name="node">数据节点。</param>
+        /// <param name="keepNullable">保持可空结果。</param>
+        /// <returns>忽略空表达式。</returns>
         private static Expression IgnoreIfNull(Expression node, bool keepNullable = false)
         {
             if (node.NodeType == IgnoreIf)
@@ -548,7 +554,7 @@ namespace Inkslab.Map
                 ignoreIf = methodCall.Object ?? methodCall.Arguments[0];
             }
 
-            label_core:
+label_core:
 
             if (ignoreIf.Type.IsValueType)
             {
@@ -563,7 +569,13 @@ namespace Inkslab.Map
             return new IgnoreIfNullExpression(node, NotEqual(ignoreIf, Constant(null, ignoreIf.Type)), keepNullable);
         }
 
-        private static Expression IgnoreIfNull(Expression node, Expression test) => new IgnoreIfNullExpression(node, test, true);
+        /// <summary>
+        /// 忽略空。
+        /// </summary>
+        /// <param name="node">数据节点（满足条件的结果表达式）。</param>
+        /// <param name="test">条件节点。</param>
+        /// <returns>忽略空表达式。</returns>
+        internal static Expression IgnoreIfNull(Expression node, Expression test) => new IgnoreIfNullExpression(node, test, true);
 
         /// <summary>
         /// 忽略表达式枚举值。
@@ -769,9 +781,15 @@ namespace Inkslab.Map
 
                 protected internal override Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
                 {
-                    return variables.Contains(node.Original)
-                        ? base.VisitIgnoreIfNull(node)
-                        : visitor.VisitIgnoreIfNull(node);
+                    switch (node.Original)
+                    {
+                        case ParameterExpression when variables.Contains(node.Original):
+                            return base.VisitIgnoreIfNull(node);
+                        case MemberExpression member when variables.Contains(member.Expression):
+                            return base.VisitIgnoreIfNull(node);
+                        default:
+                            return visitor.VisitIgnoreIfNull(node);
+                    }
                 }
             }
         }
@@ -793,8 +811,8 @@ namespace Inkslab.Map
             /// <exception cref="ArgumentNullException"></exception>
             public IgnoreIfNullExpression(Expression node, Expression test, bool keepNullable)
             {
-                this.Original = node ?? throw new ArgumentNullException(nameof(node));
-                this.Test = test ?? throw new ArgumentNullException(nameof(test));
+                Original = node ?? throw new ArgumentNullException(nameof(node));
+                Test = test ?? throw new ArgumentNullException(nameof(test));
 
                 this.keepNullable = keepNullable;
 
@@ -842,7 +860,7 @@ namespace Inkslab.Map
                     return Property(Original, "Value");
                 }
 
-                label_original:
+label_original:
 
                 return Original;
             }
