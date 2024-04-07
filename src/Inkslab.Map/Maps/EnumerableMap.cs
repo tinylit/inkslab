@@ -60,7 +60,7 @@ namespace Inkslab.Map.Maps
             {
                 return ToArray(sourceExpression, destinationType.GetElementType(), application);
             }
-            
+
             var conversionType = destinationType;
 
             if (conversionType.IsInterface)
@@ -90,7 +90,7 @@ namespace Inkslab.Map.Maps
                     conversionType = typeof(List<object>);
                 }
             }
-            
+
             return base.ToSolve(sourceExpression, conversionType, application);
         }
 

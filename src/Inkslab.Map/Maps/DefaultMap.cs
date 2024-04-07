@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -195,7 +194,7 @@ namespace Inkslab.Map.Maps
                     return application.Map(sourceExpression, destinationType);
                 }
 
-                return enumerableMap.ToSolve(sourceExpression, destinationType, this);
+                return MapConfiguration.IgnoreIfNull(enumerableMap.ToSolve(sourceExpression, destinationType, this), NotEqual(sourceExpression, Constant(null, sourceType)));
             }
 
             private static bool IsRecursive(Type sourceHostType, Type destinationHostType, Type sourceType, Type destinationType)
@@ -210,9 +209,9 @@ namespace Inkslab.Map.Maps
 
         private static void Add<TCollection, TItem>(TCollection collection, TItem[] items) where TCollection : ICollection<TItem>
         {
-            for (int i = 0; i < items.Length; i++)
+            foreach (var item in items)
             {
-                collection.Add(items[i]);
+                collection.Add(item);
             }
         }
 
