@@ -18,6 +18,7 @@ namespace Inkslab.DI
         private readonly IServiceCollection services;
         private readonly DependencyInjectionOptions options;
         private readonly IServiceProvider service;
+        private readonly List<Type> dependencies;
         private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
         private readonly HashSet<Type> assemblyTypes = new HashSet<Type>();
         private readonly HashSet<Type> effectiveTypes = new HashSet<Type>();
@@ -28,6 +29,8 @@ namespace Inkslab.DI
             this.services = services;
             this.options = options;
             this.service = service;
+
+            dependencies = new List<Type>(options.MaxDepth * 2 + 3);
         }
 
         public IReadOnlyCollection<Assembly> Assemblies
@@ -125,14 +128,14 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(servicesOptions));
             }
 
-            DiController(services, options, servicesOptions, implementTypes);
+            DiController(services, options, servicesOptions, implementTypes, dependencies);
 
             return this;
         }
 
         public IDependencyInjectionServices ConfigureByAuto()
         {
-            DiByExport(services, options, effectiveTypes, implementTypes);
+            DiByExport(services, options, effectiveTypes, implementTypes, dependencies);
 
             return this;
         }
@@ -181,21 +184,29 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(implementationType));
             }
 
-            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 1);
+            if (implementationType.IsInterface || implementationType.IsAbstract)
+            {
+                throw new ArgumentException("不能是接口或抽象类！", nameof(implementationType));
+            }
+
+            if (serviceType.IsAssignableFrom(implementationType))
+            {
+                throw new ArgumentException("不是服务的有效实现！", nameof(implementationType));
+            }
 
             if (DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies, false))
             {
                 return this;
             }
 
+            dependencies.Add(serviceType);
+
             throw DiError("Service", serviceType, options.MaxDepth, dependencies);
         }
 
-        private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, IReadOnlyCollection<Type> assemblyTypes, IReadOnlyCollection<Type> effectiveTypes)
+        private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, IReadOnlyCollection<Type> assemblyTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
         {
             var exportAttributeType = typeof(ExportAttribute);
-
-            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
             foreach (var type in assemblyTypes.Where(x => x.IsDefined(exportAttributeType, false)))
             {
@@ -243,10 +254,8 @@ namespace Inkslab.DI
             }
         }
 
-        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, DependencyInjectionServicesOptions servicesOptions, IReadOnlyCollection<Type> effectiveTypes)
+        private static void DiController(IServiceCollection services, DependencyInjectionOptions options, DependencyInjectionServicesOptions servicesOptions, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
         {
-            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
-
             foreach (var controllerType in effectiveTypes.Where(servicesOptions.IsServicesType))
             {
                 if (!DiConstructor(services, options, controllerType, effectiveTypes, dependencies))
@@ -338,6 +347,8 @@ namespace Inkslab.DI
                             .Append('}');
                     }
                 }
+
+                dependencies.Clear();
             }
 
             return new TypeLoadException(sb.Append('.').ToString());
@@ -788,6 +799,7 @@ namespace Inkslab.DI
                 assemblyTypes.Clear();
                 effectiveTypes.Clear();
                 implementTypes.Clear();
+                dependencies.Clear();
             }
         }
 
@@ -806,8 +818,6 @@ namespace Inkslab.DI
             }
 
             var exportAttributeType = typeof(ExportAttribute);
-
-            List<Type> dependencies = new List<Type>(options.MaxDepth * 2 + 3);
 
             var serviceDescriptors = services.Where(x => match(x.ServiceType)).ToList();
 

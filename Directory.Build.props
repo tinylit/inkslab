@@ -97,6 +97,7 @@
     <Choose>
         <When Condition="$(MSBuildProjectName)=='Inkslab.DI' ">
             <PropertyGroup>
+				<Version>1.2.8.1</Version>
                 <Description>An automated dependency injection extension.</Description>
             </PropertyGroup>
 
