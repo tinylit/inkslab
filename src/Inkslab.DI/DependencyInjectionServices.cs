@@ -189,7 +189,7 @@ namespace Inkslab.DI
                 throw new ArgumentException("不能是接口或抽象类！", nameof(implementationType));
             }
 
-            if (serviceType.IsAssignableFrom(implementationType))
+            if (!serviceType.IsAssignableFrom(implementationType))
             {
                 throw new ArgumentException("不是服务的有效实现！", nameof(implementationType));
             }
