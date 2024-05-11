@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Xunit;
+﻿using Xunit;
 
 namespace Inkslab.Tests
 {
@@ -43,6 +38,22 @@ namespace Inkslab.Tests
     /// </summary>
     public class NormalD
     {
+    }
+
+    /// <summary>
+    /// 测试注入级别。
+    /// </summary>
+    public class SingleWeight
+    {
+
+    }
+
+    /// <summary>
+    /// 测试注入级别。
+    /// </summary>
+    public class SingleSubWeight : SingleWeight
+    {
+
     }
 
     /// <summary>
@@ -136,6 +147,23 @@ namespace Inkslab.Tests
             var normalD2 = SingletonPools.Singleton<NormalD>();
 
             Assert.Equal(normalD1, normalD2);
+        }
+
+        /// <summary>
+        /// 测试权重。
+        /// </summary>
+        [Fact]
+        public void TestSingletonWeights()
+        {
+            var weights = new SingleSubWeight();
+
+            SingletonPools.TryAdd<SingleWeight>();
+            SingletonPools.TryAdd<SingleWeight>(weights);
+            SingletonPools.TryAdd<SingleWeight, SingleWeight>();
+
+            var singleWeight = SingletonPools.Singleton<SingleWeight>();
+
+            Assert.Equal(weights, singleWeight);
         }
     }
 }
