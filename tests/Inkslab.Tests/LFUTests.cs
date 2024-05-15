@@ -15,6 +15,55 @@ namespace Inkslab.Tests
         /// 线程安全测试。
         /// </summary>
         [Fact]
+        public async Task TestThreadSafetyOne()
+        {
+            // int total = 0;
+            long totalMilliseconds = 0;
+
+            Stopwatch totalStopwatch = Stopwatch.StartNew();
+
+            int length = 1000;
+            int capacity = length / 10;
+            var lfu = new Lfu<int>(capacity);
+
+            var tasks = new List<Task>(50);
+
+            for (int i = 0; i < 50; i++)
+            {
+                tasks.Add(Task.Run(() =>
+                {
+                    Stopwatch stopwatch = new Stopwatch();
+
+                    for (int j = 0; j < length; j++)
+                    {
+                        stopwatch.Start();
+
+                        lfu.Put(j, out _);
+
+                        stopwatch.Stop();
+
+                        Assert.True(lfu.Count <= length);
+                    }
+
+                    stopwatch.Stop();
+
+                    totalMilliseconds += stopwatch.ElapsedMilliseconds;
+                }));
+            }
+
+            await Task.WhenAll(tasks.ToArray());
+
+            totalStopwatch.Stop();
+
+            Assert.True(lfu.Count == capacity);
+
+            Debug.WriteLine($"计算{50 * length}次，共执行{totalMilliseconds}毫秒");
+        }
+
+        /// <summary>
+        /// 线程安全测试。
+        /// </summary>
+        [Fact]
         public async Task TestThreadSafety()
         {
             // int total = 0;
@@ -54,6 +103,8 @@ namespace Inkslab.Tests
             await Task.WhenAll(tasks.ToArray());
 
             totalStopwatch.Stop();
+
+            Debug.WriteLine(lfu.Count);
 
             Assert.True(lfu.Count == capacity);
 
