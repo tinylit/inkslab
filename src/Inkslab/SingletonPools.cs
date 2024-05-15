@@ -21,7 +21,7 @@ namespace Inkslab
         /// <returns>是否添加成功。</returns>
         public static bool TryAdd<TService>()
             where TService : class
-            => Nested<TService>.TryAdd(() => Nested<TService, TService>.Instance);
+            => Nested<TService>.TryAdd(() => Nested<TService, TService>.Instance, SingletonWeights.Normal);
 
         /// <summary>
         /// 添加服务。
@@ -54,7 +54,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(factory));
             }
 
-            return Nested<TService>.TryAdd(factory);
+            return Nested<TService>.TryAdd(factory, SingletonWeights.Delegation);
         }
 
         /// <summary>
@@ -66,7 +66,7 @@ namespace Inkslab
         public static bool TryAdd<TService, TImplementation>()
             where TService : class
             where TImplementation : class, TService
-            => Nested<TService>.TryAdd(() => Nested<TService, TImplementation>.Instance);
+            => Nested<TService>.TryAdd(() => Nested<TService, TImplementation>.Instance, SingletonWeights.Normal);
 
         /// <summary>
         /// 获取服务。
@@ -91,38 +91,46 @@ namespace Inkslab
             where TImplementation : class, TService
             => Nested<TService>.Instance ?? Nested<TService, TImplementation>.Instance;
 
+        private enum SingletonWeights
+        {
+            /// <summary>
+            /// 最低。
+            /// </summary>
+            Lowest,
+            /// <summary>
+            /// 正常。
+            /// </summary>
+            Normal,
+            /// <summary>
+            /// 委托。
+            /// </summary>
+            Delegation,
+            /// <summary>
+            /// 指定。
+            /// </summary>
+            Designation
+        }
+
         private class Nested<TService> where TService : class
         {
             private static Lazy<TService> lazy = new Lazy<TService>(() => null);
+            private static bool uninitialized = true;
+            private static SingletonWeights singletonWeights = SingletonWeights.Lowest;
 
-            private static volatile bool useBaseTryAdd = true;
-            private static volatile bool uninitialized = true;
-
-            protected static void AddDefaultImpl(Func<TService> factory)
+            public static bool TryAdd(Func<TService> factory, SingletonWeights weights)
             {
-                if (uninitialized)
+                if (uninitialized || weights >= singletonWeights)
                 {
-                    TryAddCore(factory);
-                }
-            }
-
-            private static bool TryAddCore(Func<TService> factory, bool defineService = false)
-            {
-                if (defineService || useBaseTryAdd)
-                {
-                    if (defineService)
-                    {
-                        useBaseTryAdd = false;
-
-                        serviceCachings[typeof(TService)] = typeof(Nested<TService>);
-                    }
-
                     uninitialized = false;
+
+                    singletonWeights = weights;
 
                     if (lazy.IsValueCreated)
                     {
                         return false;
                     }
+
+                    serviceCachings[typeof(TService)] = typeof(Nested<TService>);
 
                     lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
 
@@ -132,9 +140,7 @@ namespace Inkslab
                 return false;
             }
 
-            public static bool TryAdd(TService instance) => TryAdd(() => instance);
-
-            public static bool TryAdd(Func<TService> factory) => TryAddCore(factory, true);
+            public static bool TryAdd(TService instance) => TryAdd(() => instance, SingletonWeights.Designation);
 
             public static TService Instance => lazy.Value;
         }
@@ -147,12 +153,11 @@ namespace Inkslab
 
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    AddDefaultImpl(() => throw new NotSupportedException(
-                        $"未注入{type.FullName}服务的实现，可以使用【SingletonPools.TryAdd<{type.Name}, {type.Name}Impl>()】注入服务实现。"));
+                    TryAdd(() => throw new NotSupportedException($"未注入{type.FullName}服务的实现，可以使用【SingletonPools.TryAdd<{type.Name}, {type.Name}Impl>()】注入服务实现。"), SingletonWeights.Lowest);
                 }
                 else
                 {
-                    AddDefaultImpl(() => Nested<TService, TService>.Instance);
+                    TryAdd(() => Nested<TService, TService>.Instance, SingletonWeights.Lowest);
                 }
             }
 

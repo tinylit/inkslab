@@ -22,7 +22,7 @@ namespace Inkslab.DI
         private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
         private readonly HashSet<Type> assemblyTypes = new HashSet<Type>();
         private readonly HashSet<Type> effectiveTypes = new HashSet<Type>();
-        private readonly HashSet<Type> implementTypes = new HashSet<Type>();
+        private readonly List<Type> implementTypes = new List<Type>();
 
         public DependencyInjectionServices(IServiceCollection services, DependencyInjectionOptions options, IServiceProvider service)
         {
@@ -67,14 +67,15 @@ namespace Inkslab.DI
                     continue;
                 }
 
-                effectiveTypes.Add(type);
-
-                if (type.IsAbstract)
+                if (effectiveTypes.Add(type))
                 {
-                    continue;
-                }
+                    if (type.IsInterface || type.IsAbstract)
+                    {
+                        continue;
+                    }
 
-                implementTypes.Add(type);
+                    implementTypes.Add(type);
+                }
             }
 
             return this;
@@ -184,17 +185,9 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(implementationType));
             }
 
-            if (implementationType.IsInterface || implementationType.IsAbstract)
-            {
-                throw new ArgumentException("不能是接口或抽象类！", nameof(implementationType));
-            }
-
-            if (!serviceType.IsAssignableFrom(implementationType))
-            {
-                throw new ArgumentException("不是服务的有效实现！", nameof(implementationType));
-            }
-
-            if (DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies, false))
+            if (serviceType == implementationType && (implementationType.IsInterface || implementationType.IsAbstract)
+                ? Di(services, options, serviceType, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies)
+                : DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies, false))
             {
                 return this;
             }
@@ -360,7 +353,7 @@ namespace Inkslab.DI
         private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
             => DiConstructor(services, options, implementationType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies);
 
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyList<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
             => DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, ServiceLifetime.Transient, 0, dependencies, false);
 
         private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
@@ -557,7 +550,7 @@ namespace Inkslab.DI
             return flag;
         }
 
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyList<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
         {
             if (implementationTypes.Count == 0)
             {
@@ -627,7 +620,7 @@ namespace Inkslab.DI
             return flag;
         }
 
-        private static IEnumerable<Type> DiImplementationAnalysis(DependencyInjectionOptions options, Type serviceType, List<Type> implementationTypes, bool isMulti)
+        private static IEnumerable<Type> DiImplementationAnalysis(DependencyInjectionOptions options, Type serviceType, IReadOnlyList<Type> implementationTypes, bool isMulti)
         {
             if (implementationTypes.Count == 1)
             {

@@ -44,6 +44,7 @@ namespace Inkslab.DI.Tests
                 .ConfigureByDefined()
                 .ConfigureByExamine(typeof(IHostedService).IsAssignableFrom) //? 自动注入宿主服务的构造参数。
                 .ConfigureServices(new DependencyInjectionServicesOptions())
+                .AddTransient<IAbstractInjection>()
                 .ConfigureByAuto(); // 自动配置。
 
             services.AddCors(options =>
