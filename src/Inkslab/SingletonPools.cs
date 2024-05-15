@@ -117,14 +117,6 @@ namespace Inkslab
             private static bool uninitialized = true;
             private static SingletonWeights singletonWeights = SingletonWeights.Lowest;
 
-            protected static void AddDefaultImpl(Func<TService> factory)
-            {
-                if (uninitialized)
-                {
-                    TryAdd(factory, SingletonWeights.Lowest);
-                }
-            }
-
             public static bool TryAdd(Func<TService> factory, SingletonWeights weights)
             {
                 if (uninitialized || weights >= singletonWeights)
@@ -161,12 +153,11 @@ namespace Inkslab
 
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    AddDefaultImpl(() => throw new NotSupportedException(
-                        $"未注入{type.FullName}服务的实现，可以使用【SingletonPools.TryAdd<{type.Name}, {type.Name}Impl>()】注入服务实现。"));
+                    TryAdd(() => throw new NotSupportedException($"未注入{type.FullName}服务的实现，可以使用【SingletonPools.TryAdd<{type.Name}, {type.Name}Impl>()】注入服务实现。"), SingletonWeights.Lowest);
                 }
                 else
                 {
-                    AddDefaultImpl(() => Nested<TService, TService>.Instance);
+                    TryAdd(() => Nested<TService, TService>.Instance, SingletonWeights.Lowest);
                 }
             }
 
