@@ -117,8 +117,11 @@ namespace Inkslab.Collections
     public class Lrs<TKey, TValue>
     {
         private readonly Lrs<TKey> lrs;
+
+        private readonly object lockObj = new object();
         private readonly Func<TKey, TValue> factory;
-        private readonly ConcurrentDictionary<TKey, TValue> cachings;
+
+        private readonly Dictionary<TKey, TValue> cachings;
 
         /// <summary>
         /// 默认容量。
@@ -147,9 +150,9 @@ namespace Inkslab.Collections
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            comparer ??= EqualityComparer<TKey>.Default;
-
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
+
+            comparer ??= EqualityComparer<TKey>.Default;
 
             lrs = new Lrs<TKey>(capacity, comparer);
 
@@ -165,7 +168,7 @@ namespace Inkslab.Collections
                 break;
             }
 
-            cachings = new ConcurrentDictionary<TKey, TValue>(capacity, capacity, comparer);
+            cachings = new Dictionary<TKey, TValue>(capacity, comparer);
         }
 
         /// <summary>
@@ -185,18 +188,22 @@ namespace Inkslab.Collections
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (lrs.Put(key, out TKey obsoleteKey))
+            lock (lockObj)
             {
-#if NET_Traditional
-                if (cachings.TryRemove(obsoleteKey, out TValue obsoleteValue))
+                if (lrs.Put(key, out TKey obsoleteKey))
                 {
+#if NET_Traditional
+                if (cachings.TryGetValue(obsoleteKey, out TValue obsoleteValue))
+                {
+                    cachings.Remove(obsoleteKey);
+
                     if (obsoleteValue is IDisposable disposable)
                     {
                         disposable.Dispose();
                     }
                 }
 #else
-                if (cachings.TryRemove(obsoleteKey, out TValue obsoleteValue))
+                if (cachings.Remove(obsoleteKey, out TValue obsoleteValue))
                 {
                     if (obsoleteValue is IDisposable disposable)
                     {
@@ -208,9 +215,15 @@ namespace Inkslab.Collections
                     }
                 }
 #endif
-            }
+                }
 
-            return cachings.GetOrAdd(key, factory);
+                if (cachings.TryGetValue(key, out var value))
+                {
+                    return value;
+                }
+
+                return cachings[key] = factory.Invoke(key);
+            }
         }
     }
 }
