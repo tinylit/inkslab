@@ -22,6 +22,15 @@ namespace Inkslab.Collections
         /// 指定容器大小。
         /// </summary>
         /// <param name="capacity">容器大小。</param>
+        public Lrs(int capacity) : this(capacity, null)
+        {
+
+        }
+
+        /// <summary>
+        /// 指定容器大小。
+        /// </summary>
+        /// <param name="capacity">容器大小。</param>
         /// <param name="comparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
         public Lrs(int capacity, IEqualityComparer<T> comparer)
         {
@@ -107,12 +116,9 @@ namespace Inkslab.Collections
     /// <typeparam name="TValue">值。</typeparam>
     public class Lrs<TKey, TValue>
     {
-        private readonly Lrs<TKey> lru;
+        private readonly Lrs<TKey> lrs;
         private readonly Func<TKey, TValue> factory;
-
-        private readonly Dictionary<TKey, TValue> cachings;
-
-        private readonly object lockObj = new object();
+        private readonly ConcurrentDictionary<TKey, TValue> cachings;
 
         /// <summary>
         /// 默认容量。
@@ -145,7 +151,7 @@ namespace Inkslab.Collections
 
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
-            lru = new Lrs<TKey>(capacity, comparer);
+            lrs = new Lrs<TKey>(capacity, comparer);
 
             for (int i = 0; i < 3; i++)
             {
@@ -159,7 +165,7 @@ namespace Inkslab.Collections
                 break;
             }
 
-            cachings = new Dictionary<TKey, TValue>(capacity, comparer);
+            cachings = new ConcurrentDictionary<TKey, TValue>(capacity, capacity, comparer);
         }
 
         /// <summary>
@@ -179,54 +185,32 @@ namespace Inkslab.Collections
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (lru.Put(key, out TKey obsoleteKey))
+            if (lrs.Put(key, out TKey obsoleteKey))
             {
-                lock (lockObj)
-                {
 #if NET_Traditional
-                    if (cachings.TryGetValue(obsoleteKey, out TValue obsoleteValue))
-                    {
-                        if (obsoleteValue is IDisposable disposable)
-                        {
-                            disposable.Dispose();
-                        }
-
-                        cachings.Remove(obsoleteKey);
-                    }
-#else
-                    if (cachings.Remove(obsoleteKey, out TValue obsoleteValue))
-                    {
-                        if (obsoleteValue is IDisposable disposable)
-                        {
-                            disposable.Dispose();
-                        }
-                        else if (obsoleteValue is IAsyncDisposable asyncDisposable)
-                        {
-                            asyncDisposable.DisposeAsync().AsTask().Wait();
-                        }
-                    }
-#endif
-                }
-            }
-
-            if (cachings.TryGetValue(key, out TValue value))
-            {
-                return value;
-            }
-
-            lock (lockObj)
-            {
-                if (cachings.TryGetValue(key, out value))
+                if (cachings.TryRemove(obsoleteKey, out TValue obsoleteValue))
                 {
-                    return value;
+                    if (obsoleteValue is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
                 }
-
-                value = factory.Invoke(key);
-
-                cachings.Add(key, value);
-
-                return value;
+#else
+                if (cachings.TryRemove(obsoleteKey, out TValue obsoleteValue))
+                {
+                    if (obsoleteValue is IDisposable disposable)
+                    {
+                        disposable.Dispose();
+                    }
+                    else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+                    {
+                        asyncDisposable.DisposeAsync().AsTask().Wait();
+                    }
+                }
+#endif
             }
+
+            return cachings.GetOrAdd(key, factory);
         }
     }
 }

@@ -87,6 +87,15 @@ namespace Inkslab.Collections
         /// 指定容器大小。
         /// </summary>
         /// <param name="capacity">容器大小。</param>
+        public Lfu(int capacity) : this(capacity, null)
+        {
+
+        }
+
+        /// <summary>
+        /// 指定容器大小。
+        /// </summary>
+        /// <param name="capacity">容器大小。</param>
         /// <param name="equalityComparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
         public Lfu(int capacity, IEqualityComparer<T> equalityComparer)
         {
@@ -141,8 +150,8 @@ namespace Inkslab.Collections
                 if (keys.Count == capacity)
                 {
                     removeFlag = true;
-                    
-                    label_removeItem:
+
+label_removeItem:
                     bool removeMinFlag = true;
 
                     while (removeMinFlag)
@@ -169,8 +178,8 @@ namespace Inkslab.Collections
                     goto label_removeItem;
                 }
 
-                label_add:
-                
+label_add:
+
                 node = new Node(value, version, capacity);
 
                 sortKeys.Add(node);
@@ -191,10 +200,11 @@ namespace Inkslab.Collections
     {
         private readonly Lfu<TKey> lfu;
 
-        private readonly Dictionary<TKey, TValue> cachings;
-        private readonly Func<TKey, TValue> factory;
-        private readonly int capacity;
         private readonly object lockObj = new object();
+
+        private readonly Func<TKey, TValue> factory;
+
+        private readonly Dictionary<TKey, TValue> cachings;
 
         /// <summary>
         /// 默认容量。
@@ -233,8 +243,6 @@ namespace Inkslab.Collections
 
             this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
-            this.capacity = capacity;
-
             comparer ??= EqualityComparer<TKey>.Default;
 
             lfu = new Lfu<TKey>(capacity, comparer);
@@ -271,56 +279,20 @@ namespace Inkslab.Collections
                 throw new ArgumentNullException(nameof(key));
             }
 
-            if (cachings.TryGetValue(key, out TValue value))
-            {
-                if (lfu.Put(key, out TKey obsoleteKey))
-                {
-                    lock (lockObj)
-                    {
-#if NET_Traditional
-                        if (cachings.TryGetValue(obsoleteKey, out TValue obsoleteValue))
-                        {
-                            if (obsoleteValue is IDisposable disposable)
-                            {
-                                disposable.Dispose();
-                            }
-
-                            cachings.Remove(obsoleteKey);
-                        }
-#else
-                        if (cachings.Remove(obsoleteKey, out TValue obsoleteValue))
-                        {
-                            if (obsoleteValue is IDisposable disposable)
-                            {
-                                disposable.Dispose();
-                            }
-                            else if (obsoleteValue is IAsyncDisposable asyncDisposable)
-                            {
-                                asyncDisposable.DisposeAsync().AsTask().Wait();
-                            }
-                        }
-#endif
-                    }
-                }
-
-                return value;
-            }
-
-            label_ref:
             lock (lockObj)
             {
                 if (lfu.Put(key, out TKey removeKey))
                 {
 #if NET_Traditional
-                        if (cachings.TryGetValue(removeKey, out TValue removeValue))
+                    if (cachings.TryGetValue(removeKey, out TValue removeValue))
+                    {
+                        if (removeValue is IDisposable disposable)
                         {
-                            if (removeValue is IDisposable disposable)
-                            {
-                                disposable.Dispose();
-                            }
-
-                            cachings.Remove(removeKey);
+                            disposable.Dispose();
                         }
+
+                        cachings.Remove(removeKey);
+                    }
 #else
                     if (cachings.Remove(removeKey, out TValue removeValue))
                     {
@@ -336,21 +308,12 @@ namespace Inkslab.Collections
 #endif
                 }
 
-                if (cachings.TryGetValue(key, out value))
+                if (cachings.TryGetValue(key, out var value))
                 {
                     return value;
                 }
 
-                if (cachings.Count == capacity)
-                {
-                    goto label_ref; //? 释放锁，让移除方法得到锁。
-                }
-
-                value = factory.Invoke(key);
-
-                cachings.Add(key, value);
-
-                return value;
+                return cachings[key] = factory.Invoke(key);
             }
         }
     }
