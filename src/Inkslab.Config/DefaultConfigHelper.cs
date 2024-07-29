@@ -307,8 +307,17 @@ namespace Inkslab.Config
                     return (T)configuration;
                 }
 
+                var value = configuration.Get<T>();
+
+                if (type.IsValueType)
+                {
+                    return Equals(value, default(T)) 
+                        ? defaultValue 
+                        : value;
+                }
+
                 // 复杂类型
-                return configuration.Get<T>();
+                return value ?? defaultValue;
             }
             catch
             {

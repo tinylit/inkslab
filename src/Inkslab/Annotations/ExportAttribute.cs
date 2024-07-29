@@ -6,5 +6,9 @@ namespace Inkslab.Annotations
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface)]
     public class ExportAttribute : Attribute
     {
+        /// <summary>
+        /// 全部导出。
+        /// </summary>
+        public bool All { get; set; }
     }
 }
