@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
 using Inkslab.Annotations;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Inkslab.DI
 {
@@ -201,11 +202,18 @@ namespace Inkslab.DI
         {
             var exportAttributeType = typeof(ExportAttribute);
 
-            foreach (var type in assemblyTypes.Where(x => x.IsDefined(exportAttributeType, false)))
+            foreach (var type in assemblyTypes)
             {
+                var attribute = (ExportAttribute)type.GetCustomAttribute(exportAttributeType, false);
+
+                if (attribute is null)
+                {
+                    continue;
+                }
+
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    if (Di(services, options, type, effectiveTypes, dependencies))
+                    if (Di(services, options, attribute.All ? typeof(IEnumerable<>).MakeGenericType(type) : type, effectiveTypes, dependencies))
                     {
                         continue;
                     }
@@ -215,15 +223,25 @@ namespace Inkslab.DI
                     throw DiError("Service", type, options.MaxDepth, dependencies);
                 }
 
-                //? 已注入。
-                if (services.Any(x => x.ServiceType == type && x.ImplementationType == type))
+                if (attribute.All && !type.IsSealed)
                 {
-                    continue;
+                    if (Di(services, options, attribute.All ? typeof(IEnumerable<>).MakeGenericType(type) : type, effectiveTypes, dependencies))
+                    {
+                        continue;
+                    }
                 }
-
-                if (DiServiceLifetime(services, options, type, new List<Type> { type }, effectiveTypes, dependencies))
+                else
                 {
-                    continue;
+                    //? 已注入。
+                    if (services.Any(x => x.ServiceType == type && x.ImplementationType == type))
+                    {
+                        continue;
+                    }
+
+                    if (DiServiceLifetime(services, options, type, new List<Type> { type }, effectiveTypes, dependencies))
+                    {
+                        continue;
+                    }
                 }
 
                 throw DiError("Service", type, options.MaxDepth, dependencies);
@@ -353,8 +371,8 @@ namespace Inkslab.DI
         private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
             => DiConstructor(services, options, implementationType, effectiveTypes, ServiceLifetime.Transient, 0, dependencies);
 
-        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyList<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
-            => DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, ServiceLifetime.Transient, 0, dependencies, false);
+        private static bool DiServiceLifetime(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyList<Type> implementationTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies, bool isMulti = false)
+            => DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, ServiceLifetime.Transient, 0, dependencies, isMulti);
 
         private static bool DiConstructor(IServiceCollection services, DependencyInjectionOptions options, Type implementationType, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
@@ -433,6 +451,8 @@ namespace Inkslab.DI
                 isMulti = true;
 
                 serviceType = serviceType.GetGenericArguments()[0];
+
+                goto label_core;
             }
 
             if (services.Any(x => x.ServiceType == serviceType)) //? 已有注入时，不再自动注入。
@@ -449,6 +469,8 @@ namespace Inkslab.DI
                     return true;
                 }
             }
+
+label_core:
 
             var interfaceTypes = serviceType.IsInterface
                 ? serviceType.GetInterfaces()
@@ -489,7 +511,7 @@ namespace Inkslab.DI
 
             if (typeDefinitionTypes.Count == 0)
             {
-                return false;
+                return isMulti;
             }
 
             if (!serviceType.IsGenericTypeDefinition)
@@ -554,7 +576,7 @@ namespace Inkslab.DI
         {
             if (implementationTypes.Count == 0)
             {
-                return false;
+                return isMulti;
             }
 
             bool flag = false;
@@ -602,7 +624,14 @@ namespace Inkslab.DI
                 {
                     flag = true;
 
-                    services.Add(new ServiceDescriptor(serviceType, implementationType, lifetime));
+                    if (isMulti)
+                    {
+                        services.TryAddEnumerable(new ServiceDescriptor(serviceType, implementationType, lifetime));
+                    }
+                    else
+                    {
+                        services.Add(new ServiceDescriptor(serviceType, implementationType, lifetime));
+                    }
 
                     if (isMulti) //? 注入一个支持。
                     {
