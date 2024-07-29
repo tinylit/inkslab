@@ -494,7 +494,12 @@ label_core:
                 return DiServiceLifetime(services, options, serviceType, implementationTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
             }
 
-            return serviceType.IsGenericType && DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
+            if (serviceType.IsGenericType)
+            {
+                return DiTypeDefinition(services, options, serviceType, interfaceTypes, effectiveTypes, lifetime, depth, dependencies, isMulti);
+            }
+
+            return isMulti;
         }
 
         private static bool DiTypeDefinition(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, Type[] interfaceTypes, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies, bool isMulti)
