@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using Inkslab.DI.Tests.DependencyInjections;
 using Inkslab.DI.Tests.Models;
@@ -23,7 +24,7 @@ namespace Inkslab.DI.Tests.Controllers
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, ITypeDefinition<int> typeDefinitionInt, ITypeDefinition<DateTime> typeDefinitionDateTime)
+        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, IEnumerable<ITestEnumerable> testEnumerables, ITypeDefinition<int> typeDefinitionInt, ITypeDefinition<DateTime> typeDefinitionDateTime)
         {
             this.controllerCtor = controllerCtor;
             this.singletonTest = singletonTest;
