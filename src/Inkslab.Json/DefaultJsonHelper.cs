@@ -121,29 +121,28 @@ namespace Inkslab.Json
             return settings;
         }
 
-        /// <summary>
-        /// 将JSON反序列化为对象。
-        /// </summary>
-        /// <typeparam name="T">结果类型。</typeparam>
-        /// <param name="json">JSON字符串。</param>
-        /// <param name="namingType">命名规则。</param>
-        /// <returns></returns>
+        /// <inheritdoc/>
         public T Json<T>(string json, NamingType namingType = NamingType.Normal)
         {
             return JsonConvert.DeserializeObject<T>(json, LoadSetting(settings, namingType));
         }
 
-        /// <summary>
-        /// 对象序列化为JSON。
-        /// </summary>
-        /// <typeparam name="T">数据类型。</typeparam>
-        /// <param name="jsonObj">对象。</param>
-        /// <param name="namingType">命名规则。</param>
-        /// <param name="indented">是否缩进。</param>
-        /// <returns></returns>
+        /// <inheritdoc/>
+        public object Json(string json, Type type, NamingType namingType = NamingType.Normal)
+        {
+            return JsonConvert.DeserializeObject(json, type, LoadSetting(settings, namingType));
+        }
+
+        /// <inheritdoc/>
         public string ToJson<T>(T jsonObj, NamingType namingType = NamingType.Normal, bool indented = false)
         {
             return JsonConvert.SerializeObject(jsonObj, LoadSetting(settings, namingType, indented));
+        }
+
+        /// <inheritdoc/>
+        public string ToJson(object jsonObj, Type type, NamingType namingType = NamingType.Normal, bool indented = false)
+        {
+            return JsonConvert.SerializeObject(jsonObj, type, LoadSetting(settings, namingType, indented));
         }
     }
 }

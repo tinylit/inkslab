@@ -213,7 +213,7 @@ namespace Inkslab.DI
 
                 if (type.IsInterface || type.IsAbstract)
                 {
-                    if (Di(services, options, attribute.All ? typeof(IEnumerable<>).MakeGenericType(type) : type, effectiveTypes, dependencies))
+                    if (Di(services, options, attribute.Many ? typeof(IEnumerable<>).MakeGenericType(type) : type, effectiveTypes, dependencies))
                     {
                         continue;
                     }
@@ -223,9 +223,9 @@ namespace Inkslab.DI
                     throw DiError("Service", type, options.MaxDepth, dependencies);
                 }
 
-                if (attribute.All && !type.IsSealed)
+                if (attribute.Many && !type.IsSealed)
                 {
-                    if (Di(services, options, attribute.All ? typeof(IEnumerable<>).MakeGenericType(type) : type, effectiveTypes, dependencies))
+                    if (Di(services, options, attribute.Many ? typeof(IEnumerable<>).MakeGenericType(type) : type, effectiveTypes, dependencies))
                     {
                         continue;
                     }
