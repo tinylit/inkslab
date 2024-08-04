@@ -7,8 +7,8 @@ namespace Inkslab.Annotations
     public class ExportAttribute : Attribute
     {
         /// <summary>
-        /// 全部导出。
+        /// 导出许多。
         /// </summary>
-        public bool All { get; set; }
+        public bool Many { get; set; }
     }
 }
