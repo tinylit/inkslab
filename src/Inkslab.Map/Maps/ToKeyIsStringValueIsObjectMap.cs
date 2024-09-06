@@ -13,14 +13,12 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class ToKeyIsStringValueIsObjectMap : AbstractMap
     {
-        private static readonly Type kvStringType = typeof(kvString);
-        private static readonly Type kvStringCollectionType = typeof(ICollection<kvString>);
-        private static readonly ConstructorInfo kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { MapConstants.StringType, MapConstants.ObjectType });
-
-        private static readonly Type kvStringDictionaryType = typeof(IDictionary<string, object>);
-
-        private static readonly MethodInfo collectionAddMtd = kvStringCollectionType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[1] { kvStringType }, null);
-        private static readonly MethodInfo dictionaryAddMtd = kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { MapConstants.StringType, MapConstants.ObjectType }, null);
+        private static readonly Type _kvStringType = typeof(kvString);
+        private static readonly Type _kvStringCollectionType = typeof(ICollection<kvString>);
+        private static readonly ConstructorInfo _kvStringCtor = typeof(kvString).GetConstructor(new Type[2] { MapConstants.StringType, MapConstants.ObjectType });
+        private static readonly Type _kvStringDictionaryType = typeof(IDictionary<string, object>);
+        private static readonly MethodInfo _collectionAddMtd = _kvStringCollectionType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[1] { _kvStringType }, null);
+        private static readonly MethodInfo _dictionaryAddMtd = _kvStringDictionaryType.GetMethod("Add", MapConstants.InstanceBindingFlags, null, new Type[2] { MapConstants.StringType, MapConstants.ObjectType }, null);
 
         /// <summary>
         /// 解决 <see cref="KeyValuePair{TKey, TValue}"/>, TKey is <seealso cref="string"/>, TValue is <seealso cref="object"/> 到对象的映射。
@@ -28,7 +26,7 @@ namespace Inkslab.Map.Maps
         /// <param name="sourceType"><inheritdoc/></param>
         /// <param name="destinationType"><inheritdoc/></param>
         /// <returns><inheritdoc/></returns>
-        public override bool IsMatch(Type sourceType, Type destinationType) => !sourceType.IsSimple() && kvStringCollectionType.IsAssignableFrom(destinationType);
+        public override bool IsMatch(Type sourceType, Type destinationType) => !sourceType.IsSimple() && _kvStringCollectionType.IsAssignableFrom(destinationType);
 
         /// <inheritdoc/>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
@@ -37,7 +35,7 @@ namespace Inkslab.Map.Maps
 
             var expressions = new List<Expression>(propertyInfos.Length);
 
-            bool flag = kvStringDictionaryType.IsAssignableFrom(destinationType);
+            bool flag = _kvStringDictionaryType.IsAssignableFrom(destinationType);
 
             foreach (var propertyInfo in propertyInfos)
             {
@@ -50,8 +48,8 @@ namespace Inkslab.Map.Maps
                 var valueExpression = application.Map(Property(sourceExpression, propertyInfo), MapConstants.ObjectType);
 
                 expressions.Add(flag
-                    ? Call(destinationExpression, dictionaryAddMtd, keyExpression, valueExpression)
-                    : Call(destinationExpression, collectionAddMtd, New(kvStringCtor, keyExpression, valueExpression)));
+                    ? Call(destinationExpression, _dictionaryAddMtd, keyExpression, valueExpression)
+                    : Call(destinationExpression, _collectionAddMtd, New(_kvStringCtor, keyExpression, valueExpression)));
             }
 
             return Block(expressions);

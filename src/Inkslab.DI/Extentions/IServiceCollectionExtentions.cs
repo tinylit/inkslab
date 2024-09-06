@@ -87,7 +87,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
         private class ServiceObjectServiceProvider : IServiceProvider
         {
-            private readonly Dictionary<Type, object> serviceDic = new Dictionary<Type, object>();
+            private readonly Dictionary<Type, object> _serviceDic = new Dictionary<Type, object>();
 
             public ServiceObjectServiceProvider(object[] serviceObjects)
             {
@@ -102,7 +102,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
                     var serviceType = serviceObj.GetType();
 
-                    serviceDic.Add(serviceType, serviceObj);
+                    _serviceDic.Add(serviceType, serviceObj);
                 }
 
                 for (int i = 0; i < serviceObjects.Length; i++)
@@ -123,7 +123,7 @@ namespace Microsoft.Extensions.DependencyInjection
                             continue;
                         }
 
-                        serviceDic[interfaceType] = serviceObj;
+                        _serviceDic[interfaceType] = serviceObj;
                     }
 
                     do
@@ -135,14 +135,14 @@ namespace Microsoft.Extensions.DependencyInjection
                             break;
                         }
 
-                        serviceDic[serviceType] = serviceObj;
+                        _serviceDic[serviceType] = serviceObj;
                     } while (true);
                 }
             }
 
             public object GetService(Type serviceType)
             {
-                if (serviceDic.TryGetValue(serviceType, out object serviceObj))
+                if (_serviceDic.TryGetValue(serviceType, out object serviceObj))
                 {
                     return serviceObj;
                 }

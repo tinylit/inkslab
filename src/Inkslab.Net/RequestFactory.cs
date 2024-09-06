@@ -52,7 +52,7 @@ namespace Inkslab.Net
         private static readonly MethodInfo _dateToStringFn = _dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
 #if NET_Traditional
-        private static readonly Lfu<double, HttpClient> clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient
+        private static readonly Lfu<double, HttpClient> _clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient
         {
             Timeout = TimeSpan.FromMilliseconds(timeout)
         });

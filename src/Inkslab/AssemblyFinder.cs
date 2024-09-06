@@ -12,9 +12,9 @@ namespace Inkslab
     /// </summary>
     public static class AssemblyFinder
     {
-        private static readonly string assemblyPath;
+        private static readonly string _assemblyPath;
 
-        private static readonly Lfu<string, Assembly> assemblyLoads = new Lfu<string, Assembly>(100, x =>
+        private static readonly Lfu<string, Assembly> _assemblyLoads = new Lfu<string, Assembly>(100, x =>
         {
             try
             {
@@ -31,15 +31,15 @@ namespace Inkslab
         /// </summary>
         static AssemblyFinder()
         {
-            if (!Directory.Exists(assemblyPath = AppDomain.CurrentDomain.RelativeSearchPath))
+            if (!Directory.Exists(_assemblyPath = AppDomain.CurrentDomain.RelativeSearchPath))
             {
-                assemblyPath = AppDomain.CurrentDomain.BaseDirectory;
+                _assemblyPath = AppDomain.CurrentDomain.BaseDirectory;
             }
         }
 
         private class DirectoryDefault : IDirectory
         {
-            private static readonly Regex patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
+            private static readonly Regex _patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
 
             public string[] GetFiles(string path, string searchPattern)
             {
@@ -67,7 +67,7 @@ namespace Inkslab
 
                     foreach (var file in files)
                     {
-                        if (patternSni.IsMatch(file))
+                        if (_patternSni.IsMatch(file))
                         {
                             continue;
                         }
@@ -129,7 +129,7 @@ namespace Inkslab
 
                 if (loading)
                 {
-                    results.Add(assemblyLoads.Get(file));
+                    results.Add(_assemblyLoads.Get(file));
                 }
             }
 
@@ -156,7 +156,7 @@ namespace Inkslab
 
             var directory = SingletonPools.Singleton<IDirectory, DirectoryDefault>();
 
-            var files = GetFiles(directory, assemblyPath, pattern);
+            var files = GetFiles(directory, _assemblyPath, pattern);
 
             return GetAssemblies(files, files.Length);
         }
@@ -179,7 +179,7 @@ namespace Inkslab
 
             for (int i = 0; i < patterns.Length; i++)
             {
-                foreach (var file in GetFiles(directory, assemblyPath, patterns[i]))
+                foreach (var file in GetFiles(directory, _assemblyPath, patterns[i]))
                 {
                     files.Add(file);
                 }

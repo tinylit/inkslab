@@ -13,7 +13,7 @@ namespace Inkslab
         /// <summary>
         /// 服务。
         /// </summary>
-        private static readonly Dictionary<Type, Type> serviceCachings = new Dictionary<Type, Type>();
+        private static readonly Dictionary<Type, Type> _serviceCachings = new Dictionary<Type, Type>();
 
         /// <summary>
         /// 添加服务。
@@ -130,7 +130,7 @@ namespace Inkslab
                         return false;
                     }
 
-                    serviceCachings[typeof(TService)] = typeof(Nested<TService>);
+                    _serviceCachings[typeof(TService)] = typeof(Nested<TService>);
 
                     lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
 
@@ -187,7 +187,7 @@ namespace Inkslab
                             var parameterInfos = x.GetParameters();
 
                             //! 客户最优注册的类型。
-                            var specifiedCount = parameterInfos.Count(y => serviceCachings.ContainsKey(y.ParameterType));
+                            var specifiedCount = parameterInfos.Count(y => _serviceCachings.ContainsKey(y.ParameterType));
 
                             return parameterInfos.Length * parameterInfos.Length + specifiedCount;
                         })
@@ -247,25 +247,25 @@ namespace Inkslab
 
                 private static bool IsSupport(Type conversionType, Type parameterType)
                 {
-                    if (serviceCachings.ContainsKey(parameterType))
+                    if (_serviceCachings.ContainsKey(parameterType))
                     {
                         return true;
                     }
 
                     if (!parameterType.IsAbstract)
                     {
-                        foreach (var kv in serviceCachings)
+                        foreach (var kv in _serviceCachings)
                         {
                             if (kv.Value == parameterType)
                             {
-                                serviceCachings[parameterType] = kv.Value;
+                                _serviceCachings[parameterType] = kv.Value;
 
                                 return true;
                             }
                         }
                     }
 
-                    foreach (var kv in serviceCachings)
+                    foreach (var kv in _serviceCachings)
                     {
                         if (kv.Value == conversionType) //? 防递归注入。
                         {
@@ -277,7 +277,7 @@ namespace Inkslab
                             continue;
                         }
 
-                        serviceCachings[parameterType] = kv.Value;
+                        _serviceCachings[parameterType] = kv.Value;
 
                         return true;
                     }
@@ -295,7 +295,7 @@ namespace Inkslab
                     {
                         var parameterInfo = parameterInfos[i];
 
-                        if (serviceCachings.TryGetValue(parameterInfo.ParameterType, out Type implementType))
+                        if (_serviceCachings.TryGetValue(parameterInfo.ParameterType, out Type implementType))
                         {
                             PropertyInfo propertyInfo = implementType.GetProperty("Instance", DefaultLookup);
 

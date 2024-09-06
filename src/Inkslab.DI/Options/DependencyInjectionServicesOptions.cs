@@ -12,21 +12,21 @@ namespace Inkslab.DI.Options
     public class DependencyInjectionServicesOptions
     {
 #if NET_Traditional
-        private static readonly Type controllerType;
+        private static readonly Type _controllerType;
 #else
-        private static readonly Type controllerAttrType;
-        private static readonly Type fromServicesAttrType;
+        private static readonly Type _controllerAttrType;
+        private static readonly Type _fromServicesAttrType;
 #endif
         static DependencyInjectionServicesOptions()
         {
 #if NET6_0_OR_GREATER
-            controllerAttrType = typeof(ControllerAttribute);
-            fromServicesAttrType = typeof(FromServicesAttribute);
+            _controllerAttrType = typeof(ControllerAttribute);
+            _fromServicesAttrType = typeof(FromServicesAttribute);
 #elif NETSTANDARD2_1_OR_GREATER
-            controllerAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.ControllerAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
-            fromServicesAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.FromServicesAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
+            _controllerAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.ControllerAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
+            _fromServicesAttrType = Type.GetType("Microsoft.AspNetCore.Mvc.FromServicesAttribute, Microsoft.AspNetCore.Mvc.Core", false, true);
 #else
-            controllerType = Type.GetType("System.Web.Http.Controllers.IHttpController, System.Web.Http", false, true);
+            _controllerType = Type.GetType("System.Web.Http.Controllers.IHttpController, System.Web.Http", false, true);
 #endif
         }
 
@@ -55,21 +55,21 @@ namespace Inkslab.DI.Options
             }
 
 #if NET_Traditional
-            if (controllerType is null)
+            if (_controllerType is null)
             {
                 throw new NotImplementedException();
             }
 
-            return controllerType.IsAssignableFrom(type);
+            return _controllerType.IsAssignableFrom(type);
 #elif NET6_0_OR_GREATER
-            return type.IsDefined(controllerAttrType, true);
+            return type.IsDefined(_controllerAttrType, true);
 #else
-            if (controllerAttrType is null)
+            if (_controllerAttrType is null)
             {
                 throw new NotImplementedException();
             }
 
-            return type.IsDefined(controllerAttrType, true);
+            return type.IsDefined(_controllerAttrType, true);
 #endif
         }
 
@@ -83,14 +83,14 @@ namespace Inkslab.DI.Options
 #if NET_Traditional
             return false;
 #elif NET6_0_OR_GREATER
-            return parameterInfo.IsDefined(fromServicesAttrType, true);
+            return parameterInfo.IsDefined(_fromServicesAttrType, true);
 #else
-            if (fromServicesAttrType is null)
+            if (_fromServicesAttrType is null)
             {
                 throw new NotImplementedException();
             }
 
-            return parameterInfo.IsDefined(fromServicesAttrType, true);
+            return parameterInfo.IsDefined(_fromServicesAttrType, true);
 #endif
         }
 

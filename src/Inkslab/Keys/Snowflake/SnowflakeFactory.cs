@@ -7,8 +7,8 @@ namespace Inkslab.Keys.Snowflake
     /// </summary>
     public class SnowflakeFactory : IKeyGenFactory
     {
-        private readonly int _workerId = DEFAULT_WORKER_ID;
-        private readonly int _datacenterId = DEFAULT_DATACENTER_ID;
+        private readonly int _workerId;
+        private readonly int _datacenterId;
 
         /// <summary>
         /// 默认机器ID。
@@ -23,7 +23,11 @@ namespace Inkslab.Keys.Snowflake
         /// <summary>
         /// 构造函数。
         /// </summary>
-        public SnowflakeFactory() { }
+        public SnowflakeFactory()
+        {
+            _workerId = DEFAULT_WORKER_ID;
+            _datacenterId = DEFAULT_DATACENTER_ID;
+        }
 
         /// <summary>
         /// 构造函数。

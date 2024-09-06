@@ -39,9 +39,9 @@ namespace Inkslab.Config
     public class DefaultConfigHelper : IConfigHelper
     {
 #if NET_Traditional
-        private readonly Configuration config;
-        private readonly Dictionary<string, string> configs;
-        private readonly Dictionary<string, ConnectionStringSettings> connectionStrings;
+        private readonly Configuration _config;
+        private readonly Dictionary<string, string> _configs;
+        private readonly Dictionary<string, ConnectionStringSettings> _connectionStrings;
 
         /// <summary>
         /// 构造函数。
@@ -54,11 +54,11 @@ namespace Inkslab.Config
         /// <param name="environment">运行环境。</param>
         public DefaultConfigHelper(RuntimeEnvironment environment)
         {
-            configs = new Dictionary<string, string>();
+            _configs = new Dictionary<string, string>();
 
-            connectionStrings = new Dictionary<string, ConnectionStringSettings>(StringComparer.OrdinalIgnoreCase);
+            _connectionStrings = new Dictionary<string, ConnectionStringSettings>(StringComparer.OrdinalIgnoreCase);
 
-            config = environment switch
+            _config = environment switch
             {
                 RuntimeEnvironment.Form or RuntimeEnvironment.Service => ConfigurationManager.OpenExeConfiguration(string.Empty),
                 _ => WebConfigurationManager.OpenWebConfiguration("~"),
@@ -76,7 +76,7 @@ namespace Inkslab.Config
         {
             if (key.IndexOf('/') == -1)
             {
-                if (configs.TryGetValue(key, out string value))
+                if (_configs.TryGetValue(key, out string value))
                 {
                     return Mapper.Map<T>(value);
                 }
@@ -90,10 +90,10 @@ namespace Inkslab.Config
             {
                 if (keys.Length == 1)
                 {
-                    return Mapper.Map<T>(connectionStrings);
+                    return Mapper.Map<T>(_connectionStrings);
                 }
 
-                if (connectionStrings.TryGetValue(keys[1], out ConnectionStringSettings value))
+                if (_connectionStrings.TryGetValue(keys[1], out ConnectionStringSettings value))
                 {
                     if (keys.Length == 2)
                     {
@@ -122,10 +122,10 @@ namespace Inkslab.Config
             {
                 if (keys.Length == 1)
                 {
-                    return Mapper.Map<T>(configs);
+                    return Mapper.Map<T>(_configs);
                 }
 
-                if (keys.Length == 2 && configs.TryGetValue(keys[1], out string value))
+                if (keys.Length == 2 && _configs.TryGetValue(keys[1], out string value))
                 {
                     return Mapper.Map<T>(value);
                 }
@@ -138,11 +138,11 @@ namespace Inkslab.Config
                 return defaultValue;
             }
 
-            var sectionGroup = config.GetSectionGroup(keys[0]);
+            var sectionGroup = _config.GetSectionGroup(keys[0]);
 
             if (sectionGroup is null)
             {
-                var section = config.GetSection(key);
+                var section = _config.GetSection(key);
 
                 if (section is null)
                 {
@@ -311,8 +311,8 @@ namespace Inkslab.Config
 
                 if (type.IsValueType)
                 {
-                    return Equals(value, default(T)) 
-                        ? defaultValue 
+                    return Equals(value, default(T))
+                        ? defaultValue
                         : value;
                 }
 

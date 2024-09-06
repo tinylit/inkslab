@@ -12,8 +12,8 @@ namespace Inkslab
     public class XStartup : IDisposable
     {
         private readonly List<Type> _types;
-        private static readonly HashSet<Type> startupCachings = new HashSet<Type>();
-        private static readonly Type startupType = typeof(IStartup);
+        private static readonly HashSet<Type> _startupCachings = new HashSet<Type>();
+        private static readonly Type _startupType = typeof(IStartup);
 
         /// <summary>
         /// 启动（获取所有DLL的类型启动）<see cref="AssemblyFinder.FindAll()"/>。
@@ -58,7 +58,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(types));
             }
 
-            _types = types.Where(x => x.IsClass && !x.IsAbstract && startupType.IsAssignableFrom(x)).ToList();
+            _types = types.Where(x => x.IsClass && !x.IsAbstract && _startupType.IsAssignableFrom(x)).ToList();
         }
 
         /// <summary>
@@ -70,7 +70,7 @@ namespace Inkslab
 
             foreach (var type in _types)
             {
-                if (startupCachings.Contains(type))
+                if (_startupCachings.Contains(type))
                 {
                     continue;
                 }
@@ -87,7 +87,7 @@ namespace Inkslab
                     {
                         if (ToStartup(startup))
                         {
-                            if (startupCachings.Add(startup.GetType()))
+                            if (_startupCachings.Add(startup.GetType()))
                             {
                                 startup.Startup();
                             }
