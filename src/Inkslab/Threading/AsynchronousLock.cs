@@ -7,16 +7,16 @@ namespace System.Threading
     /// </summary>
     public sealed class AsynchronousLock : IDisposable
     {
-        private readonly SemaphoreSlim semaphore;
-        private readonly IDisposable releaser;
+        private readonly SemaphoreSlim _semaphore;
+        private readonly IDisposable _releaser;
 
         /// <summary>
         /// 构造函数。
         /// </summary>
         public AsynchronousLock()
         {
-            semaphore = new SemaphoreSlim(1);
-            releaser = new Releaser(semaphore);
+            _semaphore = new SemaphoreSlim(1);
+            _releaser = new Releaser(_semaphore);
         }
 
         /// <summary>
@@ -25,9 +25,9 @@ namespace System.Threading
         /// <returns></returns>
         public IDisposable Acquire()
         {
-            semaphore.Wait();
+            _semaphore.Wait();
 
-            return releaser;
+            return _releaser;
         }
 
         /// <summary>
@@ -37,22 +37,22 @@ namespace System.Threading
         /// <returns></returns>
         public async Task<IDisposable> AcquireAsync(CancellationToken cancellationToken = default)
         {
-            await semaphore.WaitAsync(cancellationToken)
+            await _semaphore.WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            return releaser;
+            return _releaser;
         }
 
         private sealed class Releaser : IDisposable
         {
-            private readonly SemaphoreSlim semaphore;
+            private readonly SemaphoreSlim _semaphore;
 
-            public Releaser(SemaphoreSlim semaphore) => this.semaphore = semaphore;
+            public Releaser(SemaphoreSlim semaphore) => _semaphore = semaphore;
 
-            public void Dispose() => semaphore.Release();
+            public void Dispose() => _semaphore.Release();
         }
 
         /// <inheritdoc />
-        public void Dispose() => semaphore.Dispose();
+        public void Dispose() => _semaphore.Dispose();
     }
 }

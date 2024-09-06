@@ -14,11 +14,11 @@ namespace Inkslab.Map.Expressions
     /// </summary>
     public abstract class ProfileExpression<TMapper, TConfiguration> : Profile, IMapApplication, IConfiguration, IProfile, IMap where TMapper : ProfileExpression<TMapper, TConfiguration> where TConfiguration : class, IMapConfiguration, IConfiguration
     {
-        private readonly TConfiguration configuration;
+        private readonly TConfiguration _configuration;
 
-        bool IConfiguration.IsDepthMapping => configuration.IsDepthMapping;
+        bool IConfiguration.IsDepthMapping => _configuration.IsDepthMapping;
 
-        bool IConfiguration.AllowPropagationNullValues => configuration.AllowPropagationNullValues;
+        bool IConfiguration.AllowPropagationNullValues => _configuration.AllowPropagationNullValues;
 
         /// <summary>
         /// 构造函数。
@@ -27,7 +27,7 @@ namespace Inkslab.Map.Expressions
         /// <exception cref="ArgumentNullException">参数 <paramref name="configuration"/> is null.</exception>
         protected ProfileExpression(TConfiguration configuration)
         {
-            this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
         bool IMap.IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType);
@@ -35,7 +35,7 @@ namespace Inkslab.Map.Expressions
         Expression IMap.ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application) => Map(sourceExpression, destinationType, application);
 
         /// <inheritdoc/>
-        public override bool IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType) || configuration.IsMatch(sourceType, destinationType);
+        public override bool IsMatch(Type sourceType, Type destinationType) => base.IsMatch(sourceType, destinationType) || _configuration.IsMatch(sourceType, destinationType);
 
         Expression IMapApplication.Map(Expression sourceExpression, Type destinationType) => Map(sourceExpression, destinationType);
 
@@ -46,7 +46,7 @@ namespace Inkslab.Map.Expressions
         /// <param name="destinationType">目标类型。</param>
         /// <returns>目标类型 <paramref name="destinationType"/> 的计算结果。</returns>
         /// <exception cref="InvalidCastException">无法转换。</exception>
-        protected virtual Expression Map(Expression sourceExpression, Type destinationType) => configuration.Map(sourceExpression, destinationType, this);
+        protected virtual Expression Map(Expression sourceExpression, Type destinationType) => _configuration.Map(sourceExpression, destinationType, this);
 
         /// <summary>
         /// 映射。
@@ -61,7 +61,7 @@ namespace Inkslab.Map.Expressions
                 return default;
             }
 
-            return routerCachings.GetOrAdd(typeof(TDestination), runtimeType => new MapperDestination(runtimeType))
+            return _routerCachings.GetOrAdd(typeof(TDestination), runtimeType => new MapperDestination(runtimeType))
                 .Map<TDestination>(this, source);
         }
 
@@ -84,7 +84,7 @@ namespace Inkslab.Map.Expressions
                 return null;
             }
 
-            return routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(runtimeType))
+            return _routerCachings.GetOrAdd(destinationType, runtimeType => new MapperDestination(runtimeType))
                 .Map(this, source);
         }
 
@@ -96,28 +96,28 @@ namespace Inkslab.Map.Expressions
         {
             if (disposing)
             {
-                foreach (var kv in routerCachings)
+                foreach (var kv in _routerCachings)
                 {
                     kv.Value.Dispose();
                 }
 
-                routerCachings.Clear();
+                _routerCachings.Clear();
             }
 
             base.Dispose(disposing);
         }
 
-        private readonly ConcurrentDictionary<Type, MapperDestination> routerCachings = new ConcurrentDictionary<Type, MapperDestination>();
+        private readonly ConcurrentDictionary<Type, MapperDestination> _routerCachings = new ConcurrentDictionary<Type, MapperDestination>();
 
         private class MapperDestination : IDisposable
         {
-            private readonly Type runtimeType;
-            private readonly ConcurrentDictionary<Type, Delegate> valueTypeCachings = new ConcurrentDictionary<Type, Delegate>();
-            private readonly ConcurrentDictionary<Type, Func<object, object>> cachings = new ConcurrentDictionary<Type, Func<object, object>>();
+            private readonly Type _runtimeType;
+            private readonly ConcurrentDictionary<Type, Delegate> _valueTypeCachings = new ConcurrentDictionary<Type, Delegate>();
+            private readonly ConcurrentDictionary<Type, Func<object, object>> _cachings = new ConcurrentDictionary<Type, Func<object, object>>();
 
             public MapperDestination(Type runtimeType)
             {
-                this.runtimeType = runtimeType;
+                _runtimeType = runtimeType;
 
                 if (runtimeType.IsInterface)
                 {
@@ -131,19 +131,19 @@ namespace Inkslab.Map.Expressions
                             || typeDefinition == typeof(IReadOnlyCollection<>)
                             || typeDefinition == typeof(IEnumerable<>))
                         {
-                            this.runtimeType = typeof(List<>).MakeGenericType(runtimeType.GetGenericArguments());
+                            _runtimeType = typeof(List<>).MakeGenericType(runtimeType.GetGenericArguments());
                         }
                         else if (typeDefinition == typeof(IDictionary<,>)
                                  || typeDefinition == typeof(IReadOnlyDictionary<,>))
                         {
-                            this.runtimeType = typeof(Dictionary<,>).MakeGenericType(runtimeType.GetGenericArguments());
+                            _runtimeType = typeof(Dictionary<,>).MakeGenericType(runtimeType.GetGenericArguments());
                         }
                     }
                     else if (runtimeType == typeof(IEnumerable)
                              || runtimeType == typeof(ICollection)
                              || runtimeType == typeof(IList))
                     {
-                        this.runtimeType = typeof(List<object>);
+                        _runtimeType = typeof(List<object>);
                     }
                 }
             }
@@ -241,9 +241,9 @@ namespace Inkslab.Map.Expressions
             {
                 var sourceType = source.GetType();
 
-                var factory = cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
+                var factory = _cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    var tuple = Map(application, type, runtimeType);
+                    var tuple = Map(application, type, _runtimeType);
 
                     var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
 
@@ -255,16 +255,16 @@ namespace Inkslab.Map.Expressions
 
             public TDestination Map<TDestination>(IMapApplication application, object source)
             {
-                if (!runtimeType.IsValueType)
+                if (!_runtimeType.IsValueType)
                 {
                     return (TDestination)Map(application, source);
                 }
 
                 var sourceType = source.GetType();
 
-                var factory = valueTypeCachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
+                var factory = _valueTypeCachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    var tuple = Map(application, type, runtimeType);
+                    var tuple = Map(application, type, _runtimeType);
 
                     var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
 
@@ -276,8 +276,8 @@ namespace Inkslab.Map.Expressions
 
             public void Dispose()
             {
-                cachings.Clear();
-                valueTypeCachings.Clear();
+                _cachings.Clear();
+                _valueTypeCachings.Clear();
 
                 GC.SuppressFinalize(this);
             }

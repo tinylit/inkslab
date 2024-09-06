@@ -16,27 +16,27 @@ namespace Inkslab.DI
 {
     sealed class DependencyInjectionServices : IDependencyInjectionServices
     {
-        private readonly IServiceCollection services;
-        private readonly DependencyInjectionOptions options;
-        private readonly IServiceProvider service;
-        private readonly List<Type> dependencies;
-        private readonly HashSet<Assembly> assemblies = new HashSet<Assembly>();
-        private readonly HashSet<Type> assemblyTypes = new HashSet<Type>();
-        private readonly HashSet<Type> effectiveTypes = new HashSet<Type>();
-        private readonly List<Type> implementTypes = new List<Type>();
+        private readonly IServiceCollection _services;
+        private readonly DependencyInjectionOptions _options;
+        private readonly IServiceProvider _service;
+        private readonly List<Type> _dependencies;
+        private readonly HashSet<Assembly> _assemblies = new HashSet<Assembly>();
+        private readonly HashSet<Type> _assemblyTypes = new HashSet<Type>();
+        private readonly HashSet<Type> _effectiveTypes = new HashSet<Type>();
+        private readonly List<Type> _implementTypes = new List<Type>();
 
         public DependencyInjectionServices(IServiceCollection services, DependencyInjectionOptions options, IServiceProvider service)
         {
-            this.services = services;
-            this.options = options;
-            this.service = service;
+            _services = services;
+            _options = options;
+            _service = service;
 
-            dependencies = new List<Type>(options.MaxDepth * 2 + 3);
+            _dependencies = new List<Type>(options.MaxDepth * 2 + 3);
         }
 
         public IReadOnlyCollection<Assembly> Assemblies
         {
-            get => assemblies;
+            get => _assemblies;
         }
 
         public IDependencyInjectionServices AddAssembly(Assembly assembly)
@@ -46,7 +46,7 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(assembly));
             }
 
-            if (!assemblies.Add(assembly))
+            if (!_assemblies.Add(assembly))
             {
                 return this;
             }
@@ -60,22 +60,22 @@ namespace Inkslab.DI
 
                 if (!type.IsAbstract)
                 {
-                    assemblyTypes.Add(type);
+                    _assemblyTypes.Add(type);
                 }
 
-                if (options.Ignore(type))
+                if (_options.Ignore(type))
                 {
                     continue;
                 }
 
-                if (effectiveTypes.Add(type))
+                if (_effectiveTypes.Add(type))
                 {
                     if (type.IsInterface || type.IsAbstract)
                     {
                         continue;
                     }
 
-                    implementTypes.Add(type);
+                    _implementTypes.Add(type);
                 }
             }
 
@@ -118,7 +118,7 @@ namespace Inkslab.DI
 
         public IDependencyInjectionServices ConfigureByDefined()
         {
-            DiConfigureServices(services, service, assemblyTypes);
+            DiConfigureServices(_services, _service, _assemblyTypes);
 
             return this;
         }
@@ -130,14 +130,14 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(servicesOptions));
             }
 
-            DiController(services, options, servicesOptions, implementTypes, dependencies);
+            DiController(_services, _options, servicesOptions, _implementTypes, _dependencies);
 
             return this;
         }
 
         public IDependencyInjectionServices ConfigureByAuto()
         {
-            DiByExport(services, options, effectiveTypes, implementTypes, dependencies);
+            DiByExport(_services, _options, _effectiveTypes, _implementTypes, _dependencies);
 
             return this;
         }
@@ -148,7 +148,7 @@ namespace Inkslab.DI
 
         public IDependencyInjectionServices Add<TService, TImplementation>() where TService : class where TImplementation : TService => Add(typeof(TService), typeof(TImplementation));
 
-        public IDependencyInjectionServices Add(Type serviceType, Type implementationType) => Add(serviceType, options.Lifetime, implementationType);
+        public IDependencyInjectionServices Add(Type serviceType, Type implementationType) => Add(serviceType, _options.Lifetime, implementationType);
 
         public IDependencyInjectionServices AddTransient<TService>() where TService : class => AddTransient(typeof(TService));
 
@@ -187,15 +187,15 @@ namespace Inkslab.DI
             }
 
             if (serviceType == implementationType && (implementationType.IsInterface || implementationType.IsAbstract)
-                ? Di(services, options, serviceType, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies)
-                : DiServiceLifetime(services, options, serviceType, new List<Type>(1) { implementationType }, implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, dependencies, false))
+                ? Di(_services, _options, serviceType, _implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, _dependencies)
+                : DiServiceLifetime(_services, _options, serviceType, new List<Type>(1) { implementationType }, _implementTypes, lifetime, 1/* 确保服务没有标记生命周期方式时，使用指定声明周期注入。*/, _dependencies, false))
             {
                 return this;
             }
 
-            dependencies.Add(serviceType);
+            _dependencies.Add(serviceType);
 
-            throw DiError("Service", serviceType, options.MaxDepth, dependencies);
+            throw DiError("Service", serviceType, _options.MaxDepth, _dependencies);
         }
 
         private static void DiByExport(IServiceCollection services, DependencyInjectionOptions options, IReadOnlyCollection<Type> assemblyTypes, IReadOnlyCollection<Type> effectiveTypes, List<Type> dependencies)
@@ -429,7 +429,7 @@ namespace Inkslab.DI
             return flag;
         }
 
-        private static readonly HashSet<Type> injectionFree = new HashSet<Type>
+        private static readonly HashSet<Type> _injectionFree = new HashSet<Type>
         {
             typeof(IServiceProvider),
             typeof(IServiceScope),
@@ -438,7 +438,7 @@ namespace Inkslab.DI
 
         private static bool Di(IServiceCollection services, DependencyInjectionOptions options, Type serviceType, IReadOnlyCollection<Type> effectiveTypes, ServiceLifetime lifetime, int depth, List<Type> dependencies)
         {
-            if (injectionFree.Contains(serviceType))
+            if (_injectionFree.Contains(serviceType))
             {
                 return true;
             }
@@ -707,10 +707,10 @@ label_core:
 
         private sealed class TypeComparer : IComparer<Type>
         {
-            private readonly Type serviceType;
-            private readonly Type[] interfaceTypes;
+            private readonly Type _serviceType;
+            private readonly Type[] _interfaceTypes;
 
-            private static readonly HashSet<Type> systemTypes = new HashSet<Type>
+            private static readonly HashSet<Type> _systemTypes = new HashSet<Type>
             {
                 typeof(IDisposable),
                 typeof(IAsyncDisposable),
@@ -728,15 +728,15 @@ label_core:
 
             public TypeComparer(Type serviceType, Type[] interfaceTypes)
             {
-                this.serviceType = serviceType;
-                this.interfaceTypes = interfaceTypes;
+                _serviceType = serviceType;
+                _interfaceTypes = interfaceTypes;
             }
 
             private int CardinalityCode(Type implementationType)
             {
                 int compare = 0;
 
-                if (serviceType.IsInterface)
+                if (_serviceType.IsInterface)
                 {
                     var interfaces = implementationType.GetInterfaces();
 
@@ -744,12 +744,12 @@ label_core:
                     {
                         Type interfaceType = interfaces[i];
 
-                        if (interfaceType == serviceType || interfaceTypes.Contains(interfaceType)) //? 本身，或者是接口本身的继承接口。
+                        if (interfaceType == _serviceType || _interfaceTypes.Contains(interfaceType)) //? 本身，或者是接口本身的继承接口。
                         {
                             continue;
                         }
 
-                        if (systemTypes.Contains(interfaceType.IsGenericType ? interfaceType.GetGenericTypeDefinition() : interfaceType))
+                        if (_systemTypes.Contains(interfaceType.IsGenericType ? interfaceType.GetGenericTypeDefinition() : interfaceType))
                         {
                             continue;
                         }
@@ -762,7 +762,7 @@ label_core:
 
                 do
                 {
-                    if (implementationType == serviceType)
+                    if (implementationType == _serviceType)
                     {
                         return compare;
                     }
@@ -787,7 +787,7 @@ label_core:
                     return -1;
                 }
 
-                if (serviceType.IsGenericTypeDefinition)
+                if (_serviceType.IsGenericTypeDefinition)
                 {
                     if (x.IsGenericTypeDefinition && y.IsGenericTypeDefinition)
                     {
@@ -819,14 +819,14 @@ label_core:
 
         private void Dispose(bool disposing)
         {
-            assemblies.Clear();
+            _assemblies.Clear();
 
             if (disposing)
             {
-                assemblyTypes.Clear();
-                effectiveTypes.Clear();
-                implementTypes.Clear();
-                dependencies.Clear();
+                _assemblyTypes.Clear();
+                _effectiveTypes.Clear();
+                _implementTypes.Clear();
+                _dependencies.Clear();
             }
         }
 
@@ -846,7 +846,7 @@ label_core:
 
             var exportAttributeType = typeof(ExportAttribute);
 
-            var serviceDescriptors = services.Where(x => match(x.ServiceType)).ToList();
+            var serviceDescriptors = _services.Where(x => match(x.ServiceType)).ToList();
 
             foreach (var descriptor in serviceDescriptors)
             {
@@ -863,15 +863,15 @@ label_core:
                     continue;
                 }
 
-                if (DiConstructor(services, options, descriptorType, implementTypes, descriptor.Lifetime, 0, dependencies))
+                if (DiConstructor(_services, _options, descriptorType, _implementTypes, descriptor.Lifetime, 0, _dependencies))
                 {
                     continue;
                 }
 
-                dependencies.Add(descriptorType);
-                dependencies.Add(descriptor.ServiceType);
+                _dependencies.Add(descriptorType);
+                _dependencies.Add(descriptor.ServiceType);
 
-                throw DiError("Service", descriptorType, options.MaxDepth, dependencies);
+                throw DiError("Service", descriptorType, _options.MaxDepth, _dependencies);
             }
 
             return this;

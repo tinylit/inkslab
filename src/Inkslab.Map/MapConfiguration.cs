@@ -17,8 +17,8 @@ namespace Inkslab.Map
     /// </summary>
     public class MapConfiguration : Singleton<MapConfiguration>, IMapConfiguration, IConfiguration
     {
-        private readonly IList<IMap> maps;
-        private readonly List<Profile> profiles = new List<Profile>();
+        private readonly IList<IMap> _maps;
+        private readonly List<Profile> _profiles = new List<Profile>();
 
         /// <summary>
         /// 默认映射规则集合。
@@ -70,7 +70,7 @@ namespace Inkslab.Map
             IsDepthMapping = configuration.IsDepthMapping;
             AllowPropagationNullValues = configuration.AllowPropagationNullValues;
 
-            this.maps = maps ?? throw new ArgumentNullException(nameof(maps));
+            _maps = maps ?? throw new ArgumentNullException(nameof(maps));
         }
 
         /// <summary>
@@ -106,7 +106,7 @@ namespace Inkslab.Map
                 return true;
             }
 
-            return profiles.Any(x => x.IsMatch(sourceType, destinationType)) || maps.Any(x => x.IsMatch(sourceType, destinationType));
+            return _profiles.Any(x => x.IsMatch(sourceType, destinationType)) || _maps.Any(x => x.IsMatch(sourceType, destinationType));
         }
 
         /// <summary>
@@ -120,7 +120,7 @@ namespace Inkslab.Map
                 throw new ArgumentNullException(nameof(profile));
             }
 
-            profiles.Add(profile);
+            _profiles.Add(profile);
         }
 
         /// <summary>
@@ -476,7 +476,7 @@ namespace Inkslab.Map
         {
             if (sourceType.IsClass && destinationType.IsClass)
             {
-                foreach (var profile in profiles)
+                foreach (var profile in _profiles)
                 {
                     if (profile.IsMatch(sourceType, destinationType))
                     {
@@ -490,7 +490,7 @@ namespace Inkslab.Map
 
         private Expression MapGeneral(Expression sourceExpression, Type sourceType, Type destinationType, IMapApplication application)
         {
-            foreach (var map in maps)
+            foreach (var map in _maps)
             {
                 if (map.IsMatch(sourceType, destinationType))
                 {
@@ -587,7 +587,7 @@ label_core:
         /// </summary>
         private class IgnoreIfNullExpressionVisitor : ExpressionVisitor
         {
-            private readonly HashSet<Expression> ignoreIfNull = new HashSet<Expression>();
+            private readonly HashSet<Expression> _ignoreIfNull = new HashSet<Expression>();
 
             /// <summary>
             /// 是否含有忽略条件。
@@ -753,7 +753,7 @@ label_core:
 
             private void IgnoreIfNull(Expression node)
             {
-                if (ignoreIfNull.Add(node))
+                if (_ignoreIfNull.Add(node))
                 {
                     if (HasIgnore)
                     {
@@ -770,25 +770,25 @@ label_core:
 
             private class BlockIgnoreIfNullExpressionVisitor : IgnoreIfNullExpressionVisitor
             {
-                private readonly IgnoreIfNullExpressionVisitor visitor;
-                private readonly ReadOnlyCollection<ParameterExpression> variables;
+                private readonly IgnoreIfNullExpressionVisitor _visitor;
+                private readonly ReadOnlyCollection<ParameterExpression> _variables;
 
                 public BlockIgnoreIfNullExpressionVisitor(IgnoreIfNullExpressionVisitor visitor, ReadOnlyCollection<ParameterExpression> variables)
                 {
-                    this.visitor = visitor;
-                    this.variables = variables;
+                    _visitor = visitor;
+                    _variables = variables;
                 }
 
                 protected internal override Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
                 {
                     switch (node.Original)
                     {
-                        case ParameterExpression when variables.Contains(node.Original):
+                        case ParameterExpression when _variables.Contains(node.Original):
                             return base.VisitIgnoreIfNull(node);
-                        case MemberExpression member when variables.Contains(member.Expression):
+                        case MemberExpression member when _variables.Contains(member.Expression):
                             return base.VisitIgnoreIfNull(node);
                         default:
-                            return visitor.VisitIgnoreIfNull(node);
+                            return _visitor.VisitIgnoreIfNull(node);
                     }
                 }
             }
@@ -800,7 +800,7 @@ label_core:
         [DebuggerDisplay("IIF({Test},{Reduce()})")]
         private class IgnoreIfNullExpression : Expression
         {
-            private readonly bool keepNullable;
+            private readonly bool _keepNullable;
 
             /// <summary>
             /// 构造函数。
@@ -814,7 +814,7 @@ label_core:
                 Original = node ?? throw new ArgumentNullException(nameof(node));
                 Test = test ?? throw new ArgumentNullException(nameof(test));
 
-                this.keepNullable = keepNullable;
+                _keepNullable = keepNullable;
 
                 if (keepNullable || !node.Type.IsNullable())
                 {
@@ -850,7 +850,7 @@ label_core:
 
             public override Expression Reduce()
             {
-                if (keepNullable)
+                if (_keepNullable)
                 {
                     goto label_original;
                 }

@@ -39,17 +39,17 @@ namespace Inkslab.Net
     /// </summary>
     public class RequestFactory : IRequestFactory
     {
-        private static readonly RequestFactory factory = new RequestFactory();
+        private static readonly RequestFactory _factory = new RequestFactory();
 
-        private static readonly Type kvType = typeof(KeyValuePair<string, object>);
-        private static readonly ConstructorInfo kvCtor = kvType.GetConstructor(new Type[] { typeof(string), typeof(object) });
+        private static readonly Type _kvType = typeof(KeyValuePair<string, object>);
+        private static readonly ConstructorInfo _kvCtor = _kvType.GetConstructor(new Type[] { typeof(string), typeof(object) });
 
-        private static readonly Type listKvType = typeof(List<KeyValuePair<string, object>>);
-        private static readonly ConstructorInfo listKvCtor = listKvType.GetConstructor(new Type[] { typeof(int) });
-        private static readonly MethodInfo listKvAddFn = listKvType.GetMethod("Add", new Type[] { kvType });
+        private static readonly Type _listKvType = typeof(List<KeyValuePair<string, object>>);
+        private static readonly ConstructorInfo _listKvCtor = _listKvType.GetConstructor(new Type[] { typeof(int) });
+        private static readonly MethodInfo _listKvAddFn = _listKvType.GetMethod("Add", new Type[] { _kvType });
 
-        private static readonly Type dateType = typeof(DateTime);
-        private static readonly MethodInfo dateToStringFn = dateType.GetMethod("ToString", new Type[] { typeof(string) });
+        private static readonly Type _dateType = typeof(DateTime);
+        private static readonly MethodInfo _dateToStringFn = _dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
 #if NET_Traditional
         private static readonly Lfu<double, HttpClient> clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient
@@ -57,7 +57,7 @@ namespace Inkslab.Net
             Timeout = TimeSpan.FromMilliseconds(timeout)
         });
 #else
-        private static readonly Lfu<double, HttpClient> clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient(new HttpClientHandler
+        private static readonly Lfu<double, HttpClient> _clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient(new HttpClientHandler
         {
             ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
         })
@@ -65,9 +65,9 @@ namespace Inkslab.Net
             Timeout = TimeSpan.FromMilliseconds(timeout)
         });
 #endif
-        private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> cachings = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
+        private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> _cachings = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
 
-        private static readonly Dictionary<string, MediaTypeHeaderValue> mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
+        private static readonly Dictionary<string, MediaTypeHeaderValue> _mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
         {
             [".apk"] = new MediaTypeHeaderValue("application/vnd.android.package-archive"),
             [".avi"] = new MediaTypeHeaderValue("video/x-msvideo"),
@@ -156,7 +156,7 @@ namespace Inkslab.Net
             [".zip"] = new MediaTypeHeaderValue("application/zip")
         };
 
-        private readonly IRequestInitialize initialize;
+        private readonly IRequestInitialize _initialize;
 
         private static Func<object, string, List<KeyValuePair<string, object>>> MakeTypeResults(Type type)
         {
@@ -165,14 +165,14 @@ namespace Inkslab.Net
             var objectExp = Parameter(objectType, "param");
             var dateFormatStringExp = Parameter(typeof(string), "dateFormatString");
             var variableExp = Variable(type, "variable");
-            var dictionaryExp = Variable(listKvType, "dictionary");
+            var dictionaryExp = Variable(_listKvType, "dictionary");
 
             var propertyInfos = Array.FindAll(type.GetProperties(), x => x.CanRead);
 
             var expressions = new List<Expression>
             {
                 Assign(variableExp, Convert(objectExp, type)),
-                Assign(dictionaryExp, New(listKvCtor, Constant(propertyInfos.Length)))
+                Assign(dictionaryExp, New(_listKvCtor, Constant(propertyInfos.Length)))
             };
 
             foreach (var propertyInfo in propertyInfos)
@@ -196,9 +196,9 @@ namespace Inkslab.Net
                     valueExp = propertyExp;
                 }
 
-                if (propertyType == dateType)
+                if (propertyType == _dateType)
                 {
-                    valueExp = Call(valueExp, dateToStringFn, dateFormatStringExp);
+                    valueExp = Call(valueExp, _dateToStringFn, dateFormatStringExp);
                 }
                 else if (propertyType.IsValueType)
                 {
@@ -214,7 +214,7 @@ namespace Inkslab.Net
                     valueExp = Call(valueExp, toStringFn);
                 }
 
-                var bodyCallExp = Call(dictionaryExp, listKvAddFn, New(kvCtor, Constant(propertyInfo.Name), valueExp));
+                var bodyCallExp = Call(dictionaryExp, _listKvAddFn, New(_kvCtor, Constant(propertyInfo.Name), valueExp));
 
                 if (isNullable)
                 {
@@ -315,35 +315,35 @@ namespace Inkslab.Net
 
         private abstract class RequestableEncoding : RequestableString, IRequestableEncoding
         {
-            private readonly Encoding encoding;
+            private readonly Encoding _encoding;
 
             private class ToContentByBody : IToContent
             {
-                private readonly Encoding encoding;
-                private readonly string body;
-                private readonly string contentType;
+                private readonly Encoding _encoding;
+                private readonly string _body;
+                private readonly string _contentType;
 
                 public ToContentByBody(Encoding encoding, string body, string contentType)
                 {
-                    this.encoding = encoding;
-                    this.body = body;
-                    this.contentType = contentType;
+                    _encoding = encoding;
+                    _body = body;
+                    _contentType = contentType;
                 }
 
-                public HttpContent Content => new StringContent(body, encoding, contentType);
+                public HttpContent Content => new StringContent(_body, _encoding, _contentType);
             }
 
             private class ToContentByForm<TBody> : IToContent where TBody : IEnumerable<KeyValuePair<string, object>>
             {
-                private readonly Encoding encoding;
-                private readonly TBody body;
-                private readonly string dateFormatString;
+                private readonly Encoding _encoding;
+                private readonly TBody _body;
+                private readonly string _dateFormatString;
 
                 public ToContentByForm(Encoding encoding, TBody body, string dateFormatString)
                 {
-                    this.encoding = encoding;
-                    this.body = body;
-                    this.dateFormatString = dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
+                    _encoding = encoding;
+                    _body = body;
+                    _dateFormatString = dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
                 }
 
                 private static void AppendToForm(MultipartFormDataContent content, string name, FileInfo fileInfo)
@@ -385,7 +385,7 @@ namespace Inkslab.Net
                     {
                         byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
                     }
-                    else if (mediaTypes.TryGetValue(extension.ToLower(), out MediaTypeHeaderValue mediaType))
+                    else if (_mediaTypes.TryGetValue(extension.ToLower(), out MediaTypeHeaderValue mediaType))
                     {
                         byteContent.Headers.ContentType = mediaType;
                     }
@@ -448,25 +448,25 @@ namespace Inkslab.Net
                 {
                     get
                     {
-                        if (body.Any(x => x.Value is FileInfo || x.Value is IEnumerable<FileInfo>))
+                        if (_body.Any(x => x.Value is FileInfo || x.Value is IEnumerable<FileInfo>))
                         {
                             var content = new MultipartFormDataContent(string.Concat("--", DateTime.Now.Ticks.ToString("x")));
 
-                            foreach (var kv in body)
+                            foreach (var kv in _body)
                             {
-                                AppendToForm(content, encoding, kv.Key, kv.Value, dateFormatString, false);
+                                AppendToForm(content, _encoding, kv.Key, kv.Value, _dateFormatString, false);
                             }
 
                             return content;
                         }
                         else
                         {
-                            var content = new FormUrlEncodedContent(body.Select(x =>
+                            var content = new FormUrlEncodedContent(_body.Select(x =>
                             {
                                 return x.Value switch
                                 {
                                     string text => new KeyValuePair<string, string>(x.Key, text),
-                                    DateTime date => new KeyValuePair<string, string>(x.Key, date.ToString(dateFormatString)),
+                                    DateTime date => new KeyValuePair<string, string>(x.Key, date.ToString(_dateFormatString)),
                                     byte[] buffer => new KeyValuePair<string, string>(x.Key, System.Convert.ToBase64String(buffer)),
                                     _ => new KeyValuePair<string, string>(x.Key, x.Value?.ToString())
                                 };
@@ -480,14 +480,14 @@ namespace Inkslab.Net
 
             public RequestableEncoding(Encoding encoding)
             {
-                this.encoding = encoding;
+                _encoding = encoding;
             }
 
-            public IRequestableContent Body(string body, string contentType) => new RequestableContent(this, encoding, new ToContentByBody(encoding, body, contentType));
+            public IRequestableContent Body(string body, string contentType) => new RequestableContent(this, _encoding, new ToContentByBody(_encoding, body, contentType));
 
             public IRequestableContent Form<TBody>(TBody body) where TBody : IEnumerable<KeyValuePair<string, object>> => Form(body, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
 
-            public IRequestableContent Form<TBody>(TBody body, string dateFormatString) where TBody : IEnumerable<KeyValuePair<string, object>> => new RequestableContent(this, encoding, new ToContentByForm<TBody>(encoding, body, dateFormatString));
+            public IRequestableContent Form<TBody>(TBody body, string dateFormatString) where TBody : IEnumerable<KeyValuePair<string, object>> => new RequestableContent(this, _encoding, new ToContentByForm<TBody>(_encoding, body, dateFormatString));
 
             public IRequestableContent Form<TBody>(TBody body, NamingType namingType = NamingType.Normal, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TBody : class
             {
@@ -498,7 +498,7 @@ namespace Inkslab.Net
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                var results = cachings.GetOrAdd(typeof(TBody), MakeTypeResults)
+                var results = _cachings.GetOrAdd(typeof(TBody), MakeTypeResults)
                     .Invoke(body, dateFormatString);
 
                 return Form(namingType == NamingType.Normal
@@ -517,11 +517,11 @@ namespace Inkslab.Net
 
             public IRequestableContent Xml(string xml) => Body(xml, "application/xml");
 
-            public IRequestableContent Xml<T>(T param) where T : class => Xml(XmlHelper.XmlSerialize(param, encoding));
+            public IRequestableContent Xml<T>(T param) where T : class => Xml(XmlHelper.XmlSerialize(param, _encoding));
 
-            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, encoding);
+            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, _encoding);
 
-            public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => new XmlDeserializeRequestable<T>(this, encoding);
+            public IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class => new XmlDeserializeRequestable<T>(this, _encoding);
 
             public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
             {
@@ -530,32 +530,32 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(whenStatus));
                 }
 
-                return new WhenRequestable(this, encoding, whenStatus);
+                return new WhenRequestable(this, _encoding, whenStatus);
             }
         }
 
         private class QueryString<TRequestable> where TRequestable : IRequestableBase
         {
             private bool hasQueryString;
-            private readonly StringBuilder sb;
-            private readonly TRequestable requestable;
+            private readonly StringBuilder _sb;
+            private readonly TRequestable _requestable;
 
             public QueryString(TRequestable requestable, string requestUri)
             {
-                this.requestable = requestable;
+                _requestable = requestable;
 
                 hasQueryString = requestUri.Contains('?');
 
-                sb = new StringBuilder(requestUri);
+                _sb = new StringBuilder(requestUri);
             }
 
-            public int Length => sb.Length;
+            public int Length => _sb.Length;
 
             public TRequestable AppendQueryString(string param)
             {
                 if (param is null)
                 {
-                    return requestable;
+                    return _requestable;
                 }
 
                 int startIndex = 0;
@@ -575,23 +575,23 @@ namespace Inkslab.Net
 
                 if (startIndex >= length)
                 {
-                    return requestable;
+                    return _requestable;
                 }
 
                 if (hasQueryString)
                 {
-                    sb.Append('&');
+                    _sb.Append('&');
                 }
                 else
                 {
-                    sb.Append('?');
+                    _sb.Append('?');
 
                     hasQueryString = true;
                 }
 
-                sb.Append(param, startIndex, length - startIndex);
+                _sb.Append(param, startIndex, length - startIndex);
 
-                return requestable;
+                return _requestable;
             }
 
             public TRequestable AppendQueryString(string name, string value)
@@ -602,7 +602,7 @@ namespace Inkslab.Net
                 }
 
                 return value.IsEmpty()
-                    ? requestable
+                    ? _requestable
                     : AppendQueryString(string.Concat(name, "=", HttpUtility.UrlEncode(value)));
             }
 
@@ -612,7 +612,7 @@ namespace Inkslab.Net
             {
                 AppendTo(name, value, dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK", false);
 
-                return requestable;
+                return _requestable;
             }
 
             private void AppendTo(string name, object value, string dateFormatString, bool throwErrorsIfEnumerable)
@@ -657,7 +657,7 @@ namespace Inkslab.Net
             {
                 if (param is null)
                 {
-                    return requestable;
+                    return _requestable;
                 }
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
@@ -667,19 +667,19 @@ namespace Inkslab.Net
                     AppendTo(kv.Key, kv.Value, dateFormatString, false);
                 }
 
-                return requestable;
+                return _requestable;
             }
 
             public TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
             {
                 if (param is null)
                 {
-                    return requestable;
+                    return _requestable;
                 }
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                var results = cachings.GetOrAdd(typeof(TParam), MakeTypeResults)
+                var results = _cachings.GetOrAdd(typeof(TParam), MakeTypeResults)
                     .Invoke(param, dateFormatString);
 
                 return AppendQueryString(namingType == NamingType.Normal
@@ -688,45 +688,45 @@ namespace Inkslab.Net
                     , dateFormatString);
             }
 
-            public override string ToString() => sb.ToString();
+            public override string ToString() => _sb.ToString();
         }
 
         private class Requestable : RequestableEncoding, IRequestable, IRequestableBase
         {
-            private readonly RequestFactory factory;
-            private readonly Dictionary<string, string> headers;
-            private readonly QueryString<Requestable> queryString;
-            private static readonly Encoding encodingDefault = Encoding.UTF8;
+            private readonly RequestFactory _factory;
+            private readonly Dictionary<string, string> _headers;
+            private readonly QueryString<Requestable> _queryString;
+            private static readonly Encoding _encodingDefault = Encoding.UTF8;
 
-            public Requestable(RequestFactory factory, string requestUri) : base(encodingDefault)
+            public Requestable(RequestFactory factory, string requestUri) : base(_encodingDefault)
             {
-                this.factory = factory;
+                _factory = factory;
 
-                headers = new Dictionary<string, string>();
-                queryString = new QueryString<Requestable>(this, requestUri);
+                _headers = new Dictionary<string, string>();
+                _queryString = new QueryString<Requestable>(this, requestUri);
             }
 
             private Requestable(RequestFactory factory, Encoding encoding, QueryString<Requestable> queryString, Dictionary<string, string> headers) : base(encoding)
             {
-                this.factory = factory;
-                this.headers = headers;
+                _factory = factory;
+                _headers = headers;
 
-                this.queryString = queryString;
+                _queryString = queryString;
             }
 
-            public IRequestable AppendQueryString(string param) => queryString.AppendQueryString(param);
+            public IRequestable AppendQueryString(string param) => _queryString.AppendQueryString(param);
 
-            public IRequestable AppendQueryString(string name, string value) => queryString.AppendQueryString(name, value);
+            public IRequestable AppendQueryString(string name, string value) => _queryString.AppendQueryString(name, value);
 
-            public IRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
+            public IRequestable AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => _queryString.AppendQueryString(name, value, dateFormatString);
 
-            public IRequestable AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
+            public IRequestable AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => _queryString.AppendQueryString(name, value, dateFormatString);
 
-            public IRequestable AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param);
+            public IRequestable AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => _queryString.AppendQueryString(param);
 
-            public IRequestable AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param, dateFormatString);
+            public IRequestable AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => _queryString.AppendQueryString(param, dateFormatString);
 
-            public IRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
+            public IRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => _queryString.AppendQueryString(param, namingType, dateFormatString);
 
             public IRequestable AssignHeader(string header, string value)
             {
@@ -735,7 +735,7 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(header));
                 }
 
-                headers[header] = value;
+                _headers[header] = value;
 
                 return this;
             }
@@ -755,7 +755,7 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(queryString.ToString(), headers)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(_queryString.ToString(), _headers)
             {
                 Method = method,
                 Timeout = timeout,
@@ -763,12 +763,12 @@ namespace Inkslab.Net
 
             public IRequestableEncoding UseEncoding(Encoding encoding)
             {
-                if (encoding is null || Equals(encodingDefault, encoding))
+                if (encoding is null || Equals(_encodingDefault, encoding))
                 {
                     return this;
                 }
 
-                return new Requestable(factory, encoding, queryString, headers);
+                return new Requestable(_factory, encoding, _queryString, _headers);
             }
 
             IRequestableBase IRequestableBase<IRequestableBase>.AssignHeader(string header, string value)
@@ -834,20 +834,20 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => factory.SendAsync(options, cancellationToken);
+            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => _factory.SendAsync(options, cancellationToken);
         }
 
         private class WhenRequestable : IWhenRequestable
         {
-            private readonly RequestableString requestable;
-            private readonly Encoding encoding;
-            private readonly Predicate<HttpStatusCode> whenStatus;
+            private readonly RequestableString _requestable;
+            private readonly Encoding _encoding;
+            private readonly Predicate<HttpStatusCode> _whenStatus;
 
             public WhenRequestable(RequestableString requestable, Encoding encoding, Predicate<HttpStatusCode> whenStatus)
             {
-                this.requestable = requestable;
-                this.encoding = encoding;
-                this.whenStatus = whenStatus;
+                _requestable = requestable;
+                _encoding = encoding;
+                _whenStatus = whenStatus;
             }
 
             public IThenRequestable ThenAsync(Func<IRequestableBase, Task> thenAsync)
@@ -857,42 +857,42 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(thenAsync));
                 }
 
-                return new ThenRequestable(requestable, encoding, whenStatus, thenAsync);
+                return new ThenRequestable(_requestable, _encoding, _whenStatus, thenAsync);
             }
         }
 
         private class ThenRequestable : RequestableEncoding, IThenRequestable
         {
             private volatile bool initializedStatusCode;
-            private readonly RequestableString requestable;
-            private readonly Predicate<HttpStatusCode> whenStatus;
-            private readonly Func<IRequestableBase, Task> thenAsync;
+            private readonly RequestableString _requestable;
+            private readonly Predicate<HttpStatusCode> _whenStatus;
+            private readonly Func<IRequestableBase, Task> _thenAsync;
 
             public ThenRequestable(RequestableString requestable, Encoding encoding, Predicate<HttpStatusCode> whenStatus, Func<IRequestableBase, Task> thenAsync) : base(encoding)
             {
-                this.requestable = requestable;
-                this.whenStatus = whenStatus;
-                this.thenAsync = thenAsync;
+                _requestable = requestable;
+                _whenStatus = whenStatus;
+                _thenAsync = thenAsync;
             }
 
-            public override RequestOptions GetOptions(HttpMethod method, double timeout) => requestable.GetOptions(method, timeout);
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => _requestable.GetOptions(method, timeout);
 
             public override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
             {
-                var httpMsg = await requestable.SendAsync(options, cancellationToken);
+                var httpMsg = await _requestable.SendAsync(options, cancellationToken);
 
                 if (initializedStatusCode)
                 {
                     return httpMsg;
                 }
 
-                if (whenStatus(httpMsg.StatusCode))
+                if (_whenStatus(httpMsg.StatusCode))
                 {
                     initializedStatusCode = true;
 
-                    var requestableRef = new RequestableBase(requestable);
+                    var requestableRef = new RequestableBase(_requestable);
 
-                    await thenAsync(requestableRef);
+                    await _thenAsync(requestableRef);
 
                     return await requestableRef.SendAsync(options.Method, options.Timeout, cancellationToken);
                 }
@@ -902,30 +902,30 @@ namespace Inkslab.Net
 
             private class RequestableBase : IRequestableBase
             {
-                private readonly RequestableString requestable;
-                private readonly QueryString<RequestableBase> queryString;
-                private readonly Dictionary<string, string> headers = new Dictionary<string, string>();
+                private readonly RequestableString _requestable;
+                private readonly QueryString<RequestableBase> _queryString;
+                private readonly Dictionary<string, string> _headers = new Dictionary<string, string>();
 
                 public RequestableBase(RequestableString requestable)
                 {
-                    this.requestable = requestable;
+                    _requestable = requestable;
 
-                    queryString = new QueryString<RequestableBase>(this, string.Empty);
+                    _queryString = new QueryString<RequestableBase>(this, string.Empty);
                 }
 
-                public IRequestableBase AppendQueryString(string param) => queryString.AppendQueryString(param);
+                public IRequestableBase AppendQueryString(string param) => _queryString.AppendQueryString(param);
 
-                public IRequestableBase AppendQueryString(string name, string value) => queryString.AppendQueryString(name, value);
+                public IRequestableBase AppendQueryString(string name, string value) => _queryString.AppendQueryString(name, value);
 
-                public IRequestableBase AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
+                public IRequestableBase AppendQueryString(string name, DateTime value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => _queryString.AppendQueryString(name, value, dateFormatString);
 
-                public IRequestableBase AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => queryString.AppendQueryString(name, value, dateFormatString);
+                public IRequestableBase AppendQueryString(string name, object value, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") => _queryString.AppendQueryString(name, value, dateFormatString);
 
-                public IRequestableBase AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param);
+                public IRequestableBase AppendQueryString<TParam>(TParam param) where TParam : IEnumerable<KeyValuePair<string, object>> => _queryString.AppendQueryString(param);
 
-                public IRequestableBase AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => queryString.AppendQueryString(param, dateFormatString);
+                public IRequestableBase AppendQueryString<TParam>(TParam param, string dateFormatString) where TParam : IEnumerable<KeyValuePair<string, object>> => _queryString.AppendQueryString(param, dateFormatString);
 
-                public IRequestableBase AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => queryString.AppendQueryString(param, namingType, dateFormatString);
+                public IRequestableBase AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class => _queryString.AppendQueryString(param, namingType, dateFormatString);
 
                 public IRequestableBase AssignHeader(string header, string value)
                 {
@@ -934,7 +934,7 @@ namespace Inkslab.Net
                         throw new ArgumentNullException(nameof(header));
                     }
 
-                    headers[header] = value;
+                    _headers[header] = value;
 
                     return this;
                 }
@@ -956,14 +956,14 @@ namespace Inkslab.Net
 
                 private string RequestUriRef(string requestUri)
                 {
-                    if (queryString.Length == 0)
+                    if (_queryString.Length == 0)
                     {
                         return requestUri;
                     }
 
                     int indexOf = requestUri.IndexOf('?');
 
-                    var queryStrings = queryString.ToString();
+                    var queryStrings = _queryString.ToString();
 
                     if (indexOf == -1)
                     {
@@ -1001,39 +1001,39 @@ namespace Inkslab.Net
 
                 public Task<HttpResponseMessage> SendAsync(HttpMethod method, double timeout, CancellationToken cancellationToken = default)
                 {
-                    var options = requestable.GetOptions(method, timeout);
+                    var options = _requestable.GetOptions(method, timeout);
 
                     options.RequestUri = RequestUriRef(options.RequestUri);
 
-                    if (headers.Count > 0)
+                    if (_headers.Count > 0)
                     {
-                        foreach (var header in headers)
+                        foreach (var header in _headers)
                         {
                             options.Headers[header.Key] = header.Value;
                         }
                     }
 
-                    return requestable.SendAsync(options, cancellationToken);
+                    return _requestable.SendAsync(options, cancellationToken);
                 }
             }
         }
 
         private class RequestableContent : RequestableString, IRequestableContent
         {
-            private readonly RequestableString requestable;
-            private readonly Encoding encoding;
-            private readonly IToContent content;
+            private readonly RequestableString _requestable;
+            private readonly Encoding _encoding;
+            private readonly IToContent _content;
 
             public RequestableContent(RequestableString requestable, Encoding encoding, IToContent content)
             {
-                this.requestable = requestable;
-                this.encoding = encoding;
-                this.content = content;
+                _requestable = requestable;
+                _encoding = encoding;
+                _content = content;
             }
 
             public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
 
-            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, encoding);
+            public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, _encoding);
 
             public IJsonDeserializeRequestable<T> JsonCast<T>(T anonymousTypeObject, NamingType namingType = NamingType.Normal) where T : class => JsonCast<T>(namingType);
 
@@ -1041,14 +1041,14 @@ namespace Inkslab.Net
 
             public override RequestOptions GetOptions(HttpMethod method, double timeout)
             {
-                var options = requestable.GetOptions(method, timeout);
+                var options = _requestable.GetOptions(method, timeout);
 
-                options.Content = content.Content;
+                options.Content = _content.Content;
 
                 return options;
             }
 
-            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => requestable.SendAsync(options, cancellationToken);
+            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => _requestable.SendAsync(options, cancellationToken);
 
             public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
             {
@@ -1057,19 +1057,19 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(whenStatus));
                 }
 
-                return new WhenRequestable(this, encoding, whenStatus);
+                return new WhenRequestable(this, _encoding, whenStatus);
             }
         }
 
         private class RequestableDataVerify<T> : IRequestableDataVerify<T>
         {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
+            private readonly Requestable<T> _requestable;
+            private readonly Predicate<T> _dataVerify;
 
             public RequestableDataVerify(Requestable<T> requestable, Predicate<T> dataVerify)
             {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
+                _requestable = requestable;
+                _dataVerify = dataVerify;
             }
 
             public IRequestableDataVerifySuccess<T, TResult> Success<TResult>(Func<T, TResult> dataVerifySuccess)
@@ -1079,7 +1079,7 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(dataVerifySuccess));
                 }
 
-                return new RequestableDataVerifySuccess<T, TResult>(requestable, dataVerify, dataVerifySuccess);
+                return new RequestableDataVerifySuccess<T, TResult>(_requestable, _dataVerify, dataVerifySuccess);
             }
 
             public IRequestableDataVerifyFail<T> Fail<TError>(Func<T, TError> throwError) where TError : Exception
@@ -1089,103 +1089,103 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(throwError));
                 }
 
-                return new RequestableDataVerifyError<T, TError>(requestable, dataVerify, throwError);
+                return new RequestableDataVerifyError<T, TError>(_requestable, _dataVerify, throwError);
             }
         }
 
         private class RequestableDataVerifyError<T, TError> : Requestable<T>, IRequestableDataVerifyFail<T> where TError : Exception
         {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
-            private readonly Func<T, TError> throwError;
+            private readonly Requestable<T> _requestable;
+            private readonly Predicate<T> _dataVerify;
+            private readonly Func<T, TError> _throwError;
 
             public RequestableDataVerifyError(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TError> throwError)
             {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
-                this.throwError = throwError;
+                _requestable = requestable;
+                _dataVerify = dataVerify;
+                _throwError = throwError;
             }
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var msgData = await requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await _requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (dataVerify(msgData))
+                if (_dataVerify(msgData))
                 {
                     return msgData;
                 }
 
-                throw throwError.Invoke(msgData);
+                throw _throwError.Invoke(msgData);
             }
         }
 
         private class RequestableDataVerifyError<T, TResult, TError> : Requestable<TResult>, IRequestableDataVerifyFail<T, TResult> where TError : Exception
         {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
-            private readonly Func<T, TResult> dataVerifySuccess;
-            private readonly Func<T, TError> throwError;
+            private readonly Requestable<T> _requestable;
+            private readonly Predicate<T> _dataVerify;
+            private readonly Func<T, TResult> _dataVerifySuccess;
+            private readonly Func<T, TError> _throwError;
 
             public RequestableDataVerifyError(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, TError> throwError)
             {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
-                this.dataVerifySuccess = dataVerifySuccess;
-                this.throwError = throwError;
+                _requestable = requestable;
+                _dataVerify = dataVerify;
+                _dataVerifySuccess = dataVerifySuccess;
+                _throwError = throwError;
             }
 
             public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var msgData = await requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await _requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (dataVerify(msgData))
+                if (_dataVerify(msgData))
                 {
-                    return dataVerifySuccess.Invoke(msgData);
+                    return _dataVerifySuccess.Invoke(msgData);
                 }
 
-                throw throwError.Invoke(msgData);
+                throw _throwError.Invoke(msgData);
             }
         }
 
         private class RequestableDataVerifyFail<T, TResult> : Requestable<TResult>, IRequestableDataVerifyFail<T, TResult>
         {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
-            private readonly Func<T, TResult> dataVerifySuccess;
-            private readonly Func<T, TResult> dataVerifyFail;
+            private readonly Requestable<T> _requestable;
+            private readonly Predicate<T> _dataVerify;
+            private readonly Func<T, TResult> _dataVerifySuccess;
+            private readonly Func<T, TResult> _dataVerifyFail;
 
             public RequestableDataVerifyFail(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess, Func<T, TResult> dataVerifyFail)
             {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
-                this.dataVerifySuccess = dataVerifySuccess;
-                this.dataVerifyFail = dataVerifyFail;
+                _requestable = requestable;
+                _dataVerify = dataVerify;
+                _dataVerifySuccess = dataVerifySuccess;
+                _dataVerifyFail = dataVerifyFail;
             }
 
             public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var msgData = await requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await _requestable.SendAsync(method, timeout, cancellationToken);
 
-                if (dataVerify(msgData))
+                if (_dataVerify(msgData))
                 {
-                    return dataVerifySuccess.Invoke(msgData);
+                    return _dataVerifySuccess.Invoke(msgData);
                 }
 
-                return dataVerifyFail.Invoke(msgData);
+                return _dataVerifyFail.Invoke(msgData);
             }
         }
 
         private class RequestableDataVerifySuccess<T, TResult> : IRequestableDataVerifySuccess<T, TResult>
         {
-            private readonly Requestable<T> requestable;
-            private readonly Predicate<T> dataVerify;
-            private readonly Func<T, TResult> dataVerifySuccess;
+            private readonly Requestable<T> _requestable;
+            private readonly Predicate<T> _dataVerify;
+            private readonly Func<T, TResult> _dataVerifySuccess;
 
             public RequestableDataVerifySuccess(Requestable<T> requestable, Predicate<T> dataVerify, Func<T, TResult> dataVerifySuccess)
             {
-                this.requestable = requestable;
-                this.dataVerify = dataVerify;
-                this.dataVerifySuccess = dataVerifySuccess;
+                _requestable = requestable;
+                _dataVerify = dataVerify;
+                _dataVerifySuccess = dataVerifySuccess;
             }
 
             public IRequestableDataVerifyFail<T, TResult> Fail(Func<T, TResult> dataVerifyFail)
@@ -1195,7 +1195,7 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(dataVerifyFail));
                 }
 
-                return new RequestableDataVerifyFail<T, TResult>(requestable, dataVerify, dataVerifySuccess, dataVerifyFail);
+                return new RequestableDataVerifyFail<T, TResult>(_requestable, _dataVerify, _dataVerifySuccess, dataVerifyFail);
             }
 
             public IRequestableDataVerifyFail<T, TResult> Fail<TError>(Func<T, TError> throwError) where TError : Exception
@@ -1205,19 +1205,19 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(throwError));
                 }
 
-                return new RequestableDataVerifyError<T, TResult, TError>(requestable, dataVerify, dataVerifySuccess, throwError);
+                return new RequestableDataVerifyError<T, TResult, TError>(_requestable, _dataVerify, _dataVerifySuccess, throwError);
             }
         }
 
         private class JsonDeserializeRequestable<T> : Requestable<T>, IJsonDeserializeRequestable<T>, IRequestableExtend<T>
         {
-            private readonly RequestableString requestable;
-            private readonly NamingType namingType;
+            private readonly RequestableString _requestable;
+            private readonly NamingType _namingType;
 
             public JsonDeserializeRequestable(RequestableString requestable, NamingType namingType)
             {
-                this.requestable = requestable;
-                this.namingType = namingType;
+                _requestable = requestable;
+                _namingType = namingType;
             }
 
             public IRequestableDataVerify<T> DataVerify(Predicate<T> predicate)
@@ -1237,24 +1237,24 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(abnormalResultAnalysis));
                 }
 
-                return new JsonDeserializeRequestableCatch<T>(requestable, namingType, abnormalResultAnalysis);
+                return new JsonDeserializeRequestableCatch<T>(_requestable, _namingType, abnormalResultAnalysis);
             }
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
+                var stringMsg = await _requestable.SendAsync(method, timeout, cancellationToken);
 
-                return JsonHelper.Json<T>(stringMsg, namingType);
+                return JsonHelper.Json<T>(stringMsg, _namingType);
             }
         }
 
         private class JsonDeserializeRequestableCatch<T> : JsonDeserializeRequestable<T>, IRequestableExtend<T>
         {
-            private readonly Func<Exception, T> abnormalResultAnalysis;
+            private readonly Func<Exception, T> _abnormalResultAnalysis;
 
             public JsonDeserializeRequestableCatch(RequestableString requestable, NamingType namingType, Func<Exception, T> abnormalResultAnalysis) : base(requestable, namingType)
             {
-                this.abnormalResultAnalysis = abnormalResultAnalysis;
+                _abnormalResultAnalysis = abnormalResultAnalysis;
             }
 
             private static bool IsJsonError(Exception e)
@@ -1278,20 +1278,20 @@ namespace Inkslab.Net
                 }
                 catch (Exception ex) when (IsJsonError(ex))
                 {
-                    return abnormalResultAnalysis.Invoke(ex);
+                    return _abnormalResultAnalysis.Invoke(ex);
                 }
             }
         }
 
         private class XmlDeserializeRequestable<T> : Requestable<T>, IXmlDeserializeRequestable<T>, IRequestableExtend<T>
         {
-            private readonly RequestableString requestable;
-            private readonly Encoding encoding;
+            private readonly RequestableString _requestable;
+            private readonly Encoding _encoding;
 
             public XmlDeserializeRequestable(RequestableString requestable, Encoding encoding)
             {
-                this.requestable = requestable;
-                this.encoding = encoding;
+                _requestable = requestable;
+                _encoding = encoding;
             }
 
             public IRequestableDataVerify<T> DataVerify(Predicate<T> predicate)
@@ -1306,9 +1306,9 @@ namespace Inkslab.Net
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var stringMsg = await requestable.SendAsync(method, timeout, cancellationToken);
+                var stringMsg = await _requestable.SendAsync(method, timeout, cancellationToken);
 
-                return XmlHelper.XmlDeserialize<T>(stringMsg, encoding);
+                return XmlHelper.XmlDeserialize<T>(stringMsg, _encoding);
             }
 
             public IRequestableExtend<T> XmlCatch(Func<XmlException, T> abnormalResultAnalysis)
@@ -1318,17 +1318,17 @@ namespace Inkslab.Net
                     throw new ArgumentNullException(nameof(abnormalResultAnalysis));
                 }
 
-                return new XmlDeserializeRequestableCatch<T>(requestable, encoding, abnormalResultAnalysis);
+                return new XmlDeserializeRequestableCatch<T>(_requestable, _encoding, abnormalResultAnalysis);
             }
         }
 
         private class XmlDeserializeRequestableCatch<T> : XmlDeserializeRequestable<T>, IRequestableExtend<T>
         {
-            private readonly Func<XmlException, T> abnormalResultAnalysis;
+            private readonly Func<XmlException, T> _abnormalResultAnalysis;
 
             public XmlDeserializeRequestableCatch(RequestableString requestable, Encoding encoding, Func<XmlException, T> abnormalResultAnalysis) : base(requestable, encoding)
             {
-                this.abnormalResultAnalysis = abnormalResultAnalysis;
+                _abnormalResultAnalysis = abnormalResultAnalysis;
             }
 
             public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
@@ -1339,7 +1339,7 @@ namespace Inkslab.Net
                 }
                 catch (XmlException ex)
                 {
-                    return abnormalResultAnalysis.Invoke(ex);
+                    return _abnormalResultAnalysis.Invoke(ex);
                 }
             }
         }
@@ -1365,7 +1365,7 @@ namespace Inkslab.Net
         /// <exception cref="ArgumentNullException">参数 <paramref name="initialize"/> 为“null”。</exception>
         public RequestFactory(IRequestInitialize initialize)
         {
-            this.initialize = initialize ?? throw new ArgumentNullException(nameof(initialize));
+            _initialize = initialize ?? throw new ArgumentNullException(nameof(initialize));
         }
 
         /// <summary>
@@ -1405,14 +1405,14 @@ namespace Inkslab.Net
                 throw new ArgumentException("文件后缀必须以“.”开头！");
             }
 
-            mediaTypes[fileSuffix.ToLower()] = new MediaTypeHeaderValue(mediaType);
+            _mediaTypes[fileSuffix.ToLower()] = new MediaTypeHeaderValue(mediaType);
         }
 
         /// <summary>
         /// 初始化。
         /// </summary>
         /// <param name="requestable">基础请求能力。</param>
-        protected virtual void Initialize(IRequestableBase requestable) => initialize.Initialize(requestable);
+        protected virtual void Initialize(IRequestableBase requestable) => _initialize.Initialize(requestable);
 
         /// <summary>
         /// 发送请求。
@@ -1427,7 +1427,7 @@ namespace Inkslab.Net
                 throw new ArgumentNullException(nameof(options));
             }
 
-            var client = clients.Get(options.Timeout);
+            var client = _clients.Get(options.Timeout);
 
             using (var httpMsg = new HttpRequestMessage(options.Method, options.RequestUri))
             {
@@ -1457,6 +1457,6 @@ namespace Inkslab.Net
         /// </summary>
         /// <param name="requestUri">请求地址。</param>
         /// <returns>请求能力。</returns>
-        public static IRequestable Create(string requestUri) => factory.CreateRequestable(requestUri);
+        public static IRequestable Create(string requestUri) => _factory.CreateRequestable(requestUri);
     }
 }

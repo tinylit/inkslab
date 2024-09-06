@@ -15,16 +15,16 @@ namespace Inkslab.Keys.Snowflake
 
             public override int DataCenterId => (int)(Value >> DatacenterIdShift & MaxDatacenterId);
 
-            public override DateTime ToUniversalTime() => unixEpoch.AddMilliseconds(Value >> TimestampLeftShift);
+            public override DateTime ToUniversalTime() => _unixEpoch.AddMilliseconds(Value >> TimestampLeftShift);
         }
 
-        private static readonly DateTime unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
-        private readonly long workerId; // 这个就是代表了机器id
-        private readonly long datacenterId; // 这个就是代表了机房id
+        private static readonly DateTime _unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
+        private readonly long _workerId; // 这个就是代表了机器id
+        private readonly long _datacenterId; // 这个就是代表了机房id
 
         private /* static */ long sequence; // 代表当前毫秒内已经生成了多少个主键
 
-        private readonly Random random = new Random();
+        private readonly Random _random = new Random();
 
         /// <summary>
         /// 构造函数。
@@ -44,8 +44,8 @@ namespace Inkslab.Keys.Snowflake
             {
                 throw new ArgumentException(string.Format("datacenter Id can't be greater than {0} or less than 0", MaxDatacenterId));
             }
-            this.workerId = workerId;
-            this.datacenterId = datacenterId;
+            _workerId = workerId;
+            _datacenterId = datacenterId;
         }
 
         private const int WorkerIdBits = 5;
@@ -64,7 +64,7 @@ namespace Inkslab.Keys.Snowflake
 
         private /* static */ long lastTimestamp = -1L;
 
-        private readonly object lockObj = new object();
+        private readonly object _lockObj = new object();
 
         /// <summary>
         /// 新ID。
@@ -72,7 +72,7 @@ namespace Inkslab.Keys.Snowflake
         /// <returns></returns>
         public long Id()
         {
-            lock (lockObj)
+            lock (_lockObj)
             {
                 long timestamp = TimeGen();
 
@@ -96,14 +96,14 @@ namespace Inkslab.Keys.Snowflake
                 }
                 else
                 {
-                    sequence = random.Next(128);
+                    sequence = _random.Next(128);
                 }
 
                 lastTimestamp = timestamp;
 
                 return (timestamp << TimestampLeftShift)
-                        | (datacenterId << DatacenterIdShift)
-                        | (workerId << WorkerIdShift)
+                        | (_datacenterId << DatacenterIdShift)
+                        | (_workerId << WorkerIdShift)
                         | sequence;
             }
         }
@@ -115,7 +115,7 @@ namespace Inkslab.Keys.Snowflake
         /// <returns></returns>
         public Key New(long id) => new SnowflakeKey(id);
 
-        private static long TimeGen() => (long)(DateTime.UtcNow - unixEpoch).TotalMilliseconds;
+        private static long TimeGen() => (long)(DateTime.UtcNow - _unixEpoch).TotalMilliseconds;
 
         private static long NextGen(long lastTimestamp)
         {

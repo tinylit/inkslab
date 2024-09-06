@@ -17,12 +17,12 @@ namespace Inkslab.Json
         /// </summary>
         private class JsonContractResolver : DefaultContractResolver
         {
-            private readonly NamingType camelCase;
+            private readonly NamingType _camelCase;
             /// <summary>
             /// 构造定义命名解析风格。
             /// </summary>
             /// <param name="namingCase">命名规则。</param>
-            public JsonContractResolver(NamingType namingCase) => camelCase = namingCase;
+            public JsonContractResolver(NamingType namingCase) => _camelCase = namingCase;
 
             /// <summary>
             /// 属性名解析。
@@ -30,9 +30,9 @@ namespace Inkslab.Json
             /// <param name="propertyName">属性名称。</param>
             /// <returns></returns>
             protected override string ResolvePropertyName(string propertyName)
-                => camelCase == NamingType.Normal
+                => _camelCase == NamingType.Normal
                     ? base.ResolvePropertyName(propertyName)
-                    : propertyName.ToNamingCase(camelCase);
+                    : propertyName.ToNamingCase(_camelCase);
 
             /// <summary>
             /// 属性。
@@ -65,25 +65,25 @@ namespace Inkslab.Json
             }
         }
 
-        private static readonly DefaultContractResolver contractResolver;
+        private static readonly DefaultContractResolver _contractResolver;
 
-        private static readonly Dictionary<NamingType, IContractResolver> resolvers;
+        private static readonly Dictionary<NamingType, IContractResolver> _resolvers;
 
         static DefaultJsonHelper()
         {
             var namingTypes = Enum.GetValues(typeof(NamingType));
 
-            resolvers = new Dictionary<NamingType, IContractResolver>(namingTypes.Length);
+            _resolvers = new Dictionary<NamingType, IContractResolver>(namingTypes.Length);
 
             foreach (NamingType namingType in namingTypes)
             {
-                resolvers.Add(namingType, new JsonContractResolver(namingType));
+                _resolvers.Add(namingType, new JsonContractResolver(namingType));
             }
 
-            contractResolver = new DefaultContractResolver();
+            _contractResolver = new DefaultContractResolver();
         }
 
-        private readonly JsonSerializerSettings settings;
+        private readonly JsonSerializerSettings _settings;
 
         /// <summary>
         /// 构造函数。
@@ -99,7 +99,7 @@ namespace Inkslab.Json
         /// 构造函数。
         /// </summary>
         /// <param name="settings">配置。</param>
-        public DefaultJsonHelper(JsonSerializerSettings settings) => this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        public DefaultJsonHelper(JsonSerializerSettings settings) => _settings = settings ?? throw new ArgumentNullException(nameof(settings));
 
         /// <summary>
         /// JSON序列化设置。
@@ -110,9 +110,9 @@ namespace Inkslab.Json
         /// <returns></returns>
         private static JsonSerializerSettings LoadSetting(JsonSerializerSettings settings, NamingType namingType, bool indented = false)
         {
-            settings.ContractResolver = resolvers.TryGetValue(namingType, out var resolver)
+            settings.ContractResolver = _resolvers.TryGetValue(namingType, out var resolver)
                 ? resolver
-                : contractResolver;
+                : _contractResolver;
 
             settings.Formatting = indented
                     ? Formatting.Indented
@@ -124,25 +124,25 @@ namespace Inkslab.Json
         /// <inheritdoc/>
         public T Json<T>(string json, NamingType namingType = NamingType.Normal)
         {
-            return JsonConvert.DeserializeObject<T>(json, LoadSetting(settings, namingType));
+            return JsonConvert.DeserializeObject<T>(json, LoadSetting(_settings, namingType));
         }
 
         /// <inheritdoc/>
         public object Json(string json, Type type, NamingType namingType = NamingType.Normal)
         {
-            return JsonConvert.DeserializeObject(json, type, LoadSetting(settings, namingType));
+            return JsonConvert.DeserializeObject(json, type, LoadSetting(_settings, namingType));
         }
 
         /// <inheritdoc/>
         public string ToJson<T>(T jsonObj, NamingType namingType = NamingType.Normal, bool indented = false)
         {
-            return JsonConvert.SerializeObject(jsonObj, LoadSetting(settings, namingType, indented));
+            return JsonConvert.SerializeObject(jsonObj, LoadSetting(_settings, namingType, indented));
         }
 
         /// <inheritdoc/>
         public string ToJson(object jsonObj, Type type, NamingType namingType = NamingType.Normal, bool indented = false)
         {
-            return JsonConvert.SerializeObject(jsonObj, type, LoadSetting(settings, namingType, indented));
+            return JsonConvert.SerializeObject(jsonObj, type, LoadSetting(_settings, namingType, indented));
         }
     }
 }
