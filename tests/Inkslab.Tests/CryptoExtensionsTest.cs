@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Security.Cryptography;
 using Xunit;
 
 namespace Inkslab.Tests
@@ -25,23 +26,6 @@ namespace Inkslab.Tests
         }
 
         /// <summary>
-        /// 加密/解密测试。
-        /// </summary>
-        [Fact]
-        public void IvTest()
-        {
-            string iv = "1234&^@?";
-            string key = "Test@*$!";
-            string data = "加密/解密测试。";
-
-            var encryptData = data.Encrypt(key, iv);
-
-            var decryptData = encryptData.Decrypt(key, iv);
-
-            Assert.Equal(data, decryptData);
-        }
-
-        /// <summary>
         /// MD5。
         /// </summary>
         [Fact]
@@ -54,6 +38,30 @@ namespace Inkslab.Tests
             var r = data.Md5();
 
             Assert.Equal(md5, r);
+        }
+
+        /// <summary>
+        /// RSA
+        /// </summary>
+        [Fact]
+        public void RSATest()
+        {
+            string publicXml;
+            string privateXml;
+
+            using (var rsa = RSA.Create())
+            {
+                publicXml = rsa.ToXmlString(false);
+                privateXml = rsa.ToXmlString(true);
+            }
+
+            string data = "加密/解密测试。";
+
+            var encrypt = data.Encrypt(publicXml, CryptoKind.RSA);
+
+            var value = encrypt.Decrypt(privateXml, CryptoKind.RSA);
+
+            Assert.Equal(data, value);
         }
     }
 }
