@@ -9,7 +9,7 @@ namespace Inkslab.Config.Settings
     /// </summary>
     public sealed class JsonConfigSettings : IJsonConfigSettings
     {
-        private readonly Action<IConfigurationBuilder> configuration;
+        private readonly Action<IConfigurationBuilder> _configuration;
 
         /// <summary>
         /// 构造函数。
@@ -18,14 +18,14 @@ namespace Inkslab.Config.Settings
         /// <exception cref="ArgumentNullException">参数 <paramref name="configuration"/> is null.</exception>
         public JsonConfigSettings(Action<IConfigurationBuilder> configuration)
         {
-            this.configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+            _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         }
 
         /// <summary>
         /// 配置。
         /// </summary>
         /// <param name="configurationBuilder">配置构建器。</param>
-        public void Config(IConfigurationBuilder configurationBuilder) => configuration.Invoke(configurationBuilder);
+        public void Config(IConfigurationBuilder configurationBuilder) => _configuration.Invoke(configurationBuilder);
     }
 }
 #endif

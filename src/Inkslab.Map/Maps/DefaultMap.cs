@@ -146,7 +146,7 @@ namespace Inkslab.Map.Maps
                     return false;
                 }
 
-                destinationRs = FinishingExpression(destinationType, destinationItemType.MakeArrayType(), destinationPrt, sourcePrt, application, customAddFn.MakeGenericMethod(destinationType, destinationItemType), true);
+                destinationRs = FinishingExpression(destinationType, destinationItemType.MakeArrayType(), destinationPrt, sourcePrt, application, _customAddFn.MakeGenericMethod(destinationType, destinationItemType), true);
 
                 return true;
             }
@@ -167,34 +167,34 @@ namespace Inkslab.Map.Maps
 
         private class MapApplication : IMapApplication
         {
-            private static readonly EnumerableMap enumerableMap = new EnumerableMap();
+            private static readonly EnumerableMap _enumerableMap = new EnumerableMap();
 
-            private readonly Type sourceHostType;
-            private readonly Type destinationHostType;
-            private readonly IMapApplication application;
+            private readonly Type _sourceHostType;
+            private readonly Type _destinationHostType;
+            private readonly IMapApplication _application;
 
             public MapApplication(Type sourceHostType, Type destinationHostType, IMapApplication application)
             {
-                this.sourceHostType = sourceHostType;
-                this.destinationHostType = destinationHostType;
-                this.application = application;
+                _sourceHostType = sourceHostType;
+                _destinationHostType = destinationHostType;
+                _application = application;
             }
 
             public Expression Map(Expression sourceExpression, Type destinationType)
             {
                 Type sourceType = sourceExpression.Type;
 
-                if (IsRecursive(sourceHostType, destinationHostType, sourceType, destinationType))
+                if (IsRecursive(_sourceHostType, _destinationHostType, sourceType, destinationType))
                 {
-                    throw new NotSupportedException($"将类型“{sourceHostType}”转换为“{destinationHostType}”类型的表达式中，存在递归关系！");
+                    throw new NotSupportedException($"将类型“{_sourceHostType}”转换为“{_destinationHostType}”类型的表达式中，存在递归关系！");
                 }
 
-                if (!enumerableMap.IsMatch(sourceType, destinationType))
+                if (!_enumerableMap.IsMatch(sourceType, destinationType))
                 {
-                    return application.Map(sourceExpression, destinationType);
+                    return _application.Map(sourceExpression, destinationType);
                 }
 
-                return MapConfiguration.IgnoreIfNull(enumerableMap.ToSolve(sourceExpression, destinationType, this), NotEqual(sourceExpression, Constant(null, sourceType)));
+                return MapConfiguration.IgnoreIfNull(_enumerableMap.ToSolve(sourceExpression, destinationType, this), NotEqual(sourceExpression, Constant(null, sourceType)));
             }
 
             private static bool IsRecursive(Type sourceHostType, Type destinationHostType, Type sourceType, Type destinationType)
@@ -205,7 +205,7 @@ namespace Inkslab.Map.Maps
 
         #region 私有方法
 
-        private static readonly MethodInfo customAddFn = typeof(DefaultMap).GetMethod(nameof(Add), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+        private static readonly MethodInfo _customAddFn = typeof(DefaultMap).GetMethod(nameof(Add), BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
 
         private static void Add<TCollection, TItem>(TCollection collection, TItem[] items) where TCollection : ICollection<TItem>
         {

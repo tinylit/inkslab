@@ -37,7 +37,7 @@ namespace Inkslab.Sugars
             public Func<T, Match, string> Convert { get; }
         }
 
-        private static readonly List<Adapter> adapterCachings;
+        private static readonly List<Adapter> _adapterCachings;
 
         /// <summary>
         /// 静态构造函数。
@@ -69,7 +69,7 @@ namespace Inkslab.Sugars
 
             var methodInfos = contextType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly);
 
-            adapterCachings = new List<Adapter>(methodInfos.Length);
+            _adapterCachings = new List<Adapter>(methodInfos.Length);
 
             foreach (var methodInfo in methodInfos)
             {
@@ -196,7 +196,7 @@ namespace Inkslab.Sugars
 
                 var convertFn = lambdaExp.Compile();
 
-                adapterCachings.Add(new Adapter(canConvertFn, convertFn));
+                _adapterCachings.Add(new Adapter(canConvertFn, convertFn));
             }
         }
 
@@ -217,7 +217,7 @@ namespace Inkslab.Sugars
                 return match.Value;
             }
 
-            foreach (Adapter mvc in adapterCachings)
+            foreach (Adapter mvc in _adapterCachings)
             {
                 if (mvc.CanConvert(match))
                 {

@@ -10,7 +10,7 @@ namespace Inkslab.Config.Settings
     /// </summary>
     public class JsonPathConfigSettings : IJsonConfigSettings
     {
-        private readonly string[] configPaths;
+        private readonly string[] _configPaths;
 
         /// <summary>
         /// 构造函数。
@@ -19,7 +19,7 @@ namespace Inkslab.Config.Settings
         /// <exception cref="ArgumentNullException">参数 <paramref name="configPaths"/> is null.</exception>
         public JsonPathConfigSettings(params string[] configPaths)
         {
-            this.configPaths = configPaths ?? throw new ArgumentNullException(nameof(configPaths));
+            _configPaths = configPaths ?? throw new ArgumentNullException(nameof(configPaths));
         }
 
         /// <summary>
@@ -28,14 +28,14 @@ namespace Inkslab.Config.Settings
         /// <param name="configurationBuilder"><inheritdoc/></param>
         public void Config(IConfigurationBuilder configurationBuilder)
         {
-            if (configPaths.Length == 0)
+            if (_configPaths.Length == 0)
             {
                 return;
             }
 
             string dir = Directory.GetCurrentDirectory();
 
-            foreach (var path in configPaths)
+            foreach (var path in _configPaths)
             {
                 if (File.Exists(path))
                 {

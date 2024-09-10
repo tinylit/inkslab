@@ -12,9 +12,9 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class EnumerableMap : AbstractMap, IMap
     {
-        private static readonly MethodInfo getEnumeratorMtd = MapConstants.EnumerableType.GetMethod("GetEnumerator", Type.EmptyTypes);
+        private static readonly MethodInfo _getEnumeratorMtd = MapConstants.EnumerableType.GetMethod("GetEnumerator", Type.EmptyTypes);
 
-        private static readonly PropertyInfo enumeratorCurrentProp = MapConstants.EnumeratorType.GetProperty(nameof(IEnumerator.Current));
+        private static readonly PropertyInfo _enumeratorCurrentProp = MapConstants.EnumeratorType.GetProperty(nameof(IEnumerator.Current));
 
         /// <summary>
         /// 解决迭代器类型（<see cref="IEnumerable"/>）之间的转换。
@@ -218,13 +218,13 @@ namespace Inkslab.Map.Maps
             }, new Expression[]
             {
                 Assign(variableExp, New(conversionType)),
-                Assign(enumeratorExp, Call(sourceExpression, getEnumeratorMtd)),
+                Assign(enumeratorExp, Call(sourceExpression, _getEnumeratorMtd)),
                 Loop(
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
                             MapConstants.VoidType,
-                            Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, enumeratorCurrentProp), destinationElementType)),
+                            Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, _enumeratorCurrentProp), destinationElementType)),
                             Continue(continueLabel)
                         ),
                         Break(breakLabel)), // push to eax/rax --> return value
@@ -340,12 +340,12 @@ namespace Inkslab.Map.Maps
                 enumeratorExp
             }, new Expression[]
             {
-                Assign(enumeratorExp, Call(sourceExpression, getEnumeratorMtd)),
+                Assign(enumeratorExp, Call(sourceExpression, _getEnumeratorMtd)),
                 Loop(
                     IfThenElse(
                         Call(enumeratorExp, MapConstants.MoveNextMtd),
                         Block(
-                            Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, enumeratorCurrentProp), destinationElementType)),
+                            Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, _enumeratorCurrentProp), destinationElementType)),
                             Continue(continueLabel)
                         ),
                         Break(breakLabel)), // push to eax/rax --> return value

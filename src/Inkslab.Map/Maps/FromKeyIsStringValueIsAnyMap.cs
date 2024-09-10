@@ -13,9 +13,9 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class FromKeyIsStringValueIsAnyMap : AbstractMap, IMap
     {
-        private static readonly Type keyValueType = typeof(KeyValuePair<,>);
+        private static readonly Type _keyValueType = typeof(KeyValuePair<,>);
 
-        private static bool IsKeyValue(Type conversionType) => conversionType.IsGenericType && conversionType.GetGenericTypeDefinition() == keyValueType;
+        private static bool IsKeyValue(Type conversionType) => conversionType.IsGenericType && conversionType.GetGenericTypeDefinition() == _keyValueType;
 
         private static bool TryKeyValue(Type sourceType, out Type valueType)
         {

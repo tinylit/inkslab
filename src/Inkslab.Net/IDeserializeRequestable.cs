@@ -1,5 +1,10 @@
 ﻿using System.Xml;
 using System;
+using System.Threading.Tasks;
+using System.Net.Http;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Threading;
 
 namespace Inkslab.Net
 {
@@ -39,6 +44,22 @@ namespace Inkslab.Net
         /// <param name="anonymousTypeObject">匿名对象。</param>
         /// <returns></returns>
         IXmlDeserializeRequestable<T> XmlCast<T>(T anonymousTypeObject) where T : class;
+
+        /// <summary>
+        /// 返回自定义数据解析格式的结果，将转为指定类型（自动检测请求状态）。
+        /// </summary>
+        /// <typeparam name="T">返回类型。</typeparam>
+        /// <param name="customFactory">自定义工厂。</param>
+        /// <returns></returns>
+        ICustomDeserializeRequestable<T> CustomCast<T>(Func<string, T> customFactory) where T : class;
+
+        /// <summary>
+        /// 返回自定义数据解析格式的结果，将转为指定类型（不会检测请求状态）。
+        /// </summary>
+        /// <typeparam name="T">返回类型。</typeparam>
+        /// <param name="customFactory">自定义工厂。</param>
+        /// <returns></returns>
+        ICustomDeserializeRequestable<T> CustomCast<T>(Func<HttpResponseMessage, CancellationToken, Task<T>> customFactory) where T : class;
     }
 
     /// <summary>
@@ -67,6 +88,20 @@ namespace Inkslab.Net
         /// <param name="abnormalResultAnalysis">异常捕获,并返回异常情况下的结果。</param>
         /// <returns></returns>
         IRequestableExtend<T> XmlCatch(Func<XmlException, T> abnormalResultAnalysis);
+    }
+
+    /// <summary>
+    /// 自定义反序列化请求能力。
+    /// </summary>
+    /// <typeparam name="T">结果数据。</typeparam>
+    public interface ICustomDeserializeRequestable<T> : IRequestableExtend<T>
+    {
+        /// <summary>
+        /// 捕获自定义解析的异常，并返回结果（返回最后一次的结果）。
+        /// </summary>
+        /// <param name="abnormalResultAnalysis">异常捕获,并返回异常情况下的结果。</param>
+        /// <returns></returns>
+        IRequestableExtend<T> Catch(Func<Exception, T> abnormalResultAnalysis);
     }
 
     /// <summary>

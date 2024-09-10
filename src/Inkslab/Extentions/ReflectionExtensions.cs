@@ -9,27 +9,27 @@ namespace System.Reflection
     /// </summary>
     public static class ReflectionExtensions
     {
-        private static readonly Lrs<MemberInfo, string> descriptions = new Lrs<MemberInfo, string>(x =>
+        private static readonly Lrs<MemberInfo, string> _descriptions = new Lrs<MemberInfo, string>(x =>
         {
             var attr = x.GetCustomAttribute<DescriptionAttribute>();
 
             return attr is null ? x.Name : attr.Description;
         });
 
-        private static readonly Lrs<MemberInfo, bool> ignores = new Lrs<MemberInfo, bool>(x => x.IsDefined(typeof(IgnoreAttribute), true));
+        private static readonly Lrs<MemberInfo, bool> _ignores = new Lrs<MemberInfo, bool>(x => x.IsDefined(typeof(IgnoreAttribute), true));
 
         /// <summary>
         /// 是否被忽略。
         /// </summary>
         /// <param name="memberInfo">成员。</param>
         /// <returns>是否忽略。</returns>
-        public static bool IsIgnore(this MemberInfo memberInfo) => ignores.Get(memberInfo);
+        public static bool IsIgnore(this MemberInfo memberInfo) => _ignores.Get(memberInfo);
 
         /// <summary>
         /// 获得成员描述。
         /// </summary>
         /// <param name="memberInfo">成员。</param>
         /// <returns>描述。</returns>
-        public static string GetDescription(this MemberInfo memberInfo) => descriptions.Get(memberInfo);
+        public static string GetDescription(this MemberInfo memberInfo) => _descriptions.Get(memberInfo);
     }
 }

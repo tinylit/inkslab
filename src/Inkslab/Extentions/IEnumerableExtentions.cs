@@ -158,8 +158,12 @@ namespace System.Collections.Generic
             HashSet<TKey> set = new HashSet<TKey>(comparer);
 
             foreach (TSource element in source)
+            {
                 if (set.Add(keySelector.Invoke(element)))
+                {
                     yield return element;
+                }
+            }
 
             set.Clear();
         }

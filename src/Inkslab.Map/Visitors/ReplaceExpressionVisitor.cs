@@ -8,8 +8,8 @@ namespace Inkslab.Map.Visitors
     /// </summary>
     public class ReplaceExpressionVisitor : ExpressionVisitor
     {
-        private readonly Expression original;
-        private readonly Expression node;
+        private readonly Expression _original;
+        private readonly Expression _node;
 
         /// <summary>
         /// 将 <paramref name="original"/> 替换为 <paramref name="node"/> 。 
@@ -18,8 +18,8 @@ namespace Inkslab.Map.Visitors
         /// <param name="node">用作替换的表达式。</param>
         public ReplaceExpressionVisitor(Expression original, Expression node)
         {
-            this.original = original ?? throw new ArgumentNullException(nameof(original));
-            this.node = node ?? throw new ArgumentNullException(nameof(node));
+            _original = original ?? throw new ArgumentNullException(nameof(original));
+            _node = node ?? throw new ArgumentNullException(nameof(node));
         }
 
         /// <summary>
@@ -29,7 +29,7 @@ namespace Inkslab.Map.Visitors
         /// <returns><inheritdoc/></returns>
         public override Expression Visit(Expression node)
         {
-            return node == original ? this.node : base.Visit(node);
+            return node == _original ? _node : base.Visit(node);
         }
     }
 }

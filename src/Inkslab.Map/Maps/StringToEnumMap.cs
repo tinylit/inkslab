@@ -13,8 +13,8 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class StringToEnumMap : IMap
     {
-        private static readonly PropertyInfo lengthPrt = MapConstants.StringType.GetProperty("length");
-        private static readonly MethodInfo concatMtd = MapConstants.StringType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StringType, MapConstants.StringType, MapConstants.StringType }, null);
+        private static readonly PropertyInfo _lengthPrt = MapConstants.StringType.GetProperty("length");
+        private static readonly MethodInfo _concatMtd = MapConstants.StringType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StringType, MapConstants.StringType, MapConstants.StringType }, null);
 
         /// <summary>
         /// 字符串转枚举映射。
@@ -55,12 +55,12 @@ namespace Inkslab.Map.Maps
                 return bodyExp;
             }
 
-            return Condition(Equal(Property(sourceExpression, lengthPrt), Constant(0)), Default(destinationType), Switch(Call(sourceExpression, MapConstants.ToLowerMtd), bodyExp, null, switchCases));
+            return Condition(Equal(Property(sourceExpression, _lengthPrt), Constant(0)), Default(destinationType), Switch(Call(sourceExpression, MapConstants.ToLowerMtd), bodyExp, null, switchCases));
         }
 
         private static Expression ThrowError(Expression variable, Type sourceType, Type destinationType)
         {
-            return Throw(New(MapConstants.InvalidCastExceptionCtorOfString, Call(concatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceType.GetMethod("ToString", Type.EmptyTypes)!), Constant($"转换为类型({destinationType})!"))));
+            return Throw(New(MapConstants.InvalidCastExceptionCtorOfString, Call(_concatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceType.GetMethod("ToString", Type.EmptyTypes)!), Constant($"转换为类型({destinationType})!"))));
         }
     }
 }

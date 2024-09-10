@@ -34,7 +34,7 @@ namespace Inkslab.Map.Tests
     /// </summary>
     public class B
     {
-        private readonly A a;
+        private readonly A _a;
 
         /// <summary>
         /// <inheritdoc/>.
@@ -42,23 +42,23 @@ namespace Inkslab.Map.Tests
         /// <param name="a"><inheritdoc/>.</param>
         public B(A a)
         {
-            this.a = a ?? throw new ArgumentNullException(nameof(a));
+            _a = a ?? throw new ArgumentNullException(nameof(a));
         }
 
         /// <summary>
         /// B1.
         /// </summary>
-        public int B1 => a.A1;
+        public int B1 => _a.A1;
 
         /// <summary>
         /// B2.
         /// </summary>
-        public string B2 => a.A2;
+        public string B2 => _a.A2;
 
         /// <summary>
         /// B3.
         /// </summary>
-        public DateTime B3 => a.A3;
+        public DateTime B3 => _a.A3;
     }
 
     /// <summary>

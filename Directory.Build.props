@@ -1,7 +1,7 @@
 <Project>
     <PropertyGroup>
         <!-- 版本 -->
-        <Version>1.2.11</Version>
+        <Version>1.2.12</Version>
         <!-- C#语法版本-->
         <LangVersion>9.0</LangVersion>
 
@@ -13,8 +13,8 @@
         <Company>TINYLIT</Company>
         <Copyright>2022 TINYLIT.</Copyright>
         <RepositoryType>git</RepositoryType>
-        <Copyright>..\..\LICENSE</Copyright>
         <PackageIcon>inkslab-mini.jpg</PackageIcon>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/tinylit/inkslab</RepositoryUrl>
         <PackageProjectUrl>https://github.com/tinylit/inkslab</PackageProjectUrl>
@@ -29,6 +29,14 @@
             <PackagePath>\</PackagePath>
         </None>
     </ItemGroup>
+	
+	<ItemGroup>
+		<None Include="..\..\LICENSE">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+	
     <ItemGroup>
         <None Include="..\..\inkslab-mini.jpg">
             <Pack>True</Pack>

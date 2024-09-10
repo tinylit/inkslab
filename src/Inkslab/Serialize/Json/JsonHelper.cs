@@ -7,12 +7,12 @@ namespace Inkslab.Serialize.Json
     /// </summary>
     public static class JsonHelper
     {
-        private static readonly IJsonHelper jsonHelper;
+        private static readonly IJsonHelper _jsonHelper;
 
         /// <summary>
         /// 静态构造函数。
         /// </summary>
-        static JsonHelper() => jsonHelper = SingletonPools.Singleton<IJsonHelper>();
+        static JsonHelper() => _jsonHelper = SingletonPools.Singleton<IJsonHelper>();
 
         /// <summary> Json序列化。 </summary>
         /// <typeparam name="T">对象类型。</typeparam>
@@ -21,7 +21,7 @@ namespace Inkslab.Serialize.Json
         /// <param name="indented">是否缩进。</param>
         /// <returns></returns>
         public static string ToJson<T>(T jsonObj, NamingType namingType = NamingType.Normal, bool indented = false)
-            => jsonHelper.ToJson(jsonObj, namingType, indented);
+            => _jsonHelper.ToJson(jsonObj, namingType, indented);
 
         /// <summary> Json序列化。 </summary>
         /// <param name="jsonObj">对象。</param>
@@ -30,7 +30,7 @@ namespace Inkslab.Serialize.Json
         /// <param name="indented">是否缩进。</param>
         /// <returns></returns>
         public static string ToJson(object jsonObj, Type type, NamingType namingType = NamingType.Normal, bool indented = false)
-            => jsonHelper.ToJson(jsonObj, type, namingType, indented);
+            => _jsonHelper.ToJson(jsonObj, type, namingType, indented);
 
         /// <summary> Json反序列化。 </summary>
         /// <typeparam name="T">结果类型。</typeparam>
@@ -38,7 +38,7 @@ namespace Inkslab.Serialize.Json
         /// <param name="namingType">命名规则。</param>
         /// <returns></returns>
         public static T Json<T>(string json, NamingType namingType = NamingType.Normal)
-            => jsonHelper.Json<T>(json, namingType);
+            => _jsonHelper.Json<T>(json, namingType);
 
         /// <summary> 匿名对象反序列化。 </summary>
         /// <typeparam name="T">结果类型。</typeparam>
@@ -57,6 +57,6 @@ namespace Inkslab.Serialize.Json
         /// <param name="namingType">命名规则。</param>
         /// <returns></returns>
         public static object Json(string json, Type type, NamingType namingType = NamingType.Normal)
-            => jsonHelper.Json(json, type, namingType);
+            => _jsonHelper.Json(json, type, namingType);
     }
 }

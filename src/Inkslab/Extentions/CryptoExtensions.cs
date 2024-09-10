@@ -71,7 +71,9 @@ namespace System
                 var rgbKey = Encoding.ASCII.GetBytes(key);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
+                {
                     throw new ArgumentOutOfRangeException(nameof(key));
+                }
 
                 algorithm.Key = rgbKey;
                 algorithm.Mode = CipherMode.ECB;
@@ -123,7 +125,9 @@ namespace System
                 var rgbKey = Encoding.ASCII.GetBytes(key);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
+                {
                     throw new ArgumentOutOfRangeException(nameof(key));
+                }
 
                 algorithm.Key = rgbKey;
                 algorithm.Mode = CipherMode.ECB;
@@ -183,10 +187,14 @@ namespace System
                 var rgbIv = Encoding.ASCII.GetBytes(iv);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
+                {
                     throw new ArgumentOutOfRangeException(nameof(key));
+                }
 
                 if (algorithm.IV.Length != rgbIv.Length)
+                {
                     throw new ArgumentOutOfRangeException(nameof(iv));
+                }
 
                 crypto = algorithm.CreateEncryptor(rgbKey, rgbIv);
             }
@@ -242,10 +250,14 @@ namespace System
                 var rgbIv = Encoding.ASCII.GetBytes(iv);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
+                {
                     throw new ArgumentOutOfRangeException(nameof(key));
+                }
 
                 if (algorithm.IV.Length != rgbIv.Length)
+                {
                     throw new ArgumentOutOfRangeException(nameof(iv));
+                }
 
                 crypto = algorithm.CreateDecryptor(rgbKey, rgbIv);
             }

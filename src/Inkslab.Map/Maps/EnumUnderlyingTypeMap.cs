@@ -12,7 +12,7 @@ namespace Inkslab.Map.Maps
     /// </summary>
     public class EnumUnderlyingTypeMap : IMap
     {
-        private static readonly List<Type> enumTypes = new List<Type>(8)
+        private static readonly List<Type> _enumTypes = new List<Type>(8)
         {
             typeof(sbyte),
             typeof(byte),
@@ -24,9 +24,9 @@ namespace Inkslab.Map.Maps
             typeof(ulong)
         };
 
-        private static readonly MethodInfo toStringMtd = typeof(Enum).GetMethod(nameof(Enum.ToString), Type.EmptyTypes);
+        private static readonly MethodInfo _toStringMtd = typeof(Enum).GetMethod(nameof(Enum.ToString), Type.EmptyTypes);
 
-        private static readonly MethodInfo concatMtd = MapConstants.StringType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StringType, MapConstants.StringType, MapConstants.StringType }, null);
+        private static readonly MethodInfo _concatMtd = MapConstants.StringType.GetMethod("Concat", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new Type[3] { MapConstants.StringType, MapConstants.StringType, MapConstants.StringType }, null);
 
         /// <summary>
         /// 枚举因映射。
@@ -36,8 +36,8 @@ namespace Inkslab.Map.Maps
         /// <returns><inheritdoc/></returns>
         public bool IsMatch(Type sourceType, Type destinationType)
             => sourceType.IsEnum && destinationType.IsEnum
-            || sourceType.IsEnum && enumTypes.Contains(destinationType)
-            || destinationType.IsEnum && enumTypes.Contains(sourceType);
+            || sourceType.IsEnum && _enumTypes.Contains(destinationType)
+            || destinationType.IsEnum && _enumTypes.Contains(sourceType);
 
         /// <inheritdoc/>
         public Expression ToSolve(Expression sourceExpression, Type destinationType, IMapApplication application)
@@ -48,7 +48,7 @@ namespace Inkslab.Map.Maps
             {
                 var destinationExpression = Variable(destinationType);
 
-                var bodyExp = Call(MapConstants.TryParseMtd.MakeGenericMethod(destinationType), Call(sourceExpression, toStringMtd), Constant(true, typeof(bool)), destinationExpression);
+                var bodyExp = Call(MapConstants.TryParseMtd.MakeGenericMethod(destinationType), Call(sourceExpression, _toStringMtd), Constant(true, typeof(bool)), destinationExpression);
 
                 return Block(destinationType, new ParameterExpression[1] { destinationExpression }, Condition(bodyExp, destinationExpression, Aw_ToSolve(sourceType, destinationType, sourceExpression)));
             }
@@ -66,8 +66,8 @@ namespace Inkslab.Map.Maps
                 ? Enum.GetUnderlyingType(conversionType)
                 : sourceType;
 
-            int indexOfSource = enumTypes.IndexOf(sourceUnderlyingType);
-            int indexOfDest = enumTypes.IndexOf(conversionUnderlyingType);
+            int indexOfSource = _enumTypes.IndexOf(sourceUnderlyingType);
+            int indexOfDest = _enumTypes.IndexOf(conversionUnderlyingType);
 
             //? 目标类型值，大等于原类型值。
             if (indexOfSource <= indexOfDest)
@@ -107,7 +107,7 @@ namespace Inkslab.Map.Maps
 
         private static Expression ThrowError(Expression variable, Type sourceUnderlyingType, Type sourceType, Type conversionType)
         {
-            return Throw(New(MapConstants.InvalidCastExceptionCtorOfString, Call(concatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceUnderlyingType.GetMethod("ToString", Type.EmptyTypes)!), Constant($"转换为类型({conversionType})!"))));
+            return Throw(New(MapConstants.InvalidCastExceptionCtorOfString, Call(_concatMtd, Constant($"无法将类型({sourceType})的值"), Call(variable, sourceUnderlyingType.GetMethod("ToString", Type.EmptyTypes)!), Constant($"转换为类型({conversionType})!"))));
         }
     }
 }

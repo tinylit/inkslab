@@ -45,7 +45,10 @@ namespace Inkslab.Serialize.Xml
         /// <returns>序列化产生的XML字符串。</returns>
         public static string XmlSerialize(object obj, Encoding encoding = null, bool indented = false)
         {
-            if (obj is null) return null;
+            if (obj is null)
+            {
+                return null;
+            }
 
             encoding ??= Encoding.UTF8;
 
@@ -77,7 +80,9 @@ namespace Inkslab.Serialize.Xml
             }
 
             if (string.IsNullOrEmpty(xml))
+            {
                 return null;
+            }
 
             encoding ??= Encoding.UTF8;
 
@@ -109,7 +114,9 @@ namespace Inkslab.Serialize.Xml
         public static T XmlDeserialize<T>(string xml, Encoding encoding = null)
         {
             if (string.IsNullOrEmpty(xml))
+            {
                 return default;
+            }
 
             encoding ??= Encoding.UTF8;
 

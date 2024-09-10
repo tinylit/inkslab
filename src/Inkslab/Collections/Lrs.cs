@@ -13,10 +13,10 @@ namespace Inkslab.Collections
     {
         private int refCount = -1;
 
-        private readonly int capacity;
-        private readonly IEqualityComparer<T> comparer;
-        private readonly T[] arrays;
-        private readonly ConcurrentDictionary<T, int> keys;
+        private readonly int _capacity;
+        private readonly IEqualityComparer<T> _comparer;
+        private readonly T[] _arrays;
+        private readonly ConcurrentDictionary<T, int> _keys;
 
         /// <summary>
         /// 指定容器大小。
@@ -39,10 +39,10 @@ namespace Inkslab.Collections
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            this.capacity = capacity;
-            this.comparer = comparer ?? EqualityComparer<T>.Default;
+            _capacity = capacity;
+            _comparer = comparer ?? EqualityComparer<T>.Default;
 
-            arrays = new T[capacity];
+            _arrays = new T[capacity];
 
             int concurrencyLevel = capacity;
 
@@ -58,41 +58,41 @@ namespace Inkslab.Collections
                 break;
             }
 
-            keys = new ConcurrentDictionary<T, int>(concurrencyLevel, capacity, this.comparer);
+            _keys = new ConcurrentDictionary<T, int>(concurrencyLevel, capacity, _comparer);
         }
 
         /// <inheritdoc />
-        public int Count => keys.Count;
+        public int Count => _keys.Count;
 
         /// <inheritdoc />
         public bool Put(T value, out T obsoleteValue)
         {
             int index = Interlocked.Increment(ref refCount);
 
-            int offset = index % capacity;
+            int offset = index % _capacity;
 
-            obsoleteValue = arrays[offset];
+            obsoleteValue = _arrays[offset];
 
-            if (comparer.Equals(value, obsoleteValue))
+            if (_comparer.Equals(value, obsoleteValue))
             {
                 return false;
             }
 
             bool flag = false;
 
-            if (index >= capacity)
+            if (index >= _capacity)
             {
-                if (keys.Count == capacity || keys.TryGetValue(obsoleteValue, out int local) && local == offset)
+                if (_keys.Count == _capacity || _keys.TryGetValue(obsoleteValue, out int local) && local == offset)
                 {
                     flag = true;
 
                     do
                     {
-                        if (keys.TryRemove(obsoleteValue, out _))
+                        if (_keys.TryRemove(obsoleteValue, out _))
                         {
                             break;
                         }
-                    } while (keys.ContainsKey(obsoleteValue));
+                    } while (_keys.ContainsKey(obsoleteValue));
                 }
                 else //? 字典不存在，但被移除成功，代表值出现过，并被销毁了。
                 {
@@ -100,9 +100,9 @@ namespace Inkslab.Collections
                 }
             }
 
-            keys[value] = offset;
+            _keys[value] = offset;
 
-            arrays[offset] = value;
+            _arrays[offset] = value;
 
             return flag;
         }
@@ -116,12 +116,13 @@ namespace Inkslab.Collections
     /// <typeparam name="TValue">值。</typeparam>
     public class Lrs<TKey, TValue>
     {
-        private readonly Lrs<TKey> lrs;
+        private readonly Lrs<TKey> _lrs;
 
-        private readonly object lockObj = new object();
-        private readonly Func<TKey, TValue> factory;
+        private readonly object _lockObj = new object();
 
-        private readonly Dictionary<TKey, TValue> cachings;
+        private readonly Func<TKey, TValue> _factory;
+
+        private readonly Dictionary<TKey, TValue> _cachings;
 
         /// <summary>
         /// 默认容量。
@@ -150,11 +151,11 @@ namespace Inkslab.Collections
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
+            _factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
             comparer ??= EqualityComparer<TKey>.Default;
 
-            lrs = new Lrs<TKey>(capacity, comparer);
+            _lrs = new Lrs<TKey>(capacity, comparer);
 
             for (int i = 0; i < 3; i++)
             {
@@ -168,13 +169,13 @@ namespace Inkslab.Collections
                 break;
             }
 
-            cachings = new Dictionary<TKey, TValue>(capacity, comparer);
+            _cachings = new Dictionary<TKey, TValue>(capacity, comparer);
         }
 
         /// <summary>
         /// 总数。
         /// </summary>
-        public int Count => cachings.Count;
+        public int Count => _cachings.Count;
 
         /// <summary>
         /// 获取值。
@@ -188,14 +189,14 @@ namespace Inkslab.Collections
                 throw new ArgumentNullException(nameof(key));
             }
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (lrs.Put(key, out TKey obsoleteKey))
+                if (_lrs.Put(key, out TKey obsoleteKey))
                 {
 #if NET_Traditional
-                if (cachings.TryGetValue(obsoleteKey, out TValue obsoleteValue))
+                if (_cachings.TryGetValue(obsoleteKey, out TValue obsoleteValue))
                 {
-                    cachings.Remove(obsoleteKey);
+                    _cachings.Remove(obsoleteKey);
 
                     if (obsoleteValue is IDisposable disposable)
                     {
@@ -203,7 +204,7 @@ namespace Inkslab.Collections
                     }
                 }
 #else
-                if (cachings.Remove(obsoleteKey, out TValue obsoleteValue))
+                if (_cachings.Remove(obsoleteKey, out TValue obsoleteValue))
                 {
                     if (obsoleteValue is IDisposable disposable)
                     {
@@ -217,12 +218,12 @@ namespace Inkslab.Collections
 #endif
                 }
 
-                if (cachings.TryGetValue(key, out var value))
+                if (_cachings.TryGetValue(key, out var value))
                 {
                     return value;
                 }
 
-                return cachings[key] = factory.Invoke(key);
+                return _cachings[key] = _factory.Invoke(key);
             }
         }
     }

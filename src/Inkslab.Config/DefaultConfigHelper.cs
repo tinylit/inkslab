@@ -39,9 +39,9 @@ namespace Inkslab.Config
     public class DefaultConfigHelper : IConfigHelper
     {
 #if NET_Traditional
-        private readonly Configuration config;
-        private readonly Dictionary<string, string> configs;
-        private readonly Dictionary<string, ConnectionStringSettings> connectionStrings;
+        private readonly Configuration _config;
+        private readonly Dictionary<string, string> _configs;
+        private readonly Dictionary<string, ConnectionStringSettings> _connectionStrings;
 
         /// <summary>
         /// 构造函数。
@@ -54,11 +54,11 @@ namespace Inkslab.Config
         /// <param name="environment">运行环境。</param>
         public DefaultConfigHelper(RuntimeEnvironment environment)
         {
-            configs = new Dictionary<string, string>();
+            _configs = new Dictionary<string, string>();
 
-            connectionStrings = new Dictionary<string, ConnectionStringSettings>(StringComparer.OrdinalIgnoreCase);
+            _connectionStrings = new Dictionary<string, ConnectionStringSettings>(StringComparer.OrdinalIgnoreCase);
 
-            config = environment switch
+            _config = environment switch
             {
                 RuntimeEnvironment.Form or RuntimeEnvironment.Service => ConfigurationManager.OpenExeConfiguration(string.Empty),
                 _ => WebConfigurationManager.OpenWebConfiguration("~"),
@@ -76,7 +76,7 @@ namespace Inkslab.Config
         {
             if (key.IndexOf('/') == -1)
             {
-                if (configs.TryGetValue(key, out string value))
+                if (_configs.TryGetValue(key, out string value))
                 {
                     return Mapper.Map<T>(value);
                 }
@@ -90,10 +90,10 @@ namespace Inkslab.Config
             {
                 if (keys.Length == 1)
                 {
-                    return Mapper.Map<T>(connectionStrings);
+                    return Mapper.Map<T>(_connectionStrings);
                 }
 
-                if (connectionStrings.TryGetValue(keys[1], out ConnectionStringSettings value))
+                if (_connectionStrings.TryGetValue(keys[1], out ConnectionStringSettings value))
                 {
                     if (keys.Length == 2)
                     {
@@ -122,10 +122,10 @@ namespace Inkslab.Config
             {
                 if (keys.Length == 1)
                 {
-                    return Mapper.Map<T>(configs);
+                    return Mapper.Map<T>(_configs);
                 }
 
-                if (keys.Length == 2 && configs.TryGetValue(keys[1], out string value))
+                if (keys.Length == 2 && _configs.TryGetValue(keys[1], out string value))
                 {
                     return Mapper.Map<T>(value);
                 }
@@ -138,11 +138,11 @@ namespace Inkslab.Config
                 return defaultValue;
             }
 
-            var sectionGroup = config.GetSectionGroup(keys[0]);
+            var sectionGroup = _config.GetSectionGroup(keys[0]);
 
             if (sectionGroup is null)
             {
-                var section = config.GetSection(key);
+                var section = _config.GetSection(key);
 
                 if (section is null)
                 {
@@ -219,7 +219,9 @@ namespace Inkslab.Config
             return builder;
         }
 
-        private readonly ConcurrentDictionary<string, IConfiguration> configCache = new ConcurrentDictionary<string, IConfiguration>();
+        private readonly IConfiguration _config;
+
+        private readonly ConcurrentDictionary<string, IConfiguration> _cachings = new ConcurrentDictionary<string, IConfiguration>();
 
         /// <summary>
         /// 构造函数。
@@ -250,20 +252,18 @@ namespace Inkslab.Config
         /// <param name="config">配置。</param>
         public DefaultConfigHelper(IConfiguration config)
         {
-            this.config = config ?? throw new ArgumentNullException(nameof(config));
+            _config = config ?? throw new ArgumentNullException(nameof(config));
 
             callbackRegistration = config.GetReloadToken()
                 .RegisterChangeCallback(ConfigChanged, config);
         }
-
-        private readonly IConfiguration config;
         private IDisposable callbackRegistration;
 
         /// <summary> 配置文件变更事件。 </summary>
         public event Action<object> OnConfigChanged;
 
         /// <summary> 当前配置。 </summary>
-        public IConfiguration Config => config;
+        public IConfiguration Config => _config;
 
         /// <summary>
         /// 配置变更事件。
@@ -271,13 +271,13 @@ namespace Inkslab.Config
         /// <param name="state">状态。</param>
         private void ConfigChanged(object state)
         {
-            configCache.Clear();
+            _cachings.Clear();
 
             OnConfigChanged?.Invoke(state);
 
             callbackRegistration?.Dispose();
 
-            callbackRegistration = config.GetReloadToken()
+            callbackRegistration = _config.GetReloadToken()
                 .RegisterChangeCallback(ConfigChanged, state);
         }
 
@@ -297,10 +297,10 @@ namespace Inkslab.Config
                 //简单类型直接获取其值
                 if (type.IsSimple())
                 {
-                    return config.GetValue(key, defaultValue);
+                    return _config.GetValue(key, defaultValue);
                 }
 
-                var configuration = configCache.GetOrAdd(key, name => config.GetSection(name));
+                var configuration = _cachings.GetOrAdd(key, name => _config.GetSection(name));
 
                 if (type == typeof(object) || type == typeof(IConfiguration) || type == typeof(IConfigurationSection))
                 {
@@ -311,8 +311,8 @@ namespace Inkslab.Config
 
                 if (type.IsValueType)
                 {
-                    return Equals(value, default(T)) 
-                        ? defaultValue 
+                    return Equals(value, default(T))
+                        ? defaultValue
                         : value;
                 }
 

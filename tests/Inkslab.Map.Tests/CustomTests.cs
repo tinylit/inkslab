@@ -182,7 +182,7 @@ namespace Inkslab.Map.Tests
     /// <typeparam name="T">元素类型。</typeparam>
     public sealed class PagedList<T> : IEnumerable<T>, IEnumerable
     {
-        private readonly IEnumerable<T> datas;
+        private readonly IEnumerable<T> _datas;
 
         /// <summary>
         /// 空集合。
@@ -192,7 +192,7 @@ namespace Inkslab.Map.Tests
         /// <summary>
         /// 空集合。
         /// </summary>
-        public PagedList() => datas = Enumerable.Empty<T>();
+        public PagedList() => _datas = Enumerable.Empty<T>();
 
         /// <summary>
         /// 构造函数。
@@ -212,20 +212,22 @@ namespace Inkslab.Map.Tests
                 throw new IndexOutOfRangeException("分页条目不能小于1。");
             }
 
-            var results = queryable.Skip(pageIndex * pageSize)
+            var skipSize = pageIndex * pageSize;
+
+            var results = queryable.Skip(skipSize)
                 .Take(pageSize)
                 .ToList();
 
-            if (pageIndex == 0 && pageSize > results.Count)
+            if (pageSize > results.Count && results.Count > 0)
             {
-                Count = results.Count;
+                Count = skipSize + results.Count;
             }
             else
             {
                 Count = queryable.Count();
             }
 
-            datas = results;
+            _datas = results;
 
             PageIndex = pageIndex;
 
@@ -241,7 +243,7 @@ namespace Inkslab.Map.Tests
         /// <param name="totalCount">总数。</param>
         public PagedList(ICollection<T> datas, int pageIndex, int pageSize, int totalCount)
         {
-            this.datas = datas ?? throw new ArgumentNullException(nameof(datas));
+            _datas = datas ?? throw new ArgumentNullException(nameof(datas));
 
             if (pageIndex < 0)
             {
@@ -294,7 +296,7 @@ namespace Inkslab.Map.Tests
         /// 获取迭代器。
         /// </summary>
         /// <returns></returns>
-        public IEnumerator<T> GetEnumerator() => datas.GetEnumerator();
+        public IEnumerator<T> GetEnumerator() => _datas.GetEnumerator();
 
         /// <summary>
         /// 获取迭代器。

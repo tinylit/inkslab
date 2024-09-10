@@ -124,8 +124,8 @@ namespace System
 
         private static class Nested<TEnum> where TEnum : struct, Enum
         {
-            private static readonly Func<TEnum, TEnum, bool> equals;
-            private static readonly Func<TEnum, TEnum, bool> contains;
+            private static readonly Func<TEnum, TEnum, bool> _equals;
+            private static readonly Func<TEnum, TEnum, bool> _contains;
 
             static Nested()
             {
@@ -143,68 +143,68 @@ namespace System
 
                 var lambdaEx = Lambda<Func<TEnum, TEnum, bool>>(Block(typeof(bool), new[] { variableLeftEx, variableRightEx }, Assign(variableLeftEx, Convert(leftEx, underlyingType)), Assign(variableRightEx, Convert(rightEx, underlyingType)), bodyEx), leftEx, rightEx);
 
-                contains = lambdaEx.Compile();
+                _contains = lambdaEx.Compile();
 
                 var lambdaEqualEx = Lambda<Func<TEnum, TEnum, bool>>(Equal(leftEx, rightEx), leftEx, rightEx);
 
-                equals = lambdaEqualEx.Compile();
+                _equals = lambdaEqualEx.Compile();
             }
 
-            public static bool Equals(TEnum left, TEnum right) => equals.Invoke(left, right);
-            public static bool Contains(TEnum left, TEnum right) => contains.Invoke(left, right);
+            public static bool Equals(TEnum left, TEnum right) => _equals.Invoke(left, right);
+            public static bool Contains(TEnum left, TEnum right) => _contains.Invoke(left, right);
         }
 
         private static class Convert<TEnum> where TEnum : struct, Enum
         {
-            private static readonly Type conversionType;
-            private static readonly bool allowConvertToInt;
-            private static readonly bool allowConvertToLong;
+            private static readonly Type _conversionType;
+            private static readonly bool _allowConvertToInt;
+            private static readonly bool _allowConvertToLong;
 
             static Convert()
             {
-                switch (Type.GetTypeCode(conversionType = typeof(TEnum)))
+                switch (Type.GetTypeCode(_conversionType = typeof(TEnum)))
                 {
                     case TypeCode.SByte:
                     case TypeCode.Byte:
                     case TypeCode.Int16:
                     case TypeCode.UInt16:
                     case TypeCode.Int32:
-                        allowConvertToInt = allowConvertToLong = true;
+                        _allowConvertToInt = _allowConvertToLong = true;
                         break;
                     case TypeCode.UInt32:
                     case TypeCode.Int64:
-                        allowConvertToLong = true;
+                        _allowConvertToLong = true;
                         break;
                 }
 
-                IsFlags = conversionType.IsDefined(typeof(FlagsAttribute), false);
+                IsFlags = _conversionType.IsDefined(typeof(FlagsAttribute), false);
             }
 
             public static bool IsFlags { get; }
 
             public static int ToInt(TEnum @enum)
             {
-                if (allowConvertToInt)
+                if (_allowConvertToInt)
                 {
                     return @enum.GetHashCode();
                 }
 
-                throw new InvalidCastException($"{@enum}的基础数据类型为“{conversionType.Name}”，不能安全转换为Int32！");
+                throw new InvalidCastException($"{@enum}的基础数据类型为“{_conversionType.Name}”，不能安全转换为Int32！");
             }
 
             public static long ToLong(TEnum @enum)
             {
-                if (allowConvertToInt)
+                if (_allowConvertToInt)
                 {
                     return @enum.GetHashCode();
                 }
 
-                if (allowConvertToLong)
+                if (_allowConvertToLong)
                 {
-                    return (long)Convert.ChangeType(@enum, conversionType);
+                    return (long)Convert.ChangeType(@enum, _conversionType);
                 }
 
-                throw new InvalidCastException($"{@enum}的基础数据类型为“{conversionType.Name}”，不能安全转换为Int64！");
+                throw new InvalidCastException($"{@enum}的基础数据类型为“{_conversionType.Name}”，不能安全转换为Int64！");
             }
         }
     }

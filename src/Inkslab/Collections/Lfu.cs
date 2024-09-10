@@ -12,40 +12,40 @@ namespace Inkslab.Collections
     {
         private int version;
 
-        private readonly int capacity;
-        private readonly SortedSet<Node> sortKeys;
-        private readonly Dictionary<T, Node> keys;
+        private readonly int _capacity;
+        private readonly SortedSet<Node> _sortKeys;
+        private readonly Dictionary<T, Node> _keys;
 
-        private readonly object lockKeys = new object();
+        private readonly object _lockKeys = new object();
 
         [DebuggerDisplay("{key}(rank:{rank})")]
         private class Node
         {
-            private readonly T key;
-            private readonly int weight;
+            private readonly T _key;
+            private readonly int _weight;
 
             private int version;
             private int rank;
 
             public Node(T key, int ticks, int weight)
             {
-                this.key = key;
-                this.weight = weight;
+                _key = key;
+                _weight = weight;
 
                 rank = weight + ticks;
             }
 
-            public void Update(int ticks) => rank = weight * (++version) + ticks;
+            public void Update(int ticks) => rank = _weight * (++version) + ticks;
 
-            public T Value => key;
+            public T Value => _key;
 
             private class NodeComparer : IComparer<Node>
             {
-                private readonly IEqualityComparer<T> comparer;
+                private readonly IEqualityComparer<T> _comparer;
 
                 public NodeComparer(IEqualityComparer<T> comparer)
                 {
-                    this.comparer = comparer;
+                    _comparer = comparer;
                 }
 
                 public int Compare(Node x, Node y)
@@ -67,13 +67,13 @@ namespace Inkslab.Collections
 
                     if (x.rank == y.rank)
                     {
-                        return comparer.Equals(x.Value, y.Value)
+                        return _comparer.Equals(x.Value, y.Value)
                             ? 0
                             : x.Value is null
                                 ? -1
                                 : y.Value is null
                                     ? 1
-                                    : comparer.GetHashCode(x.Value) - comparer.GetHashCode(y.Value);
+                                    : _comparer.GetHashCode(x.Value) - _comparer.GetHashCode(y.Value);
                     }
 
                     return x.rank - y.rank;
@@ -104,12 +104,12 @@ namespace Inkslab.Collections
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            this.capacity = capacity;
+            _capacity = capacity;
             equalityComparer ??= EqualityComparer<T>.Default;
 
-            keys = new Dictionary<T, Node>(capacity, equalityComparer);
+            _keys = new Dictionary<T, Node>(capacity, equalityComparer);
 
-            sortKeys = new SortedSet<Node>(Node.CreateComparer(equalityComparer));
+            _sortKeys = new SortedSet<Node>(Node.CreateComparer(equalityComparer));
 
             for (int i = 0; i < 3; i++)
             {
@@ -125,29 +125,29 @@ namespace Inkslab.Collections
         }
 
         /// <inheritdoc />
-        public int Count => keys.Count;
+        public int Count => _keys.Count;
 
         /// <inheritdoc />
         public bool Put(T value, out T obsoleteValue)
         {
-            lock (lockKeys)
+            lock (_lockKeys)
             {
                 obsoleteValue = default;
 
-                if (keys.TryGetValue(value, out Node node)) //? 有节点数据。
+                if (_keys.TryGetValue(value, out Node node)) //? 有节点数据。
                 {
-                    sortKeys.Remove(node);
+                    _sortKeys.Remove(node);
 
                     node.Update(++version);
 
-                    sortKeys.Add(node);
+                    _sortKeys.Add(node);
 
                     return false;
                 }
 
                 bool removeFlag = false;
 
-                if (keys.Count == capacity)
+                if (_keys.Count == _capacity)
                 {
                     removeFlag = true;
 
@@ -156,23 +156,23 @@ label_removeItem:
 
                     while (removeMinFlag)
                     {
-                        var min = sortKeys.Min;
+                        var min = _sortKeys.Min;
 
                         obsoleteValue = min.Value;
 
-                        removeMinFlag = sortKeys.Remove(min);
+                        removeMinFlag = _sortKeys.Remove(min);
 
-                        if (removeMinFlag && keys.Remove(obsoleteValue))
+                        if (removeMinFlag && _keys.Remove(obsoleteValue))
                         {
                             goto label_add;
                         }
                     }
 
-                    sortKeys.Clear();
+                    _sortKeys.Clear();
 
-                    foreach (var kv in keys)
+                    foreach (var kv in _keys)
                     {
-                        sortKeys.Add(kv.Value);
+                        _sortKeys.Add(kv.Value);
                     }
 
                     goto label_removeItem;
@@ -180,11 +180,11 @@ label_removeItem:
 
 label_add:
 
-                node = new Node(value, version, capacity);
+                node = new Node(value, version, _capacity);
 
-                sortKeys.Add(node);
+                _sortKeys.Add(node);
 
-                keys.Add(value, node);
+                _keys.Add(value, node);
 
                 return removeFlag;
             }
@@ -198,13 +198,13 @@ label_add:
     /// <typeparam name="TValue">值。</typeparam>
     public class Lfu<TKey, TValue>
     {
-        private readonly Lfu<TKey> lfu;
+        private readonly Lfu<TKey> _lfu;
 
-        private readonly object lockObj = new object();
+        private readonly object _lockObj = new object();
 
-        private readonly Func<TKey, TValue> factory;
+        private readonly Func<TKey, TValue> _factory;
 
-        private readonly Dictionary<TKey, TValue> cachings;
+        private readonly Dictionary<TKey, TValue> _cachings;
 
         /// <summary>
         /// 默认容量。
@@ -241,11 +241,11 @@ label_add:
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
+            _factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
             comparer ??= EqualityComparer<TKey>.Default;
 
-            lfu = new Lfu<TKey>(capacity, comparer);
+            _lfu = new Lfu<TKey>(capacity, comparer);
 
             for (int i = 0; i < 3; i++)
             {
@@ -259,13 +259,13 @@ label_add:
                 break;
             }
 
-            cachings = new Dictionary<TKey, TValue>(capacity, comparer);
+            _cachings = new Dictionary<TKey, TValue>(capacity, comparer);
         }
 
         /// <summary>
         /// 总数。
         /// </summary>
-        public int Count => cachings.Count;
+        public int Count => _cachings.Count;
 
         /// <summary>
         /// 获取值。
@@ -279,22 +279,22 @@ label_add:
                 throw new ArgumentNullException(nameof(key));
             }
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (lfu.Put(key, out TKey removeKey))
+                if (_lfu.Put(key, out TKey removeKey))
                 {
 #if NET_Traditional
-                    if (cachings.TryGetValue(removeKey, out TValue removeValue))
+                    if (_cachings.TryGetValue(removeKey, out TValue removeValue))
                     {
                         if (removeValue is IDisposable disposable)
                         {
                             disposable.Dispose();
                         }
 
-                        cachings.Remove(removeKey);
+                        _cachings.Remove(removeKey);
                     }
 #else
-                    if (cachings.Remove(removeKey, out TValue removeValue))
+                    if (_cachings.Remove(removeKey, out TValue removeValue))
                     {
                         if (removeValue is IDisposable disposable)
                         {
@@ -308,12 +308,12 @@ label_add:
 #endif
                 }
 
-                if (cachings.TryGetValue(key, out var value))
+                if (_cachings.TryGetValue(key, out var value))
                 {
                     return value;
                 }
 
-                return cachings[key] = factory.Invoke(key);
+                return _cachings[key] = _factory.Invoke(key);
             }
         }
     }
