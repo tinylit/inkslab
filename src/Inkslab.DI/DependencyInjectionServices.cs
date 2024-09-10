@@ -579,7 +579,7 @@ namespace Inkslab.DI
             int depth
         )
         {
-            if (_injectionFree.Contains(serviceType) 
+            if (_injectionFree.Contains(serviceType)
                 || _ignoreTypes.Contains(serviceType))
             {
                 return true;
@@ -609,7 +609,7 @@ namespace Inkslab.DI
             {
                 var typeDefinition = serviceType.GetGenericTypeDefinition();
 
-                if (_ignoreTypes.Contains(typeDefinition) 
+                if (_ignoreTypes.Contains(typeDefinition)
                     || _services.Any(x => x.ServiceType == typeDefinition)) //? 已有注入时，不再自动注入。
                 {
                     return true;
@@ -876,7 +876,7 @@ namespace Inkslab.DI
                                 Di(
                                     injectionType,
                                     effectiveTypes,
-                                    lifetime,
+                                    seekAttribute.Lifetime ?? lifetime,
                                     depth
                                 )
                             )

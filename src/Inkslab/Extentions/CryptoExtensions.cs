@@ -24,7 +24,11 @@ namespace System
         /// <summary>
         /// 有效的 KEY 与 IV 长度，以英文字符为单位： KEY（Min:16 Max:32 Skip:8），IV（16）。
         /// </summary>
-        AES
+        AES,
+        /// <summary>
+        /// 非对称加密。
+        /// </summary>
+        RSA
     }
 
     /// <summary>
@@ -45,7 +49,7 @@ namespace System
         }
 
         /// <summary>
-        /// 对称加密（<see cref="CipherMode.ECB"/>，<seealso cref="PaddingMode.PKCS7"/>）。
+        /// 加密（对称：<see cref="CipherMode.ECB"/>，<seealso cref="PaddingMode.PKCS7"/>；非对称：<see cref="RSAEncryptionPadding.Pkcs1"/>）。
         /// </summary>
         /// <param name="data">内容。</param>
         /// <param name="key">键。</param>
@@ -63,12 +67,25 @@ namespace System
                 throw new ArgumentNullException(nameof(key));
             }
 
+            if (kind == CryptoKind.RSA)
+            {
+                using (var rsa = RSA.Create())
+                {
+                    rsa.FromXmlString(key);
+
+                    return Convert.ToBase64String(
+                        rsa.Encrypt(
+                            Encoding.UTF8.GetBytes(data),
+                            RSAEncryptionPadding.Pkcs1)
+                    );
+                }
+            }
 
             ICryptoTransform crypto;
 
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
-                var rgbKey = Encoding.ASCII.GetBytes(key);
+                var rgbKey = Encoding.UTF8.GetBytes(key);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
                 {
@@ -100,7 +117,7 @@ namespace System
         }
 
         /// <summary>
-        /// 对称减密（<see cref="CipherMode.ECB"/>，<seealso cref="PaddingMode.PKCS7"/>）。
+        /// 减密（对称：<see cref="CipherMode.ECB"/>，<seealso cref="PaddingMode.PKCS7"/>；非对称：<see cref="RSAEncryptionPadding.Pkcs1"/>）。
         /// </summary>
         /// <param name="data">内容。</param>
         /// <param name="key">键。</param>
@@ -118,11 +135,25 @@ namespace System
                 throw new ArgumentNullException(nameof(key));
             }
 
+            if (kind == CryptoKind.RSA)
+            {
+                using (var rsa = RSA.Create())
+                {
+                    rsa.FromXmlString(key);
+
+                    return Encoding.UTF8.GetString(
+                        rsa.Decrypt(
+                            Convert.FromBase64String(data),
+                            RSAEncryptionPadding.Pkcs1)
+                    );
+                }
+            }
+
             ICryptoTransform crypto;
 
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
-                var rgbKey = Encoding.ASCII.GetBytes(key);
+                var rgbKey = Encoding.UTF8.GetBytes(key);
 
                 if (!algorithm.ValidKeySize(rgbKey.Length * 8))
                 {
@@ -134,132 +165,6 @@ namespace System
                 algorithm.Padding = PaddingMode.PKCS7;
 
                 crypto = algorithm.CreateDecryptor();
-            }
-
-            using (var ms = new MemoryStream())
-            {
-                using (var cs = new CryptoStream(ms, crypto, CryptoStreamMode.Write))
-                {
-                    var buffer = Convert.FromBase64String(data);
-
-                    cs.Write(buffer, 0, buffer.Length);
-
-                    cs.FlushFinalBlock();
-
-                    cs.Close();
-                }
-
-                return Encoding.UTF8.GetString(ms.ToArray());
-            }
-        }
-
-        /// <summary>
-        /// 对称加密。
-        /// </summary>
-        /// <param name="data">内容。</param>
-        /// <param name="key">键。</param>
-        /// <param name="iv">初始化向量。</param>
-        /// <param name="kind">加密方式。</param>
-        /// <returns></returns>
-        public static string Encrypt(this string data, string key, string iv, CryptoKind kind = CryptoKind.DES)
-        {
-            if (data is null)
-            {
-                throw new ArgumentNullException(nameof(data));
-            }
-
-            if (key is null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (iv is null)
-            {
-                throw new ArgumentNullException(nameof(iv));
-            }
-
-            ICryptoTransform crypto;
-
-            using (var algorithm = GetSymmetricAlgorithm(kind))
-            {
-                var rgbKey = Encoding.ASCII.GetBytes(key);
-
-                var rgbIv = Encoding.ASCII.GetBytes(iv);
-
-                if (!algorithm.ValidKeySize(rgbKey.Length * 8))
-                {
-                    throw new ArgumentOutOfRangeException(nameof(key));
-                }
-
-                if (algorithm.IV.Length != rgbIv.Length)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(iv));
-                }
-
-                crypto = algorithm.CreateEncryptor(rgbKey, rgbIv);
-            }
-
-            using (var ms = new MemoryStream())
-            {
-                using (var cs = new CryptoStream(ms, crypto, CryptoStreamMode.Write))
-                {
-                    var buffer = Encoding.UTF8.GetBytes(data);
-
-                    cs.Write(buffer, 0, buffer.Length);
-
-                    cs.FlushFinalBlock();
-
-                    cs.Close();
-                }
-
-                return Convert.ToBase64String(ms.ToArray());
-            }
-        }
-
-        /// <summary>
-        /// 对称减密。
-        /// </summary>
-        /// <param name="data">内容。</param>
-        /// <param name="key">键。</param>
-        /// <param name="iv">初始化向量。</param>
-        /// <param name="kind">减密方式。</param>
-        /// <returns></returns>
-        public static string Decrypt(this string data, string key, string iv, CryptoKind kind = CryptoKind.DES)
-        {
-            if (data is null)
-            {
-                throw new ArgumentNullException(nameof(data));
-            }
-
-            if (key is null)
-            {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            if (iv is null)
-            {
-                throw new ArgumentNullException(nameof(iv));
-            }
-
-            ICryptoTransform crypto;
-
-            using (var algorithm = GetSymmetricAlgorithm(kind))
-            {
-                var rgbKey = Encoding.ASCII.GetBytes(key);
-
-                var rgbIv = Encoding.ASCII.GetBytes(iv);
-
-                if (!algorithm.ValidKeySize(rgbKey.Length * 8))
-                {
-                    throw new ArgumentOutOfRangeException(nameof(key));
-                }
-
-                if (algorithm.IV.Length != rgbIv.Length)
-                {
-                    throw new ArgumentOutOfRangeException(nameof(iv));
-                }
-
-                crypto = algorithm.CreateDecryptor(rgbKey, rgbIv);
             }
 
             using (var ms = new MemoryStream())
