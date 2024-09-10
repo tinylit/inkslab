@@ -141,6 +141,76 @@ namespace Inkslab.Tests
         }
 
         /// <summary>
+        /// 语法糖测试。
+        /// </summary>
+        [Fact]
+        public void StringLengthTest()
+        {
+            DateTimeKind? i = DateTimeKind.Utc;
+            var date = new DateTime(2023, 10, 23);
+            int j = 2;
+            var 测试中文 = "方程式";
+
+            DefaultSettings settings = new DefaultSettings
+            {
+                Strict = false,
+                PreserveSyntax = true
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            for (int k = 0; k < 100000; k++)
+            {
+                var r = "${测试中文:#}：${i}+${j},${i:D},${ date.Ticks },${ 测试中文 + date:yyyy }".StringSugar(new
+                {
+                    i,
+                    j,
+                    date,
+                    测试中文
+                }, settings);
+
+                Assert.Equal($"{测试中文.Length}：Utc+2,1,{date.Ticks},方程式2023", r);
+            }
+
+            stopwatch.Stop();
+        }
+
+        /// <summary>
+        /// 语法糖测试。
+        /// </summary>
+        [Fact]
+        public void StringIndexTest()
+        {
+            DateTimeKind? i = DateTimeKind.Utc;
+            var date = new DateTime(2023, 10, 23);
+            int j = 2;
+            var 测试中文 = "方程式非常快";
+
+            DefaultSettings settings = new DefaultSettings
+            {
+                Strict = false,
+                PreserveSyntax = true
+            };
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            for (int k = 0; k < 100000; k++)
+            {
+                var r = "${测试中文:..1}：${i}+${j},${i:D},${ date.Ticks },${测试中文:1..1}+${测试中文:1..}+${测试中文:1..-1}+${测试中文:..-2}".StringSugar(new
+                {
+                    i,
+                    j,
+                    date,
+                    测试中文
+                }, settings);
+
+                Assert.Equal($"{测试中文[..1]}：Utc+2,1,{date.Ticks},{测试中文[1..1]}+{测试中文[1..]}+{测试中文[1..(测试中文.Length - 1)]}+{测试中文[..(测试中文.Length - 2)]}", r);
+            }
+
+            stopwatch.Stop();
+        }
+
+        /// <summary>
         /// 命名测试。
         /// </summary>
         /// <param name="name">原名称。</param>

@@ -13,6 +13,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -275,9 +276,7 @@ namespace Inkslab.Net
         {
             public async Task<Stream> DownloadAsync(double timeout = 10000D, CancellationToken cancellationToken = default)
             {
-                var options = GetOptions(HttpMethod.Get, timeout);
-
-                var httpMsg = await SendAsync(options, cancellationToken);
+                using var httpMsg = await PrimitiveSendAsync(HttpMethod.Get, timeout, cancellationToken);
 
                 httpMsg.EnsureSuccessStatusCode();
 
@@ -290,9 +289,7 @@ namespace Inkslab.Net
 
             public override async Task<string> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var options = GetOptions(method, timeout);
-
-                var httpMsg = await SendAsync(options, cancellationToken);
+                using var httpMsg = await PrimitiveSendAsync(method, timeout, cancellationToken);
 
                 httpMsg.EnsureSuccessStatusCode();
 
@@ -301,6 +298,13 @@ namespace Inkslab.Net
 #else
                 return await httpMsg.Content.ReadAsStringAsync();
 #endif
+            }
+
+            public Task<HttpResponseMessage> PrimitiveSendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            {
+                var options = GetOptions(method, timeout);
+
+                return SendAsync(options, cancellationToken);
             }
 
             public abstract RequestOptions GetOptions(HttpMethod method, double timeout);
@@ -531,6 +535,26 @@ namespace Inkslab.Net
                 }
 
                 return new WhenRequestable(this, _encoding, whenStatus);
+            }
+
+            public ICustomDeserializeRequestable<T> CustomCast<T>(Func<HttpResponseMessage, CancellationToken, Task<T>> customFactory) where T : class
+            {
+                if (customFactory is null)
+                {
+                    throw new ArgumentNullException(nameof(customFactory));
+                }
+
+                return new CustomDeserializeRequestable<T>(this, customFactory);
+            }
+
+            public ICustomDeserializeRequestable<T> CustomCast<T>(Func<string, T> customFactory) where T : class
+            {
+                if (customFactory is null)
+                {
+                    throw new ArgumentNullException(nameof(customFactory));
+                }
+
+                return new CustomByStringDeserializeRequestable<T>(this, customFactory);
             }
         }
 
@@ -877,7 +901,7 @@ namespace Inkslab.Net
 
             public override RequestOptions GetOptions(HttpMethod method, double timeout) => _requestable.GetOptions(method, timeout);
 
-            public override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
+            public sealed override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
             {
                 var httpMsg = await _requestable.SendAsync(options, cancellationToken);
 
@@ -894,7 +918,7 @@ namespace Inkslab.Net
 
                     await _thenAsync(requestableRef);
 
-                    return await requestableRef.SendAsync(options.Method, options.Timeout, cancellationToken);
+                    return await requestableRef.SendAsync(options, cancellationToken);
                 }
 
                 return httpMsg;
@@ -999,10 +1023,8 @@ namespace Inkslab.Net
                     return sb.ToString();
                 }
 
-                public Task<HttpResponseMessage> SendAsync(HttpMethod method, double timeout, CancellationToken cancellationToken = default)
+                public Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
                 {
-                    var options = _requestable.GetOptions(method, timeout);
-
                     options.RequestUri = RequestUriRef(options.RequestUri);
 
                     if (_headers.Count > 0)
@@ -1048,7 +1070,7 @@ namespace Inkslab.Net
                 return options;
             }
 
-            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => _requestable.SendAsync(options, cancellationToken);
+            public sealed override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => _requestable.SendAsync(options, cancellationToken);
 
             public IWhenRequestable When(Predicate<HttpStatusCode> whenStatus)
             {
@@ -1058,6 +1080,26 @@ namespace Inkslab.Net
                 }
 
                 return new WhenRequestable(this, _encoding, whenStatus);
+            }
+
+            public ICustomDeserializeRequestable<T> CustomCast<T>(Func<HttpResponseMessage, CancellationToken, Task<T>> customFactory) where T : class
+            {
+                if (customFactory is null)
+                {
+                    throw new ArgumentNullException(nameof(customFactory));
+                }
+
+                return new CustomDeserializeRequestable<T>(this, customFactory);
+            }
+
+            public ICustomDeserializeRequestable<T> CustomCast<T>(Func<string, T> customFactory) where T : class
+            {
+                if (customFactory is null)
+                {
+                    throw new ArgumentNullException(nameof(customFactory));
+                }
+
+                return new CustomByStringDeserializeRequestable<T>(this, customFactory);
             }
         }
 
@@ -1338,6 +1380,128 @@ namespace Inkslab.Net
                     return await base.SendAsync(method, timeout, cancellationToken);
                 }
                 catch (XmlException ex)
+                {
+                    return _abnormalResultAnalysis.Invoke(ex);
+                }
+            }
+        }
+
+        private class CustomDeserializeRequestable<T> : Requestable<T>, ICustomDeserializeRequestable<T>, IRequestableExtend<T>
+        {
+            private readonly RequestableString _requestable;
+            private readonly Func<HttpResponseMessage, CancellationToken, Task<T>> _customFactory;
+
+            public CustomDeserializeRequestable(RequestableString requestable, Func<HttpResponseMessage, CancellationToken, Task<T>> customFactory)
+            {
+                _requestable = requestable;
+                _customFactory = customFactory;
+            }
+
+            public IRequestableExtend<T> Catch(Func<Exception, T> abnormalResultAnalysis)
+            {
+                if (abnormalResultAnalysis is null)
+                {
+                    throw new ArgumentNullException(nameof(abnormalResultAnalysis));
+                }
+
+                return new CustomDeserializeRequestableCatch<T>(_requestable, _customFactory, abnormalResultAnalysis);
+            }
+
+            public IRequestableDataVerify<T> DataVerify(Predicate<T> dataVerify)
+            {
+                if (dataVerify is null)
+                {
+                    throw new ArgumentNullException(nameof(dataVerify));
+                }
+
+                return new RequestableDataVerify<T>(this, dataVerify);
+            }
+
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            {
+                using var httpMsg = await _requestable.PrimitiveSendAsync(method, timeout, cancellationToken);
+
+                return await _customFactory.Invoke(httpMsg, cancellationToken);
+            }
+        }
+
+        private class CustomDeserializeRequestableCatch<T> : CustomDeserializeRequestable<T>, IRequestableExtend<T>
+        {
+            private readonly Func<Exception, T> _abnormalResultAnalysis;
+
+            public CustomDeserializeRequestableCatch(RequestableString requestable, Func<HttpResponseMessage, CancellationToken, Task<T>> customFactory, Func<Exception, T> abnormalResultAnalysis) : base(requestable, customFactory)
+            {
+                _abnormalResultAnalysis = abnormalResultAnalysis;
+            }
+
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            {
+                try
+                {
+                    return await base.SendAsync(method, timeout, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    return _abnormalResultAnalysis.Invoke(ex);
+                }
+            }
+        }
+
+        private class CustomByStringDeserializeRequestable<T> : Requestable<T>, ICustomDeserializeRequestable<T>, IRequestableExtend<T>
+        {
+            private readonly RequestableString _requestable;
+            private readonly Func<string, T> _customFactory;
+
+            public CustomByStringDeserializeRequestable(RequestableString requestable, Func<string, T> customFactory)
+            {
+                _requestable = requestable;
+                _customFactory = customFactory;
+            }
+
+            public IRequestableExtend<T> Catch(Func<Exception, T> abnormalResultAnalysis)
+            {
+                if (abnormalResultAnalysis is null)
+                {
+                    throw new ArgumentNullException(nameof(abnormalResultAnalysis));
+                }
+
+                return new CustomByStringDeserializeRequestableCatch<T>(_requestable, _customFactory, abnormalResultAnalysis);
+            }
+
+            public IRequestableDataVerify<T> DataVerify(Predicate<T> dataVerify)
+            {
+                if (dataVerify is null)
+                {
+                    throw new ArgumentNullException(nameof(dataVerify));
+                }
+
+                return new RequestableDataVerify<T>(this, dataVerify);
+            }
+
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            {
+                var httpMsg = await _requestable.SendAsync(method, timeout, cancellationToken);
+
+                return _customFactory.Invoke(httpMsg);
+            }
+        }
+
+        private class CustomByStringDeserializeRequestableCatch<T> : CustomByStringDeserializeRequestable<T>, IRequestableExtend<T>
+        {
+            private readonly Func<Exception, T> _abnormalResultAnalysis;
+
+            public CustomByStringDeserializeRequestableCatch(RequestableString requestable, Func<string, T> customFactory, Func<Exception, T> abnormalResultAnalysis) : base(requestable, customFactory)
+            {
+                _abnormalResultAnalysis = abnormalResultAnalysis;
+            }
+
+            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            {
+                try
+                {
+                    return await base.SendAsync(method, timeout, cancellationToken);
+                }
+                catch (Exception ex)
                 {
                     return _abnormalResultAnalysis.Invoke(ex);
                 }

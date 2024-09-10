@@ -24,7 +24,7 @@ namespace Inkslab.DI.Tests.Controllers
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
-        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, IEnumerable<ITestEnumerable> testEnumerables, ITypeDefinition<int> typeDefinitionInt, ITypeDefinition<DateTime> typeDefinitionDateTime)
+        public TestController(TestControllerCtor controllerCtor, SingletonTest singletonTest, ITestImplementElectionsByOne implementElectionsByOne, ILogger<TestController> logger, IEnumerable<ITestEnumerable> testEnumerables, ITypeDefinition<int> typeDefinitionInt, ITypeDefinition<DateTime> typeDefinitionDateTime, ITestSeekArguments testSeekArguments)
         {
             _controllerCtor = controllerCtor;
             _singletonTest = singletonTest;

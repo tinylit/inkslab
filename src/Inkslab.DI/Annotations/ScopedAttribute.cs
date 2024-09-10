@@ -7,7 +7,7 @@ namespace Inkslab.DI.Annotations
     /// 范围注入。
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false, Inherited = true)]
-    public sealed class ScopedAttribute : ServiceLifetimeAttribute
+    public class ScopedAttribute : ServiceLifetimeAttribute
     {
         /// <summary>
         /// <inheritdoc/>

@@ -21,7 +21,7 @@ namespace Inkslab.Net.Tests
         /// Get 请求。
         /// </summary>
         [Fact]
-        public async Task Get()
+        public async Task GetAsync()
         {
             var requestable = RequestFactory.Create("http://www.baidu.com/");
 
@@ -63,11 +63,63 @@ namespace Inkslab.Net.Tests
         }
 
         /// <summary>
+        /// Get 请求。
+        /// </summary>
+        [Fact]
+        public async Task GetCustomCastAsync()
+        {
+            var requestable = RequestFactory.Create("http://www.baidu.com/");
+
+            var value = await requestable.AppendQueryString(new
+            {
+                wd = "sql",
+                rsv_spt = 1,
+                rsv_iqid = "0x822dd2a900206e39",
+                issp = 1,
+                rsv_bp = 1,
+                rsv_idx = 2,
+                ie = "utf8"
+            })
+            .When(status => status == System.Net.HttpStatusCode.Unauthorized)
+            .ThenAsync(r =>
+            {
+                //? 获取认证。
+                r.AppendQueryString("debug=false");
+
+                return Task.CompletedTask;
+            })
+            .When(status => status == System.Net.HttpStatusCode.Forbidden || status == System.Net.HttpStatusCode.ProxyAuthenticationRequired)
+            .ThenAsync(r =>
+            {
+                //? 获取有效的认证。
+                r.AssignHeader("Authorization", "{{Authorization}}");
+
+                return Task.CompletedTask;
+            })
+            .CustomCast(async (msg, token) =>
+            {
+                msg.EnsureSuccessStatusCode();
+
+                var value = await msg.Content.ReadAsStringAsync(token);
+
+                return JsonHelper.Json<Dictionary<string, string>>(value);
+            })
+            .Catch(e =>
+            {
+                return new Dictionary<string, string>();
+            })
+            //.DataVerify(r => r.Count > 0) //? 结果数据校验。
+            //.Success(r => r.Count)
+            //.Fail(r => new NotSupportedException())
+            .GetAsync(5000D);
+        }
+
+        /// <summary>
         /// 下载。
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Download()
+        public async Task DownloadAsync()
         {
             var requestable = RequestFactory.Create("https://download.visualstudio.microsoft.com/download/pr/53f250a1-318f-4350-8bda-3c6e49f40e76/e8cbbd98b08edd6222125268166cfc43/dotnet-sdk-3.0.100-win-x64.exe");
 
@@ -85,7 +137,7 @@ namespace Inkslab.Net.Tests
         /// </summary>
         /// <returns></returns>
         [Fact]
-        public async Task Post()
+        public async Task PostAsync()
         {
             //var requestable = RequestFactory.Create("http://localhost:5000/api/di-test");
 

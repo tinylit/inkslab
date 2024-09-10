@@ -40,6 +40,20 @@ namespace Inkslab.DI
         IDependencyInjectionServices SeekAssemblies(params string[] patterns);
 
         /// <summary>
+        /// 忽略该类型的注入(仅对“<see cref="ServiceDescriptor.ServiceType"/>”的过滤有效)。
+        /// </summary>
+        /// <param name="serviceType">服务类型。</param>
+        /// <returns>依赖注入服务。</returns>
+        IDependencyInjectionServices IgnoreType(Type serviceType);
+
+        /// <summary>
+        /// 忽略该类型的注入(仅对“<see cref="ServiceDescriptor.ServiceType"/>”的过滤有效)。
+        /// </summary>
+        /// <typeparam name="TService">服务类型。</typeparam>
+        /// <returns>依赖注入服务。</returns>
+        IDependencyInjectionServices IgnoreType<TService>();
+
+        /// <summary>
         /// 查找并调用限定程序集中，所有实现 <see cref="IConfigureServices"/> 的方法 <see cref="IConfigureServices.ConfigureServices(IServiceCollection)"/> 注入约定（含私有类）。
         /// </summary>
         /// <returns>依赖注入服务。</returns>

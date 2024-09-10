@@ -18,9 +18,12 @@ namespace Inkslab.Sugars
     public class DefaultStringSugar : IStringSugar
     {
         private static readonly Type _enumType = typeof(Enum);
-        private static readonly MethodInfo _enumToStringMtd = _enumType.GetMethod(nameof(ToString), Type.EmptyTypes);
-        private static readonly MethodInfo _enumToStringFormatMtd = _enumType.GetMethod(nameof(ToString), new Type[] { typeof(string) });
+        private static readonly Type _stringType = typeof(string);
 
+        private static readonly MethodInfo _enumToStringMtd;
+        private static readonly MethodInfo _enumToStringFormatMtd;
+
+        private static readonly Regex _index = new Regex("^[\\x20\\t\\r\\n\\f]*((?<len>#)|\\.\\.[\\x20\\t\\r\\n\\f]*(?<end>(0|[-]?[1-9][0-9]*))|(?<at>(0|[1-9][0-9]*))([\\x20\\t\\r\\n\\f]*(?<range>\\.\\.[\\x20\\t\\r\\n\\f]*)(?<to>(0|[-]?[1-9][0-9]*))?)?)[\\x20\\t\\r\\n\\f]*$", RegexOptions.Compiled);
         private static readonly Regex _regularExpression = new Regex("\\$\\{[\\x20\\t\\r\\n\\f]*((?<pre>[\\w\\u4e00-\\u9fa5]+(\\.[\\w\\u4e00-\\u9fa5]+)*)[\\x20\\t\\r\\n\\f]*(?<token>\\??[?+])[\\x20\\t\\r\\n\\f]*)?(?<name>[\\w\\u4e00-\\u9fa5]+(\\.[\\w\\u4e00-\\u9fa5]+)*)(:(?<format>[^\\}]+?))?[\\x20\\t\\r\\n\\f]*\\}",
             RegexOptions.Multiline);
 
@@ -71,6 +74,9 @@ namespace Inkslab.Sugars
 
             _convertMtd = settingsType.GetMethod(nameof(DefaultSettings.Convert), new Type[] { objectType });
             _toStringMtd = settingsType.GetMethod(nameof(DefaultSettings.ToString), new Type[] { objectType });
+
+            _enumToStringMtd = _enumType.GetMethod(nameof(ToString), Type.EmptyTypes);
+            _enumToStringFormatMtd = _enumType.GetMethod(nameof(ToString), new Type[] { _stringType });
         }
 
         /// <summary>
@@ -124,7 +130,7 @@ namespace Inkslab.Sugars
                 return Convert(Same(underlyingType, Convert(left, underlyingType), Convert(right, underlyingType)), type);
             }
 
-            if (type == typeof(string))
+            if (type == _stringType)
             {
                 return Call(null, type.GetMethod(nameof(string.Concat), new Type[] { type, type })!, left, right);
             }
@@ -151,12 +157,12 @@ namespace Inkslab.Sugars
                 return Same(rightType, leftExp, rightExp);
             }
 
-            if (leftType == typeof(string))
+            if (leftType == _stringType)
             {
                 return Same(leftType, leftExp, Call(_parameterOfSettings, _toStringMtd, rightExp));
             }
 
-            if (rightType == typeof(string))
+            if (rightType == _stringType)
             {
                 return Same(rightType, Call(_parameterOfSettings, _toStringMtd, leftExp), rightExp);
             }
@@ -177,7 +183,7 @@ namespace Inkslab.Sugars
         {
             var instanceType = instance.Type;
 
-            if (instanceType == typeof(string))
+            if (instanceType == _stringType)
             {
                 return instance;
             }
@@ -221,12 +227,27 @@ namespace Inkslab.Sugars
 
         private class SyntaxPool
         {
-            private readonly ConcurrentDictionary<string, Expression> _blockCachings = new ConcurrentDictionary<string, Expression>(StringComparer.InvariantCultureIgnoreCase);
             private readonly ConcurrentDictionary<string, Func<StringSugar, object, DefaultSettings, string>> _sugarCachings = new ConcurrentDictionary<string, Func<StringSugar, object, DefaultSettings, string>>(StringComparer.InvariantCultureIgnoreCase);
 
-            private static readonly ConstructorInfo _invalidOperationErrorCtor = typeof(InvalidOperationException).GetConstructor(new Type[] { typeof(string) });
-            private static readonly ConstructorInfo _missingMemberErrorCtor = typeof(MissingMemberException).GetConstructor(new Type[] { typeof(string), typeof(string) });
-            private static readonly ConstructorInfo _missingMethodErrorCtor = typeof(MissingMethodException).GetConstructor(new Type[] { typeof(string) });
+            private static readonly MethodInfo _substringFn;
+
+            private static readonly ConstructorInfo _invalidOperationErrorCtor;
+            private static readonly ConstructorInfo _missingMemberErrorCtor;
+            private static readonly ConstructorInfo _missingMethodErrorCtor;
+
+            static SyntaxPool()
+            {
+                var intType = typeof(int);
+                var missingMemberType = typeof(MissingMemberException);
+                var missingMethodType = typeof(MissingMethodException);
+                var invalidOperationType = typeof(InvalidOperationException);
+
+                _substringFn = _stringType.GetMethod(nameof(string.Substring), new Type[] { intType, intType });
+
+                _invalidOperationErrorCtor = invalidOperationType.GetConstructor(new Type[] { _stringType });
+                _missingMemberErrorCtor = missingMemberType.GetConstructor(new Type[] { _stringType, _stringType });
+                _missingMethodErrorCtor = missingMethodType.GetConstructor(new Type[] { _stringType });
+            }
 
             private readonly ParameterExpression _instanceVariable;
 
@@ -236,9 +257,9 @@ namespace Inkslab.Sugars
             }
 
 
-            private Expression MakeExpression(string name) => _blockCachings.GetOrAdd(name, expression =>
+            private Expression MakeExpression(string name)
             {
-                string[] names = expression.Split('.');
+                string[] names = name.Split('.');
 
                 Expression instance = _instanceVariable;
 
@@ -249,26 +270,17 @@ namespace Inkslab.Sugars
                         continue;
                     }
 
-                    return Block(typeof(string), IfThenElse(_strict, Throw(New(_missingMemberErrorCtor, Constant(instance.Type.Name), Constant(expression))), Assign(_undo, _preserveSyntax)), Constant(null, typeof(string)));
+                    return Block(_stringType, IfThenElse(_strict, Throw(New(_missingMemberErrorCtor, Constant(instance.Type.Name), Constant(name))), Assign(_undo, _preserveSyntax)), Constant(null, _stringType));
                 }
 
                 return instance;
-            });
+            }
 
-            private Expression MakeExpression(string name, string format) => _blockCachings.GetOrAdd($"{name}:{format}", expression =>
+            private Expression MakeExpression(string name, string format)
             {
-                var indexOf = expression.IndexOf(':');
+                var valueExp = MakeExpression(name);
 
-#if NET_Traditional
-
-                var valueExp = MakeExpression(expression.Substring(0, indexOf));
-
-                var formatExp = Constant(expression.Substring(indexOf + 1));
-#else
-                var valueExp = MakeExpression(expression[..indexOf]);
-
-                var formatExp = Constant(expression[(indexOf + 1)..]);
-#endif
+                var formatExp = Constant(format);
 
                 var destinationType = valueExp.Type;
 
@@ -302,9 +314,74 @@ namespace Inkslab.Sugars
                         expressions.Add(Call(Convert(valueVar, _enumType), _enumToStringFormatMtd, formatExp));
                     }
                 }
+                else if (destinationType == _stringType)
+                {
+                    var mt = _index.Match(format);
+
+                    if (mt.Success) //? # / ..5 / 0.. / 0..5
+                    {
+                        if (mt.Groups["len"].Success) //? #
+                        {
+                            expressions.Add(Property(valueVar, "Length"));
+                        }
+                        else //? 0..5 ..5 0..
+                        {
+                            var endGrp = mt.Groups["end"];
+                            var rangeGrp = mt.Groups["range"];
+
+                            if (endGrp.Success || rangeGrp.Success)
+                            {
+                                int fromStart = 0;
+                                int toEnd = -1;
+                                bool isFromEnd = false;
+
+                                if (isFromEnd = endGrp.Success)
+                                {
+                                    toEnd = int.Parse(endGrp.Value);
+                                }
+                                else
+                                {
+                                    var atGrp = mt.Groups["at"];
+                                    var toGrp = mt.Groups["to"];
+
+                                    if (atGrp.Success)
+                                    {
+                                        fromStart = int.Parse(atGrp.Value);
+                                    }
+
+                                    if (isFromEnd = toGrp.Success)
+                                    {
+                                        toEnd = int.Parse(toGrp.Value);
+                                    }
+                                }
+
+                                if (isFromEnd)
+                                {
+                                    if (toEnd > 0)
+                                    {
+                                        expressions.Add(Call(valueVar, _substringFn, Constant(fromStart), Constant(toEnd - fromStart)));
+                                    }
+                                    else
+                                    {
+                                        expressions.Add(Call(valueVar, _substringFn, Constant(fromStart), AddChecked(Property(valueVar, "Length"), Constant(toEnd - fromStart))));
+                                    }
+                                }
+                                else
+                                {
+                                    expressions.Add(Call(valueVar, _substringFn, Constant(fromStart), SubtractChecked(Property(valueVar, "Length"), Constant(fromStart))));
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        expressions.Add(IfThen(_strict, Throw(New(_invalidOperationErrorCtor, Constant($"字符串的格式化值“{format}”暂不支持！")))));
+                        expressions.Add(valueVar);
+                    }
+                }
                 else
                 {
-                    var formatMtd = destinationType.GetMethod(nameof(ToString), new Type[] { typeof(string) });
+                    var formatMtd = destinationType.GetMethod(nameof(ToString), new Type[] { _stringType });
 
                     if (formatMtd is null)
                     {
@@ -322,7 +399,7 @@ namespace Inkslab.Sugars
                 }
 
                 return Block(new ParameterExpression[] { _instanceVariable, valueVar }, expressions);
-            });
+            }
 
             private Expression MakeExpressionByToken(Expression prevExp, string token, Expression nextExp)
             {
@@ -343,7 +420,7 @@ namespace Inkslab.Sugars
                     Assign(prevVar, prevExp)
                 };
 
-                if (token == "?" || token == "??" || token == "?+")
+                if (token is "?" or "??" or "?+")
                 {
                     if (prevType.IsClass || prevType.IsNullable())
                     {
@@ -382,23 +459,9 @@ namespace Inkslab.Sugars
             {
                 var valueGetter = _sugarCachings.GetOrAdd($"{pre}-{token}-{name}:{format}", expression =>
                 {
-                    var indexOf = expression.IndexOf(':');
+                    var prevExp = MakeExpression(pre);
 
-#if NET_Traditional
-                    var format = expression.Substring(indexOf + 1);
-
-                    var names = expression.Substring(0, indexOf).Split('-');
-#else
-                    var format = expression[(indexOf + 1)..];
-
-                    var names = expression[..indexOf].Split('-');
-#endif
-
-                    var prevExp = MakeExpression(names[0]);
-
-                    var token = names[1];
-
-                    var nextExp = MakeExpression(names[2], format);
+                    var nextExp = MakeExpression(name, format);
 
                     var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(MakeExpressionByToken(prevExp, token, nextExp), _parameterOfSugar, _parameterOfSource, _parameterOfSettings);
 
@@ -412,13 +475,9 @@ namespace Inkslab.Sugars
             {
                 var valueGetter = _sugarCachings.GetOrAdd($"{pre}-{token}-{name}", expression =>
                 {
-                    var names = expression.Split('-');
+                    var prevExp = MakeExpression(pre);
 
-                    var prevExp = MakeExpression(names[0]);
-
-                    var token = names[1];
-
-                    var nextExp = MakeExpression(names[2]);
+                    var nextExp = MakeExpression(name);
 
                     var lambdaExp = Lambda<Func<StringSugar, object, DefaultSettings, string>>(MakeExpressionByToken(prevExp, token, nextExp), _parameterOfSugar, _parameterOfSource, _parameterOfSettings);
 

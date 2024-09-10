@@ -27,7 +27,7 @@ namespace Inkslab.DI.Options
         /// </summary>
         /// <param name="serviceType">服务类型。</param>
         /// <returns>是否过滤。</returns>
-        public virtual bool Ignore(Type serviceType) => serviceType.IsNotPublic || serviceType.IsNested || serviceType.IsIgnore();
+        public virtual bool Ignore(Type serviceType) => serviceType.IsNotPublic || serviceType.IsNested;
 
         /// <summary>
         /// 解决冲突实现类。
