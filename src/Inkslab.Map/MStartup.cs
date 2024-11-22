@@ -1,7 +1,4 @@
-﻿using System.Linq;
-using System.Reflection;
-
-namespace Inkslab.Map
+﻿namespace Inkslab.Map
 {
     /// <summary>
     /// 映射启动项。
