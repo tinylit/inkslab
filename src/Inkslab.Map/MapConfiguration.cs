@@ -781,15 +781,12 @@ label_core:
 
                 protected internal override Expression VisitIgnoreIfNull(IgnoreIfNullExpression node)
                 {
-                    switch (node.Original)
+                    return node.Original switch
                     {
-                        case ParameterExpression when _variables.Contains(node.Original):
-                            return base.VisitIgnoreIfNull(node);
-                        case MemberExpression member when _variables.Contains(member.Expression):
-                            return base.VisitIgnoreIfNull(node);
-                        default:
-                            return _visitor.VisitIgnoreIfNull(node);
-                    }
+                        ParameterExpression when _variables.Contains(node.Original) => base.VisitIgnoreIfNull(node),
+                        MemberExpression member when _variables.Contains(member.Expression) => base.VisitIgnoreIfNull(node),
+                        _ => _visitor.VisitIgnoreIfNull(node),
+                    };
                 }
             }
         }

@@ -8,4 +8,8 @@
 	<ItemGroup>
 		<ProjectReference Include="..\Inkslab\Inkslab.csproj" />
 	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Update="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
+	</ItemGroup>
 </Project>

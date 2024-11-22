@@ -2,7 +2,9 @@
 using Inkslab.Collections;
 using System.ComponentModel;
 
+#pragma warning disable IDE0130 // 命名空间与文件夹结构不匹配
 namespace System.Reflection
+#pragma warning restore IDE0130 // 命名空间与文件夹结构不匹配
 {
     /// <summary>
     /// 反射扩展。
