@@ -313,7 +313,10 @@ namespace Inkslab.Map
 
                 return Condition(TypeIs(sourceExpression, conversionType),
                     Map(Convert(sourceExpression, conversionType), destinationType, application),
-                    Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
+                    Condition(TypeIs(sourceExpression, MapConstants.StringType),
+                        Map(TypeAs(sourceExpression, MapConstants.StringType), destinationType, application),
+                        Map(MapAnyOfObject(sourceExpression, sourceType, conversionType, application), destinationType, application)
+                    )
                 );
             }
 

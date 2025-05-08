@@ -151,6 +151,85 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
+    /// 用户角色。
+    /// </summary>
+    [Flags]
+    public enum EnumUserRole
+    {
+        /// <summary>
+        /// 用户。
+        /// </summary>
+        User = 1 << 0,
+        /// <summary>
+        /// 员工。
+        /// </summary>
+        Worker = 1 << 1,
+        /// <summary>
+        /// 老板。
+        /// </summary>
+        Boss = 1 << 2,
+        /// <summary>
+        /// 业务员。
+        /// </summary>
+        Salesman = 1 << 3,
+        /// <summary>
+        /// 电销。
+        /// </summary>
+        Telesales = 1 << 4,
+        /// <summary>
+        /// 客服。
+        /// </summary>
+        Service = 1 << 5,
+        /// <summary>
+        /// (内部或外部)开发者。
+        /// </summary>
+        Developer = 1 << 6,
+        /// <summary>
+        /// 医生。
+        /// </summary>
+        Doctor = 1 << 7,
+        /// <summary>
+        /// 药师。
+        /// </summary>
+        Pharmacist = 1 << 8,
+        /// <summary>
+        /// 专家。
+        /// </summary>
+        Specialist = 1 << 9,
+        /// <summary>
+        /// 管理员。
+        /// </summary>
+        Administrator = 1 << 10
+    }
+
+    /// <summary>
+    /// 管理员
+    /// </summary>
+    public class YKAdministrator
+    {
+        /// <summary>
+        /// 认证中心Id。
+        /// </summary>
+        public long Id { get; set; }
+        /// <summary>
+        /// 用户Id
+        /// </summary>
+        public long UserId { get; set; }
+        /// <summary>
+        /// 用户名称
+        /// </summary>
+        public string UserName { get; set; }
+        /// <summary>
+        /// 角色
+        /// </summary>
+        public EnumUserRole Role { get; set; }
+        /// <summary>
+        /// 事业部
+        /// </summary>
+        public long BusinessId { get; set; }
+    }
+
+    /// <summary>
     /// ҵ����
     /// </summary>
     public class LineOfBusinessOutDto
@@ -718,6 +797,29 @@ namespace Inkslab.Map.Tests
             Assert.True(destinationD.A1 == sourceC.A1);
             Assert.True(destinationD.A2 == sourceC.A2);
             Assert.True(destinationD.A3 == sourceC.A3);
+        }
+
+        /// <summary>
+        /// <see cref="FromKeyIsStringValueIsAnyMap"/>.
+        /// </summary>
+        [Fact]
+        public void MapFromDictionaryByEnum()
+        {
+            using var instance = new MapperInstance();
+
+            //? 通过【TryGetValue】方法，获得数据则进行映射，否则不映射。
+            var dic = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                {"id",123123123123123L},
+                {"role", "Administrator"},
+                { "UserId", 123123123123123L },
+                { "UserName", "redis.UserName" },
+                { "BusinessId", 1000L }, 
+            };
+
+            var c1 = instance.Map<YKAdministrator>(dic);
+
+            Assert.True(c1.Role == EnumUserRole.Administrator);
         }
     }
 }
