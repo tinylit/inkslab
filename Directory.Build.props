@@ -14,7 +14,7 @@
         <Copyright>2022 TINYLIT.</Copyright>
         <RepositoryType>git</RepositoryType>
         <PackageIcon>inkslab-mini.jpg</PackageIcon>
-		<PackageLicenseFile>LICENSE</PackageLicenseFile>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <RepositoryUrl>https://github.com/tinylit/inkslab</RepositoryUrl>
         <PackageProjectUrl>https://github.com/tinylit/inkslab</PackageProjectUrl>
@@ -24,19 +24,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\README.md">
+        <None Include="..\..\LICENSE">
             <Pack>True</Pack>
             <PackagePath>\</PackagePath>
         </None>
     </ItemGroup>
-	
-	<ItemGroup>
-		<None Include="..\..\LICENSE">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-	</ItemGroup>
-	
+
     <ItemGroup>
         <None Include="..\..\inkslab-mini.jpg">
             <Pack>True</Pack>
@@ -82,6 +75,13 @@
             </PropertyGroup>
 
             <ItemGroup>
+                <None Include="..\..\README.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
+
+            <ItemGroup>
                 <None Include="..\..\Inkslab.Config.md">
                     <Pack>True</Pack>
                     <PackagePath>\</PackagePath>
@@ -109,8 +109,16 @@
     <Choose>
         <When Condition="$(MSBuildProjectName)=='Inkslab.DI'">
             <PropertyGroup>
+                <Version>1.2.15</Version>
                 <Description>An automated dependency injection extension.</Description>
             </PropertyGroup>
+
+            <ItemGroup>
+                <None Include="..\..\README.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
 
             <ItemGroup
                 Condition="'$(TargetFramework)' == 'net461' OR '$(TargetFramework)' == 'netstandard2.1'">
@@ -128,6 +136,13 @@
             <PropertyGroup>
                 <Description>A high-performance JSON framework.</Description>
             </PropertyGroup>
+
+            <ItemGroup>
+                <None Include="..\..\README.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
 
             <ItemGroup>
                 <None Include="..\..\Inkslab.Json.md">
@@ -150,6 +165,13 @@
             </PropertyGroup>
 
             <ItemGroup>
+                <None Include="..\..\README.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
+
+            <ItemGroup>
                 <None Include="..\..\Inkslab.Map.md">
                     <Pack>True</Pack>
                     <PackagePath>\</PackagePath>
@@ -163,6 +185,13 @@
             <PropertyGroup>
                 <Description>A network communications assistant.</Description>
             </PropertyGroup>
+
+            <ItemGroup>
+                <None Include="..\..\README.md">
+                    <Pack>True</Pack>
+                    <PackagePath>\</PackagePath>
+                </None>
+            </ItemGroup>
 
             <ItemGroup>
                 <None Include="..\..\Inkslab.Net.md">

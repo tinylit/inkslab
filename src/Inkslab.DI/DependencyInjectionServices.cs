@@ -1048,46 +1048,54 @@ namespace Inkslab.DI
                     compare++;
 
                     implementationType = implementationType.BaseType;
+
                 } while (!(implementationType is null || implementationType == typeof(object)));
 
-                return int.MaxValue;
+                return implementationType.GetHashCode();
             }
 
             public int Compare(Type x, Type y)
             {
+                if (ReferenceEquals(x, y))
+                {
+                    return 0; // Handle reference equality and null cases
+                }
+
                 if (x is null)
                 {
-                    return y is null ? 0 : 1;
+                    return -1; // null is considered less than any type
                 }
 
                 if (y is null)
                 {
-                    return -1;
+                    return 1;
                 }
 
-                if (_serviceType.IsGenericTypeDefinition)
+                bool xAssignableFromY = x.IsAssignableFrom(y);
+                bool yAssignableFromX = y.IsAssignableFrom(x);
+
+                if (xAssignableFromY && !yAssignableFromX)
                 {
-                    if (x.IsGenericTypeDefinition && y.IsGenericTypeDefinition) { }
-                    else if (x.IsGenericTypeDefinition)
-                    {
-                        return -1;
-                    }
-                    else
-                    {
-                        return 1;
-                    }
+                    return 1; // y is more derived, comes first
                 }
-                else if (x.IsGenericTypeDefinition && y.IsGenericTypeDefinition) { }
+
+                if (yAssignableFromX && !xAssignableFromY)
+                {
+                    return -1; // x is more derived, comes first
+                }
+
+                if (x.IsGenericTypeDefinition && y.IsGenericTypeDefinition)
+                {
+                    return CardinalityCode(x) - CardinalityCode(y);
+                }
                 else if (x.IsGenericTypeDefinition)
                 {
-                    return 1;
+                    return -1;
                 }
                 else
                 {
-                    return -1;
+                    return 1;
                 }
-
-                return CardinalityCode(x) - CardinalityCode(y);
             }
         }
 
