@@ -29,32 +29,51 @@ namespace Inkslab.Map.Maps
         {
             Type sourceType = sourceExpression.Type;
 
-            var conversionGenericArguments = destinationType.GetGenericArguments();
+            var sourceGenericArguments = sourceType.GetGenericArguments();
 
-            if (sourceType == destinationType && Array.TrueForAll(conversionGenericArguments, x => x.IsValueType))
+            if (sourceType == destinationType && Array.TrueForAll(sourceGenericArguments, x => x.IsValueType))
             {
                 return sourceExpression;
             }
 
-            bool flag = true;
+            var arguments = new Expression[2];
 
-            var arguments = conversionGenericArguments.Zip(sourceType.GetGenericArguments(), (x, y) =>
+            var conversionGenericArguments = destinationType.GetGenericArguments();
+
+            if (CloneCheck(conversionGenericArguments[0], sourceGenericArguments[0]))
             {
-                try
-                {
-                    var propertyExpression = Property(sourceExpression, flag ? "Key" : "Value");
+                arguments[0] = application.Map(Property(sourceExpression, "Key"), conversionGenericArguments[0]);
+            }
+            else
+            {
+                arguments[0] = Property(sourceExpression, "Key");
+            }
 
-                    return x == y && x.IsValueType
-                        ? propertyExpression
-                        : application.Map(propertyExpression, x);
-                }
-                finally
-                {
-                    flag = false;
-                }
-            });
+            if (CloneCheck(conversionGenericArguments[1], sourceGenericArguments[1]))
+            {
+                arguments[1] = application.Map(Property(sourceExpression, "Value"), conversionGenericArguments[1]);
+            }
+            else
+            {
+                arguments[1] = Property(sourceExpression, "Value");
+            }
 
             return New(destinationType.GetConstructor(conversionGenericArguments)!, arguments);
+        }
+
+        private static bool CloneCheck(Type sourceType, Type destinationType)
+        {
+            if (sourceType != destinationType)
+            {
+                return true;
+            }
+
+            if (sourceType.IsValueType)
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }

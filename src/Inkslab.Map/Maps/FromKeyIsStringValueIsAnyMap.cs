@@ -66,16 +66,20 @@ namespace Inkslab.Map.Maps
 
             if (!TryKeyValue(sourceType, out Type valueType))
             {
-                throw new NotSupportedException();
+                throw new NotSupportedException("The source type must be an enumerable of KeyValuePair<string, TValue>.");
             }
 
-            var dictionaryType = typeof(Dictionary<,>).MakeGenericType(MapConstants.StringType, valueType);
+            var iDictionaryType = typeof(IDictionary<,>).MakeGenericType(MapConstants.StringType, valueType);
+            var readOnlyDictionaryType = typeof(IReadOnlyDictionary<,>).MakeGenericType(MapConstants.StringType, valueType);
 
-            var dictionaryVar = Variable(dictionaryType);
+            var iDictionaryVar = Variable(iDictionaryType);
+            var readOnlyDictionaryVar = Variable(readOnlyDictionaryType);
 
-            return IfThenElse(TypeIs(sourceExpression, dictionaryType),
-                Block(new ParameterExpression[] { dictionaryVar }, Assign(dictionaryVar, TypeAs(sourceExpression, dictionaryType)), ToSolveDictionary(dictionaryType, valueType, dictionaryVar, destinationExpression, propertyInfos, application)),
-                ToSolveUniversal(valueType, sourceExpression, destinationExpression, propertyInfos, application));
+            return IfThenElse(TypeIs(sourceExpression, iDictionaryType),
+                Block(new ParameterExpression[] { iDictionaryVar }, Assign(iDictionaryVar, TypeAs(sourceExpression, iDictionaryType)), ToSolveDictionary(iDictionaryType, valueType, iDictionaryVar, destinationExpression, propertyInfos, application)),
+                IfThenElse(TypeIs(sourceExpression, readOnlyDictionaryType),
+                    Block(new ParameterExpression[] { readOnlyDictionaryVar }, Assign(readOnlyDictionaryVar, TypeAs(sourceExpression, readOnlyDictionaryType)), ToSolveDictionary(readOnlyDictionaryType, valueType, readOnlyDictionaryVar, destinationExpression, propertyInfos, application)),
+                    ToSolveUniversal(valueType, sourceExpression, destinationExpression, propertyInfos, application)));
         }
 
         private static Expression ToSolveDictionary(Type dictionaryType, Type valueType, Expression sourceExpression, ParameterExpression destinationExpression, PropertyInfo[] propertyInfos, IMapApplication application)
