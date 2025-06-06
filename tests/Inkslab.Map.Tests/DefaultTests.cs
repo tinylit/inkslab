@@ -814,12 +814,32 @@ namespace Inkslab.Map.Tests
                 {"role", "Administrator"},
                 { "UserId", 123123123123123L },
                 { "UserName", "redis.UserName" },
-                { "BusinessId", 1000L }, 
+                { "BusinessId", 1000L },
             };
 
             var c1 = instance.Map<YKAdministrator>(dic);
 
             Assert.True(c1.Role == EnumUserRole.Administrator);
+        }
+
+        /// <summary>
+        /// 字符串到布尔值的映射测试。
+        /// </summary>
+        [Fact]
+        public void TestString2Bool()
+        {
+            using var instance = new MapperInstance();
+
+            var c1 = instance.Map<bool>("1");
+            Assert.True(c1);
+            var c2 = instance.Map<bool>("1.0");
+            Assert.True(c2);
+            var c3 = instance.Map<bool>("true");
+            Assert.True(c3);
+            var c4 = instance.Map<bool>("True");
+            Assert.True(c4);
+            var c5 = instance.Map<bool>("TRUE");
+            Assert.True(c5);
         }
     }
 }

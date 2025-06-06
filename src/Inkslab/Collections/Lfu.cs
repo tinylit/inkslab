@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace Inkslab.Collections
 {
@@ -8,80 +7,76 @@ namespace Inkslab.Collections
     /// 【线程安全】LFU 算法，移除最近最不常使用的数据。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
-    public class Lfu<T> : IEliminationAlgorithm<T>
+    public class Lfu<T> : IEliminationAlgorithm<T> where T : notnull
     {
-        private int version;
-
-        private readonly int _capacity;
-        private readonly SortedSet<Node> _sortKeys;
-        private readonly Dictionary<T, Node> _keys;
-
-        private readonly object _lockKeys = new object();
-
-        [DebuggerDisplay("{key}(rank:{rank})")]
         private class Node
         {
-            private readonly T _key;
-            private readonly int _weight;
+            public T Key { get; }
+            public int Frequency { get; set; }
+            public Node Previous { get; set; }
+            public Node Next { get; set; }
 
-            private int version;
-            private int rank;
-
-            public Node(T key, int ticks, int weight)
+            public Node()
             {
-                _key = key;
-                _weight = weight;
-
-                rank = weight + ticks;
+                Frequency = 1;
             }
 
-            public void Update(int ticks) => rank = _weight * (++version) + ticks;
-
-            public T Value => _key;
-
-            private class NodeComparer : IComparer<Node>
+            public Node(T key) : this()
             {
-                private readonly IEqualityComparer<T> _comparer;
-
-                public NodeComparer(IEqualityComparer<T> comparer)
-                {
-                    _comparer = comparer;
-                }
-
-                public int Compare(Node x, Node y)
-                {
-                    if (x is null)
-                    {
-                        return -1;
-                    }
-
-                    if (y is null)
-                    {
-                        return 1;
-                    }
-
-                    if (ReferenceEquals(x, y))
-                    {
-                        return 0;
-                    }
-
-                    if (x.rank == y.rank)
-                    {
-                        return _comparer.Equals(x.Value, y.Value)
-                            ? 0
-                            : x.Value is null
-                                ? -1
-                                : y.Value is null
-                                    ? 1
-                                    : _comparer.GetHashCode(x.Value) - _comparer.GetHashCode(y.Value);
-                    }
-
-                    return x.rank - y.rank;
-                }
+                Key = key;
             }
-
-            public static IComparer<Node> CreateComparer(IEqualityComparer<T> comparer) => new NodeComparer(comparer);
         }
+
+        private class FrequencyList
+        {
+            public Node Head { get; }
+            public Node Tail { get; }
+            public int Count { get; set; }
+
+            public FrequencyList()
+            {
+                Head = new Node();
+                Tail = new Node();
+
+                Head.Next = Tail;
+                Tail.Previous = Head;
+
+                Count = 0;
+            }
+
+            public void AddToHead(Node node)
+            {
+                node.Next = Head.Next;
+                node.Previous = Head;
+                Head.Next!.Previous = node;
+                Head.Next = node;
+
+                Count++;
+            }
+
+            public void RemoveNode(Node node)
+            {
+                node.Previous!.Next = node.Next;
+                node.Next!.Previous = node.Previous;
+
+                Count--;
+            }
+
+            public Node RemoveTail()
+            {
+                var node = Tail.Previous!;
+                RemoveNode(node);
+                return node;
+            }
+
+            public bool IsEmpty() => Count == 0;
+        }
+
+        private readonly int _capacity;
+        private int _minFrequency = 1;
+        private readonly Dictionary<T, Node> _cachings;
+        private readonly Dictionary<int, FrequencyList> _freqToNodes;
+        private readonly object _lockObj = new object();
 
         /// <summary>
         /// 指定容器大小。
@@ -96,8 +91,8 @@ namespace Inkslab.Collections
         /// 指定容器大小。
         /// </summary>
         /// <param name="capacity">容器大小。</param>
-        /// <param name="equalityComparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
-        public Lfu(int capacity, IEqualityComparer<T> equalityComparer)
+        /// <param name="comparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
+        public Lfu(int capacity, IEqualityComparer<T> comparer)
         {
             if (capacity < 0)
             {
@@ -105,11 +100,10 @@ namespace Inkslab.Collections
             }
 
             _capacity = capacity;
-            equalityComparer ??= EqualityComparer<T>.Default;
-
-            _keys = new Dictionary<T, Node>(capacity, equalityComparer);
-
-            _sortKeys = new SortedSet<Node>(Node.CreateComparer(equalityComparer));
+            _freqToNodes = new Dictionary<int, FrequencyList>
+            {
+                [1] = new FrequencyList()
+            };
 
             for (int i = 0; i < 3; i++)
             {
@@ -122,72 +116,83 @@ namespace Inkslab.Collections
 
                 break;
             }
+
+            _cachings = new Dictionary<T, Node>(capacity, comparer ?? EqualityComparer<T>.Default);
         }
 
         /// <inheritdoc />
-        public int Count => _keys.Count;
+        public int Count => _cachings.Count;
 
         /// <inheritdoc />
         public bool Put(T value, out T obsoleteValue)
         {
-            lock (_lockKeys)
+            obsoleteValue = default;
+
+            lock (_lockObj)
             {
-                obsoleteValue = default;
-
-                if (_keys.TryGetValue(value, out Node node)) //? 有节点数据。
+                if (_cachings.TryGetValue(value, out var node))
                 {
-                    _sortKeys.Remove(node);
-
-                    node.Update(++version);
-
-                    _sortKeys.Add(node);
+                    UpdateFrequency(node);
 
                     return false;
                 }
 
-                bool removeFlag = false;
+                bool flag = false;
 
-                if (_keys.Count == _capacity)
+                if (_cachings.Count >= _capacity)
                 {
-                    removeFlag = true;
+                    flag = true;
 
-label_removeItem:
-                    bool removeMinFlag = true;
-
-                    while (removeMinFlag)
-                    {
-                        var min = _sortKeys.Min;
-
-                        obsoleteValue = min.Value;
-
-                        removeMinFlag = _sortKeys.Remove(min);
-
-                        if (removeMinFlag && _keys.Remove(obsoleteValue))
-                        {
-                            goto label_add;
-                        }
-                    }
-
-                    _sortKeys.Clear();
-
-                    foreach (var kv in _keys)
-                    {
-                        _sortKeys.Add(kv.Value);
-                    }
-
-                    goto label_removeItem;
+                    obsoleteValue = Evict();
                 }
 
-label_add:
+                var newNode = new Node(value);
+                _cachings.Add(value, newNode);
+                _freqToNodes[1].AddToHead(newNode);
+                _minFrequency = 1; // 新添加的节点频率为1
 
-                node = new Node(value, version, _capacity);
-
-                _sortKeys.Add(node);
-
-                _keys.Add(value, node);
-
-                return removeFlag;
+                return flag;
             }
+        }
+
+        private void UpdateFrequency(Node node)
+        {
+            var currentFreq = node.Frequency;
+            var freqList = _freqToNodes[currentFreq];
+
+            // 从当前频率链表移除
+            freqList.RemoveNode(node);
+
+            // 如果当前是最小频率链表且变空，更新最小频率
+            if (currentFreq == _minFrequency && freqList.IsEmpty())
+            {
+                _minFrequency++;
+            }
+
+            // 增加节点频率
+            node.Frequency++;
+            var newFreq = node.Frequency;
+
+            // 确保新频率链表存在
+            if (!_freqToNodes.ContainsKey(newFreq))
+            {
+                _freqToNodes[newFreq] = new FrequencyList();
+            }
+
+            // 添加到新频率链表头部
+            _freqToNodes[newFreq].AddToHead(node);
+        }
+
+        private T Evict()
+        {
+            var minFreqList = _freqToNodes[_minFrequency];
+            var nodeToRemove = minFreqList.RemoveTail();
+            _cachings.Remove(nodeToRemove.Key);
+
+            // 如果最小频率链表变空，不需要立即更新_minFrequency
+            // 因为下次访问会自动更新（或添加新节点会重置为1）
+
+            return nodeToRemove.Key;
         }
     }
 
@@ -196,15 +201,77 @@ label_add:
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
-    public class Lfu<TKey, TValue>
+    public class Lfu<TKey, TValue> : IEliminationAlgorithm<TKey, TValue> where TKey : notnull
     {
-        private readonly Lfu<TKey> _lfu;
+        private class Node
+        {
+            public TKey Key { get; }
+            public TValue Value { get; set; }
+            public int Frequency { get; set; }
+            public Node Previous { get; set; }
+            public Node Next { get; set; }
 
-        private readonly object _lockObj = new object();
+            public Node()
+            {
+                Frequency = 1;
+            }
 
+            public Node(TKey key, TValue value) : this()
+            {
+                Key = key;
+                Value = value;
+            }
+        }
+
+        private class FrequencyList
+        {
+            public Node Head { get; }
+            public Node Tail { get; }
+            public int Count { get; set; }
+
+            public FrequencyList()
+            {
+                Head = new Node();
+                Tail = new Node();
+
+                Head.Next = Tail;
+                Tail.Previous = Head;
+
+                Count = 0;
+            }
+
+            public void AddToHead(Node node)
+            {
+                node.Next = Head.Next;
+                node.Previous = Head;
+                Head.Next!.Previous = node;
+                Head.Next = node;
+                Count++;
+            }
+
+            public void RemoveNode(Node node)
+            {
+                node.Previous!.Next = node.Next;
+                node.Next!.Previous = node.Previous;
+                Count--;
+            }
+
+            public Node RemoveTail()
+            {
+                var node = Tail.Previous!;
+                RemoveNode(node);
+                return node;
+            }
+
+            public bool IsEmpty() => Count == 0;
+        }
+
+        private readonly int _capacity;
         private readonly Func<TKey, TValue> _factory;
-
-        private readonly Dictionary<TKey, TValue> _cachings;
+        private int _minFrequency = 1;
+        private readonly Dictionary<TKey, Node> _cachings;
+        private readonly Dictionary<int, FrequencyList> _freqToNodes;
+        private readonly object _lockObj = new object();
 
         /// <summary>
         /// 默认容量。
@@ -236,16 +303,17 @@ label_add:
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
         public Lfu(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
         {
-            if (capacity < 0)
+            if (capacity <= 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(capacity));
+                throw new ArgumentException("Capacity must be greater than 0", nameof(capacity));
             }
 
-            _factory = factory ?? throw new ArgumentNullException(nameof(factory));
-
-            comparer ??= EqualityComparer<TKey>.Default;
-
-            _lfu = new Lfu<TKey>(capacity, comparer);
+            _capacity = capacity;
+            _factory = factory;
+            _freqToNodes = new Dictionary<int, FrequencyList>
+            {
+                [1] = new FrequencyList()
+            };
 
             for (int i = 0; i < 3; i++)
             {
@@ -259,62 +327,172 @@ label_add:
                 break;
             }
 
-            _cachings = new Dictionary<TKey, TValue>(capacity, comparer);
+            _cachings = new Dictionary<TKey, Node>(capacity, comparer ?? EqualityComparer<TKey>.Default);
         }
 
-        /// <summary>
-        /// 总数。
-        /// </summary>
+        /// <inheritdoc />
         public int Count => _cachings.Count;
 
         /// <summary>
-        /// 获取值。
+        /// <inheritdoc />
         /// </summary>
-        /// <param name="key">键。</param>
+        /// <param name="key"><inheritdoc /></param>
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
         public TValue Get(TKey key)
         {
-            if (key == null)
+            if (_cachings.TryGetValue(key, out var node))
             {
-                throw new ArgumentNullException(nameof(key));
-            }
-
-            lock (_lockObj)
-            {
-                if (_lfu.Put(key, out TKey removeKey))
+                lock (_lockObj)
                 {
-#if NET_Traditional
-                    if (_cachings.TryGetValue(removeKey, out TValue removeValue))
-                    {
-                        if (removeValue is IDisposable disposable)
-                        {
-                            disposable.Dispose();
-                        }
-
-                        _cachings.Remove(removeKey);
-                    }
-#else
-                    if (_cachings.Remove(removeKey, out TValue removeValue))
-                    {
-                        if (removeValue is IDisposable disposable)
-                        {
-                            disposable.Dispose();
-                        }
-                        else if (removeValue is IAsyncDisposable asyncDisposable)
-                        {
-                            asyncDisposable.DisposeAsync().AsTask().Wait();
-                        }
-                    }
-#endif
+                    UpdateFrequency(node);
                 }
 
-                if (_cachings.TryGetValue(key, out var value))
+                return node.Value;
+            }
+
+            TValue obsoleteValue = default;
+
+            try
+            {
+                lock (_lockObj)
                 {
+                    if (_cachings.TryGetValue(key, out node))
+                    {
+                        UpdateFrequency(node);
+
+                        return node.Value;
+                    }
+
+                    if (_cachings.Count >= _capacity)
+                    {
+                        obsoleteValue = Evict();
+                    }
+
+                    var value = _factory.Invoke(key);
+                    var newNode = new Node(key, value);
+                    _cachings.Add(key, newNode);
+                    _freqToNodes[1].AddToHead(newNode);
+                    _minFrequency = 1; // 新添加的节点频率为1
+
                     return value;
                 }
-
-                return _cachings[key] = _factory.Invoke(key);
             }
+            finally
+            {
+                if (obsoleteValue is IDisposable disposableValue)
+                {
+                    disposableValue.Dispose();
+                }
+#if !NET_Traditional
+                else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+                {
+                    asyncDisposable.DisposeAsync().AsTask().Wait();
+                }
+#endif
+            }
+        }
+
+        /// <inheritdoc/>
+        public bool TryGet(TKey key, out TValue value)
+        {
+            if (_cachings.TryGetValue(key, out var node))
+            {
+                lock (_lockObj)
+                {
+                    UpdateFrequency(node);
+                }
+
+                value = node.Value;
+
+                return true;
+            }
+
+            value = default;
+
+            return false;
+        }
+
+        /// <inheritdoc/>
+        public void Put(TKey key, TValue value)
+        {
+            TValue obsoleteValue = default;
+
+            try
+            {
+                lock (_lockObj)
+                {
+                    if (_cachings.TryGetValue(key, out var node))
+                    {
+                        node.Value = value; // 更新值
+
+                        UpdateFrequency(node);
+
+                        return;
+                    }
+
+                    if (_cachings.Count >= _capacity)
+                    {
+                        obsoleteValue = Evict();
+                    }
+
+                    var newNode = new Node(key, value);
+                    _cachings.Add(key, newNode);
+                    _freqToNodes[1].AddToHead(newNode);
+                    _minFrequency = 1; // 新添加的节点频率为1
+                }
+            }
+            finally
+            {
+                if (obsoleteValue is IDisposable disposableValue)
+                {
+                    disposableValue.Dispose();
+                }
+#if !NET_Traditional
+                else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+                {
+                    asyncDisposable.DisposeAsync().AsTask().Wait();
+                }
+#endif
+            }
+        }
+
+        private void UpdateFrequency(Node node)
+        {
+            var currentFreq = node.Frequency;
+            var freqList = _freqToNodes[currentFreq];
+
+            // 从当前频率链表移除
+            freqList.RemoveNode(node);
+
+            // 如果当前是最小频率链表且变空，更新最小频率
+            if (currentFreq == _minFrequency && freqList.IsEmpty())
+            {
+                _minFrequency++;
+            }
+
+            // 增加节点频率
+            node.Frequency++;
+            var newFreq = node.Frequency;
+
+            // 确保新频率链表存在
+            if (!_freqToNodes.ContainsKey(newFreq))
+            {
+                _freqToNodes[newFreq] = new FrequencyList();
+            }
+
+            // 添加到新频率链表头部
+            _freqToNodes[newFreq].AddToHead(node);
+        }
+
+        private TValue Evict()
+        {
+            var minFreqList = _freqToNodes[_minFrequency];
+            var nodeToRemove = minFreqList.RemoveTail();
+            _cachings.Remove(nodeToRemove.Key);
+
+            // 如果最小频率链表变空，不需要立即更新_minFrequency
+            // 因为下次访问会自动更新（或添加新节点会重置为1）
+            return nodeToRemove.Value;
         }
     }
 }

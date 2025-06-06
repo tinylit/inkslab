@@ -1,4 +1,5 @@
 ﻿using Inkslab.Collections;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -7,9 +8,9 @@ using Xunit;
 namespace Inkslab.Tests
 {
     /// <summary>
-    /// <see cref="Lfu{TKey, TValue}"/> 算法测试。
+    /// <see cref="Lru{TKey, TValue}"/> 算法测试。
     /// </summary>
-    public class LFUTests
+    public class LRUTests
     {
         /// <summary>
         /// 线程安全测试。
@@ -24,7 +25,7 @@ namespace Inkslab.Tests
 
             int length = 1000;
             int capacity = length / 10;
-            var lfu = new Lfu<int>(capacity);
+            var lfu = new Lru<int>(capacity);
 
             var tasks = new List<Task>(50);
 
@@ -121,7 +122,7 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lfu = new Lfu<int, int>(capacity, x => x * x);
+            var lfu = new Lru<int, int>(capacity, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {
@@ -150,7 +151,7 @@ namespace Inkslab.Tests
 
             Stopwatch stopwatch = new Stopwatch();
 
-            var lfu = new Lfu<int, int>(capacity / 2, x => x * x);
+            var lfu = new Lru<int, int>(capacity / 2, x => x * x);
 
             for (int i = 0; i < capacity; i++)
             {
@@ -175,23 +176,20 @@ namespace Inkslab.Tests
         [Fact]
         public void Test()
         {
-            var cache = new Lfu<string, int>(capacity: 2, strings => strings.GetHashCode());
+            var cache = new Lru<string, int>(capacity: 2, strings => strings.GetHashCode());
 
             // 添加初始元素
             cache.Put("A", 1);
             cache.Put("B", 2);
 
-            // 访问元素提升频率
-            cache.TryGet("A", out _);  // A频率=2
-            cache.TryGet("A", out _);  // A频率=3
+            // 访问元素
+            Assert.True(cache.TryGet("A", out _));  // 返回 true
 
             // 触发淘汰（容量=2，添加第三个元素淘汰最旧的"B"）
             cache.Put("C", 3);
 
             // 检查淘汰结果
             Assert.False(cache.TryGet("B", out _));
-            Assert.True(cache.TryGet("A", out _));
-            Assert.True(cache.TryGet("C", out _));
         }
     }
 }

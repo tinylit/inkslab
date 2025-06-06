@@ -3,7 +3,9 @@ using System.Reflection;
 using System.Text;
 using static System.Linq.Expressions.Expression;
 
+#pragma warning disable IDE0130 // 命名空间与文件夹结构不匹配
 namespace System
+#pragma warning restore IDE0130 // 命名空间与文件夹结构不匹配
 {
     /// <summary>
     /// 枚举扩展。

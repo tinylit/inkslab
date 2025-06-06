@@ -11,14 +11,14 @@ namespace System.Reflection
     /// </summary>
     public static class ReflectionExtensions
     {
-        private static readonly Lrs<MemberInfo, string> _descriptions = new Lrs<MemberInfo, string>(x =>
+        private static readonly Lru<MemberInfo, string> _descriptions = new Lru<MemberInfo, string>(x =>
         {
             var attr = x.GetCustomAttribute<DescriptionAttribute>();
 
             return attr is null ? x.Name : attr.Description;
         });
 
-        private static readonly Lrs<MemberInfo, bool> _ignores = new Lrs<MemberInfo, bool>(x => x.IsDefined(typeof(IgnoreAttribute), true));
+        private static readonly Lru<MemberInfo, bool> _ignores = new Lru<MemberInfo, bool>(x => x.IsDefined(typeof(IgnoreAttribute), true));
 
         /// <summary>
         /// 是否被忽略。
