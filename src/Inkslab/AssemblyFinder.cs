@@ -41,6 +41,49 @@ namespace Inkslab
         {
             private static readonly Regex _patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
 
+            private static readonly List<string> _strings = new List<string>(40)
+            {
+                "Google.",
+                "Microsoft.",
+                "System.",
+                "Newtonsoft.",
+                "Grpc.",
+                "MongoDB.",
+                "Nacos.",
+                "Nest.",
+                "Elasticsearch.",
+                "NPOI.",
+                "OpenTelemetry.",
+                "OpenTracing.",
+                "EntityFrameworkCore.",
+                "RabbitMQ.",
+                "StackExchange.",
+                "Quartz.",
+                "Hangfire.",
+                "Serilog.",
+                "NLog.",
+                "Log4Net.",
+                "log4stash.",
+                "Dapper.",
+                "AutoMapper.",
+                "FluentValidation.",
+                "MediatR.",
+                "Swashbuckle.",
+                "Swagger.",
+                "IdentityServer.",
+                "IdentityModel.",
+                "SixLabors.",
+                "Snappier.",
+                "ZstdSharp.",
+                "NetTopologySuite.",
+                "DnsClient.",
+                "AWSSDK.",
+                "Azure.",
+                "BouncyCastle.",
+                "FastReport.",
+                "Zstandard."
+            };
+
             public string[] GetFiles(string path, string searchPattern)
             {
                 bool flag = true;
@@ -68,6 +111,13 @@ namespace Inkslab
                     foreach (var file in files)
                     {
                         if (_patternSni.IsMatch(file))
+                        {
+                            continue;
+                        }
+
+                        string fileName = Path.GetFileName(file);
+
+                        if (_strings.Exists(s => fileName.StartsWith(s)))
                         {
                             continue;
                         }

@@ -106,13 +106,19 @@ namespace Inkslab.Config
                     }
 
                     if (string.Equals(keys[2], "connectionString", StringComparison.OrdinalIgnoreCase))
+                    {
                         return Mapper.Map<T>(value.ConnectionString);
+                    }
 
                     if (string.Equals(keys[2], "name", StringComparison.OrdinalIgnoreCase))
+                    {
                         return Mapper.Map<T>(value.Name);
+                    }
 
                     if (string.Equals(keys[2], "providerName", StringComparison.OrdinalIgnoreCase))
+                    {
                         return Mapper.Map<T>(value.ProviderName);
+                    }
                 }
 
                 return defaultValue;
@@ -170,7 +176,10 @@ namespace Inkslab.Config
                     }
                 }
 
-                if (!flag) break;
+                if (!flag)
+                {
+                    break;
+                }
             }
 
             if (keys.Length != index)
@@ -221,7 +230,7 @@ namespace Inkslab.Config
 
         private readonly IConfiguration _config;
 
-        private readonly ConcurrentDictionary<string, IConfiguration> _cachings = new ConcurrentDictionary<string, IConfiguration>();
+        private readonly ConcurrentDictionary<string, IConfigurationSection> _cachings = new ConcurrentDictionary<string, IConfigurationSection>();
 
         /// <summary>
         /// 构造函数。
@@ -307,17 +316,12 @@ namespace Inkslab.Config
                     return (T)configuration;
                 }
 
-                var value = configuration.Get<T>();
-
-                if (type.IsValueType)
+                if (configuration.Exists())
                 {
-                    return Equals(value, default(T))
-                        ? defaultValue
-                        : value;
+                    return configuration.Get<T>();
                 }
 
-                // 复杂类型
-                return value ?? defaultValue;
+                return defaultValue;
             }
             catch
             {

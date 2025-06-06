@@ -4,7 +4,9 @@ using Inkslab.Settings;
 using Inkslab.Sugars;
 using System.Text.RegularExpressions;
 
+#pragma warning disable IDE0130 // 命名空间与文件夹结构不匹配
 namespace System
+#pragma warning restore IDE0130 // 命名空间与文件夹结构不匹配
 {
     /// <summary>
     /// 字符串扩展。
