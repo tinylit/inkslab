@@ -26,6 +26,7 @@ namespace Inkslab.Map
         public static readonly IList<IMap> DefaultMaps = new List<IMap>
         {
             new EnumerableMap(),
+            new ParseStringToBooleanMap(),
             new ConvertMap(),
             new ToStringMap(),
             new ParseStringMap(),

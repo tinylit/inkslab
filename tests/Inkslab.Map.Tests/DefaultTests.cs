@@ -840,6 +840,16 @@ namespace Inkslab.Map.Tests
             Assert.True(c4);
             var c5 = instance.Map<bool>("TRUE");
             Assert.True(c5);
+            var c6 = instance.Map<bool>("0");
+            Assert.False(c6);
+            var c7 = instance.Map<bool>("0.0");
+            Assert.False(c7);
+            var c8 = instance.Map<bool>("false");
+            Assert.False(c8);
+            var c9 = instance.Map<bool>("False");
+            Assert.False(c9);
+            var c10 = instance.Map<bool>("FALSE");
+            Assert.False(c10);
         }
     }
 }

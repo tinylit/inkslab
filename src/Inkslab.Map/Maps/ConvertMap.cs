@@ -42,11 +42,6 @@ namespace Inkslab.Map.Maps
 
             var convertMethod = typeof(Convert).GetMethod(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly, null, new[] { sourceType }, null)!;
 
-            if (sourceType == MapConstants.StringType && destinationType == typeof(bool))
-            {
-                return OrElse(OrElse(Equal(sourceExpression, Constant("1")), Equal(sourceExpression, Constant("1.0"))), Call(convertMethod, sourceExpression));
-            }
-
             return Call(convertMethod, sourceExpression);
         }
     }
