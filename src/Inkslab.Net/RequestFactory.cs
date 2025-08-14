@@ -49,7 +49,6 @@ namespace Inkslab.Net
         private static readonly MethodInfo _listKvAddFn = _listKvType.GetMethod("Add", new Type[] { _kvType });
 
         private static readonly Type _dateType = typeof(DateTime);
-        private static readonly MethodInfo _dateToStringFn = _dateType.GetMethod("ToString", new Type[] { typeof(string) });
 
 #if NET_Traditional
         private static readonly Lfu<double, HttpClient> _clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient
@@ -65,7 +64,7 @@ namespace Inkslab.Net
             Timeout = TimeSpan.FromMilliseconds(timeout)
         });
 #endif
-        private static readonly ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>> _cachings = new ConcurrentDictionary<Type, Func<object, string, List<KeyValuePair<string, object>>>>();
+        private static readonly ConcurrentDictionary<Type, Func<object, List<KeyValuePair<string, object>>>> _cachings = new ConcurrentDictionary<Type, Func<object, List<KeyValuePair<string, object>>>>();
 
         private static readonly Dictionary<string, MediaTypeHeaderValue> _mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
         {
@@ -158,12 +157,11 @@ namespace Inkslab.Net
 
         private readonly IRequestInitialize _initialize;
 
-        private static Func<object, string, List<KeyValuePair<string, object>>> MakeTypeResults(Type type)
+        private static Func<object, List<KeyValuePair<string, object>>> MakeTypeResults(Type type)
         {
             var objectType = typeof(object);
 
             var objectExp = Parameter(objectType, "param");
-            var dateFormatStringExp = Parameter(typeof(string), "dateFormatString");
             var variableExp = Variable(type, "variable");
             var dictionaryExp = Variable(_listKvType, "dictionary");
 
@@ -198,7 +196,7 @@ namespace Inkslab.Net
 
                 if (propertyType == _dateType)
                 {
-                    valueExp = Call(valueExp, _dateToStringFn, dateFormatStringExp);
+                    valueExp = Convert(valueExp, objectType);
                 }
                 else if (propertyType.IsValueType)
                 {
@@ -234,7 +232,7 @@ namespace Inkslab.Net
 
             var bodyExp = Block(new ParameterExpression[] { variableExp, dictionaryExp }, expressions);
 
-            var lambdaExp = Lambda<Func<object, string, List<KeyValuePair<string, object>>>>(bodyExp, objectExp, dateFormatStringExp);
+            var lambdaExp = Lambda<Func<object, List<KeyValuePair<string, object>>>>(bodyExp, objectExp);
 
             return lambdaExp.Compile();
         }
@@ -336,6 +334,30 @@ namespace Inkslab.Net
                 public HttpContent Content => new StringContent(_body, _encoding, _contentType);
             }
 
+            private class ToContentByOriginal : IToContent
+            {
+                private readonly HttpContent _body;
+
+                public ToContentByOriginal(HttpContent body)
+                {
+                    _body = body;
+                }
+
+                public HttpContent Content => _body;
+            }
+
+            private class ToContentByStringValue : IToContent
+            {
+                private readonly IEnumerable<KeyValuePair<string, string>> _body;
+
+                public ToContentByStringValue(IEnumerable<KeyValuePair<string, string>> body)
+                {
+                    _body = body;
+                }
+
+                public HttpContent Content => new FormUrlEncodedContent(_body);
+            }
+
             private class ToContentByForm<TBody> : IToContent where TBody : IEnumerable<KeyValuePair<string, object>>
             {
                 private readonly Encoding _encoding;
@@ -435,6 +457,17 @@ namespace Inkslab.Net
                             }
 
                             break;
+                        case IEnumerable enumerableValue:
+                            if (throwErrorsIfEnumerable)
+                            {
+                                throw new InvalidOperationException("不支持多维数组的参数传递!");
+                            }
+
+                            foreach (var itemValue in enumerableValue)
+                            {
+                                AppendToForm(content, encoding, name, itemValue, dateFormatString, true);
+                            }
+                            break;
                         default:
                             if (value is null)
                             {
@@ -451,7 +484,7 @@ namespace Inkslab.Net
                 {
                     get
                     {
-                        if (_body.Any(x => x.Value is FileInfo || x.Value is IEnumerable<FileInfo>))
+                        if (_body.Any(x => x.Value is FileInfo or IEnumerable<FileInfo>))
                         {
                             var content = new MultipartFormDataContent(string.Concat("--", DateTime.Now.Ticks.ToString("x")));
 
@@ -487,12 +520,15 @@ namespace Inkslab.Net
             }
 
             public IRequestableContent Body(string body, string contentType) => new RequestableContent(this, _encoding, new ToContentByBody(_encoding, body, contentType));
+            public IRequestableContent Form(MultipartFormDataContent body) => new RequestableContent(this, _encoding, new ToContentByOriginal(body));
 
-            public IRequestableContent Form<TBody>(TBody body) where TBody : IEnumerable<KeyValuePair<string, object>> => Form(body, "yyyy-MM-dd HH:mm:ss.FFFFFFFK");
+            public IRequestableContent Form(FormUrlEncodedContent body) => new RequestableContent(this, _encoding, new ToContentByOriginal(body));
+
+            public IRequestableContent Form<TBody>(TBody body) where TBody : IEnumerable<KeyValuePair<string, string>> => new RequestableContent(this, _encoding, new ToContentByStringValue(body));
 
             public IRequestableContent Form<TBody>(TBody body, string dateFormatString) where TBody : IEnumerable<KeyValuePair<string, object>> => new RequestableContent(this, _encoding, new ToContentByForm<TBody>(_encoding, body, dateFormatString));
 
-            public IRequestableContent Form<TBody>(TBody body, NamingType namingType = NamingType.Normal, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TBody : class
+            public IRequestableContent Form(object body, NamingType namingType, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
             {
                 if (body is null)
                 {
@@ -501,8 +537,8 @@ namespace Inkslab.Net
 
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
-                var results = _cachings.GetOrAdd(typeof(TBody), MakeTypeResults)
-                    .Invoke(body, dateFormatString);
+                var results = _cachings.GetOrAdd(body.GetType(), MakeTypeResults)
+                    .Invoke(body);
 
                 return Form(namingType == NamingType.Normal
                         ? results
@@ -703,7 +739,7 @@ namespace Inkslab.Net
                 dateFormatString ??= "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
 
                 var results = _cachings.GetOrAdd(typeof(TParam), MakeTypeResults)
-                    .Invoke(param, dateFormatString);
+                    .Invoke(param);
 
                 return AppendQueryString(namingType == NamingType.Normal
                         ? results
