@@ -30,6 +30,7 @@ namespace Inkslab.Net.Tests
                 wd = "sql",
                 rsv_spt = 1,
                 rsv_iqid = "0x822dd2a900206e39",
+                now = DateTime.Now,
                 issp = 1,
                 rsv_bp = 1,
                 rsv_idx = 2,
@@ -43,7 +44,7 @@ namespace Inkslab.Net.Tests
 
                 return Task.CompletedTask;
             })
-            .When(status => status == System.Net.HttpStatusCode.Forbidden || status == System.Net.HttpStatusCode.ProxyAuthenticationRequired)
+            .When(status => status is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.ProxyAuthenticationRequired)
             .ThenAsync(r =>
             {
                 //? 获取有效的认证。
