@@ -397,23 +397,13 @@ namespace Inkslab.Collections
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
         public TValue Get(TKey key)
         {
-            if (_keys.TryGetValue(key, out var node))
-            {
-                lock (_lockObj)
-                {
-                    MoveToHead(node);
-                }
-
-                return node.Value;
-            }
-
             TValue obsoleteValue = default;
 
             try
             {
                 lock (_lockObj)
                 {
-                    if (_keys.TryGetValue(key, out node))
+                    if (_keys.TryGetValue(key, out var node))
                     {
                         MoveToHead(node);
 

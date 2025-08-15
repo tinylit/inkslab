@@ -74,7 +74,7 @@ namespace Inkslab.Tests
 
             int length = 1000;
             int capacity = length / 10;
-            var lfu = new Lfu<int, int>(capacity, x => x * x);
+            var lru = new Lru<int, int>(capacity, x => x * x);
 
             var tasks = new List<Task>(50);
 
@@ -87,12 +87,12 @@ namespace Inkslab.Tests
                     for (int j = 0; j < length; j++)
                     {
                         stopwatch.Start();
-                        var v = lfu.Get(j);
+                        var v = lru.Get(j);
                         stopwatch.Stop();
 
                         Assert.Equal(j * j, v);
 
-                        Assert.True(lfu.Count <= length);
+                        Assert.True(lru.Count <= length);
                     }
 
                     stopwatch.Stop();
@@ -105,9 +105,9 @@ namespace Inkslab.Tests
 
             totalStopwatch.Stop();
 
-            Debug.WriteLine(lfu.Count);
+            Debug.WriteLine(lru.Count);
 
-            Assert.True(lfu.Count == capacity);
+            Assert.True(lru.Count == capacity);
 
             Debug.WriteLine($"计算{50 * length}次，共执行{totalMilliseconds}毫秒");
         }
