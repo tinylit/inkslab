@@ -100,5 +100,32 @@ namespace Inkslab.Tests
 
             array3.ZipEach(array1, Assert.Equal);
         }
+
+        /// <summary>
+        /// 内容遍历。
+        /// </summary>
+        [Fact]
+        public void JoinEachTest()
+        {
+            var array1 = new List<int> { 1, 2, 3, 4, 5, 6, 7 };
+            var array2 = new List<DistinctA>();
+
+            var r = new Random();
+
+            for (int i = 0, len = 50; i < len; i++)
+            {
+                array2.Add(new DistinctA
+                {
+                    Id = r.Next(len),
+                    Name = i.ToString(),
+                    Date = DateTime.Now
+                });
+            }
+
+            array1.JoinEach(array2, x => x, y => y.Id, (x, y) =>
+            {
+                Assert.Equal(x, y.Id);
+            });
+        }
     }
 }
