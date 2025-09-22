@@ -1,4 +1,4 @@
-using Inkslab.Json;
+ï»¿using Inkslab.Json;
 using Inkslab.Serialize.Json;
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using Xunit;
 namespace Inkslab.Net.Tests
 {
     /// <summary>
-    /// ÇëÇó×é¼ş²âÊÔ¡£
+    /// è¯·æ±‚ç»„ä»¶æµ‹è¯•ã€‚
     /// </summary>
     public class UnitTest1
     {
@@ -18,7 +18,7 @@ namespace Inkslab.Net.Tests
         }
 
         /// <summary>
-        /// Get ÇëÇó¡£
+        /// Get è¯·æ±‚ã€‚
         /// </summary>
         [Fact]
         public async Task GetAsync()
@@ -39,7 +39,7 @@ namespace Inkslab.Net.Tests
             .When(status => status == System.Net.HttpStatusCode.Unauthorized)
             .ThenAsync(r =>
             {
-                //? »ñÈ¡ÈÏÖ¤¡£
+                //? è·å–è®¤è¯ã€‚
                 r.AppendQueryString("debug=false");
 
                 return Task.CompletedTask;
@@ -47,7 +47,7 @@ namespace Inkslab.Net.Tests
             .When(status => status is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.ProxyAuthenticationRequired)
             .ThenAsync(r =>
             {
-                //? »ñÈ¡ÓĞĞ§µÄÈÏÖ¤¡£
+                //? è·å–æœ‰æ•ˆçš„è®¤è¯ã€‚
                 r.AssignHeader("Authorization", "{{Authorization}}");
 
                 return Task.CompletedTask;
@@ -57,14 +57,14 @@ namespace Inkslab.Net.Tests
             {
                 return new Dictionary<string, string>();
             })
-            //.DataVerify(r => r.Count > 0) //? ½á¹ûÊı¾İĞ£Ñé¡£
+            //.DataVerify(r => r.Count > 0) //? ç»“æœæ•°æ®æ ¡éªŒã€‚
             //.Success(r => r.Count)
             //.Fail(r => new NotSupportedException())
             .GetAsync(5000D);
         }
 
         /// <summary>
-        /// Get ÇëÇó¡£
+        /// Get è¯·æ±‚ã€‚
         /// </summary>
         [Fact]
         public async Task GetCustomCastAsync()
@@ -84,7 +84,7 @@ namespace Inkslab.Net.Tests
             .When(status => status == System.Net.HttpStatusCode.Unauthorized)
             .ThenAsync(r =>
             {
-                //? »ñÈ¡ÈÏÖ¤¡£
+                //? è·å–è®¤è¯ã€‚
                 r.AppendQueryString("debug=false");
 
                 return Task.CompletedTask;
@@ -92,7 +92,7 @@ namespace Inkslab.Net.Tests
             .When(status => status == System.Net.HttpStatusCode.Forbidden || status == System.Net.HttpStatusCode.ProxyAuthenticationRequired)
             .ThenAsync(r =>
             {
-                //? »ñÈ¡ÓĞĞ§µÄÈÏÖ¤¡£
+                //? è·å–æœ‰æ•ˆçš„è®¤è¯ã€‚
                 r.AssignHeader("Authorization", "{{Authorization}}");
 
                 return Task.CompletedTask;
@@ -109,14 +109,14 @@ namespace Inkslab.Net.Tests
             {
                 return new Dictionary<string, string>();
             })
-            //.DataVerify(r => r.Count > 0) //? ½á¹ûÊı¾İĞ£Ñé¡£
+            //.DataVerify(r => r.Count > 0) //? ç»“æœæ•°æ®æ ¡éªŒã€‚
             //.Success(r => r.Count)
             //.Fail(r => new NotSupportedException())
             .GetAsync(5000D);
         }
 
         /// <summary>
-        /// ÏÂÔØ¡£
+        /// ä¸‹è½½ã€‚
         /// </summary>
         /// <returns></returns>
         [Fact]
@@ -134,7 +134,7 @@ namespace Inkslab.Net.Tests
         }
 
         /// <summary>
-        /// ²âÊÔ HttpContent ÖØÊÔÊÍ·ÅÎÊÌâºÍÈÏÖ¤ÎÊÌâ¡£
+        /// æµ‹è¯• HttpContent é‡è¯•é‡Šæ”¾é—®é¢˜å’Œè®¤è¯é—®é¢˜ã€‚
         /// </summary>
         /// <returns></returns>
         [Fact]
@@ -144,7 +144,7 @@ namespace Inkslab.Net.Tests
 
             //var value = await requestable
             //    .AssignHeader("Authorization", "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ4NjdGNzEwMEM1OENDRDFBNUUzMzVFNEEzN0RGNTUwIiwidHlwIjoiSldUIn0.eyJuYmYiOjE2NzgwNjU2MjAsImV4cCI6MTY3ODQyNTYyMCwiaXNzIjoiaHR0cHM6Ly93d3cuaHlzemJiLmNvbSIsImF1ZCI6WyJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIiwiempzLm9zcy5hcGkiXSwiY2xpZW50X2lkIjoiSHlzTWFsbCIsInN1YiI6IjUwMjIzZjIzLTdlNzMtNDE1Yy04YzExLTlhOGJjMTcwNzQxZiIsImF1dGhfdGltZSI6MTY3ODA2NTYyMCwiaWRwIjoibG9jYWwiLCJuYW1lIjoicm9vdCIsIm5pY2tuYW1lIjoiIiwicm9sZSI6IkFkbWluaXN0cmF0b3IiLCJ0aW1lc3RhbXAiOiI2MzgxMzY5MTIyMDA1NTYxNjciLCJqdGkiOiJCQjIzNDQ4RTEyN0MwNzFFOEM0ODVDNjZFMTE4NTE2QiIsImlhdCI6MTY3ODA2NTYyMCwic2NvcGUiOiJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIG9wZW5pZCBwcm9maWxlIHpqcy5vc3MuYXBpIG9mZmxpbmVfYWNjZXNzIiwiYW1yIjpbImN1c3RvbSJdfQ.JqiZIDL-BLJXgHrhSRvwR8wmcE78zz--KqCJO4VgT7DTJTuOrphL1s8vEIFsmyXtKQkp7TsJXWfiORbE3D8Iinz-EoDLcqJefSvsmmRFJq75fRwN3C1nUdBF0aY-uTp7iIJ4ofMICGKS6vaDsWsKn5HlzowdOG5-6F8Dh1H4Ff1Nq01i2Ya_8mfJgO2cAcoTrGIeYF__PT9jgfBD9cBxUOiEuUabrMR0d7A7xu-GjzO2DQDihZ5pknUJL6O-7VlBW2XfWJfN1Lk2yCWYomZLRbzV6O9_L5jZwggENNdeNTx38lYltDGdaPwKstfLDe8oc3hrhcYIxeUoiYC8JAVoOA")
-            //    .Json(new { Id = 100, Name = "²âÊÔ" })
+            //    .Json(new { Id = 100, Name = "æµ‹è¯•" })
             //    .When(status => status == System.Net.HttpStatusCode.Unauthorized)
             //    .ThenAsync(r =>
             //    {
