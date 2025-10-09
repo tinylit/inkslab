@@ -177,6 +177,142 @@ namespace Inkslab.Map.Tests
     }
 
     /// <summary>
+    /// 客户信息
+    /// </summary>
+    public class CustomerOutDto
+    {
+        /// <summary>
+        /// 名称
+        /// </summary>
+        public string Name { get; set; }
+        /// <summary>
+        /// 联系人
+        /// </summary>
+        public string Contact { get; set; }
+        /// <summary>
+        /// 手机号
+        /// </summary>
+        public string Phone { get; set; }
+    }
+
+    /// <summary>
+    /// 客户手机号信息
+    /// </summary>
+    public class CustomerPhoneResponse
+    {
+        /// <summary>
+        /// 名称
+        /// </summary>
+        public string Name { get; set; }
+        /// <summary>
+        /// 联系人
+        /// </summary>
+        public string Contact { get; set; }
+        /// <summary>
+        /// 手机号
+        /// </summary>
+        public string Phone { get; set; }
+    }
+
+    /// <summary>
+    /// 数据结果。
+    /// </summary>
+    /// <typeparam name="T">元素类型。</typeparam>
+    public sealed class Responses<T>
+    {
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        private Responses() { }
+
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="data">分页的数据。</param>
+        public Responses(PagedList<T> data)
+        {
+            if (data is null)
+            {
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            Total = data.Count;
+
+            Data = data.ToList();
+        }
+
+        /// <summary>
+        /// 构造函数。
+        /// </summary>
+        /// <param name="count">总条数。</param>
+        /// <param name="data">数据。</param>
+        public Responses(int count, List<T> data)
+        {
+            Total = count;
+            Data = data ?? throw new ArgumentNullException(nameof(data));
+        }
+
+        /// <summary>
+        /// 状态码。
+        /// </summary>
+        public int Code { get; set; }
+
+        private bool? success;
+
+        /// <summary>
+        /// 是否成功。
+        /// </summary>
+        public bool Success
+        {
+            get => success ?? Code == 0;
+            set => success = value;
+        }
+
+        /// <summary>
+        /// 错误信息。
+        /// </summary>
+        public string Msg { get; set; }
+
+        /// <summary>
+        /// 数据。
+        /// </summary>
+        public List<T> Data { get; }
+
+        /// <summary>
+        /// 总条数。
+        /// </summary>
+        public int Total { get; set; }
+
+        /// <summary>
+        /// Utc。
+        /// </summary>
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+
+        /// <summary>
+        /// 错误信息。
+        /// </summary>
+        /// <param name="errorMsg">错误信息。</param>
+        /// <param name="statusCode">状态码。</param>
+        /// <returns></returns>
+        public static Responses<T> Errors(string errorMsg, int statusCode = -1) =>
+            new Responses<T> { Code = statusCode, Msg = errorMsg, };
+
+        /// <summary>
+        /// 类型默认转换。
+        /// </summary>
+        /// <param name="list">数据。</param>
+        public static implicit operator Responses<T>(PagedList<T> list)
+        {
+            if (list is null)
+            {
+                throw new ArgumentNullException(nameof(list));
+            }
+
+            return new Responses<T>(list);
+        }
+    }
+
+    /// <summary>
     /// 分页的列表。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
@@ -855,6 +991,46 @@ namespace Inkslab.Map.Tests
             });
 
             Assert.True(destinationList.C4s.Count == 1);
+        }
+
+        /// <summary>
+        /// 映射分页泛型DTO。
+        /// </summary>
+        [Fact]
+        public void MapPagedGeneralDto()
+        {
+            using var instance = new MapperInstance();
+
+            instance.New<PagedList<object>, Responses<object>>(x => new Responses<object>(x.Count, x.ToList()))
+                .IncludeConstraints((x, y, z) => true); //? 任何类型都可以。
+
+            var source = new PagedList<CustomerOutDto>(new List<CustomerOutDto>
+            {
+                new CustomerOutDto
+                {
+                    Name = "Test",
+                    Contact = "Test",
+                    Phone = "12345678901"
+                },
+                new CustomerOutDto
+                {
+                    Name = "Test",
+                    Contact = "Test",
+                    Phone = "12345678901"
+                },
+                new CustomerOutDto
+                {
+                    Name = "Test",
+                    Contact = "Test",
+                    Phone = "12345678901"
+                }
+            }, 0, 3, 3);
+
+            var destination = instance.Map<Responses<CustomerPhoneResponse>>(source);
+
+            Assert.True(source.First().Name == destination.Data.First().Name);
+            Assert.True(source.First().Contact == destination.Data.First().Contact);
+            Assert.True(source.First().Phone == destination.Data.First().Phone);
         }
     }
 }
