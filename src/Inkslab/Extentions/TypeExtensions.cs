@@ -157,7 +157,7 @@ namespace System
                 return true;
             }
 
-            if (implementationType is null)
+            if (typeConstraint is null || implementationType is null)
             {
                 return false;
             }
@@ -185,12 +185,7 @@ namespace System
                 {
                     if (implementationType.IsGenericTypeDefinition)
                     {
-                        if (IsLikeTypeDefinition(typeConstraint, implementationType))
-                        {
-                            goto label_generic_type_definition;
-                        }
-
-                        return false;
+                        return IsLikeTypeDefinition(typeConstraint, implementationType);
                     }
                 }
             }
@@ -202,7 +197,7 @@ namespace System
                     {
                         if (IsLikeTypeDefinition(typeConstraint.GetGenericTypeDefinition(), implementationType))
                         {
-                            goto label_generic_type_definition;
+                            return IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments());
                         }
 
                         return false;
@@ -220,38 +215,22 @@ namespace System
                 return true;
             }
 
-            bool isGenericTypeDefinition = typeConstraint.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition;
+            if (typeConstraint.IsValueType)
+            {
+                if (typeConstraint.IsGenericTypeDefinition)
+                {
+                    return IsLikeTypeDefinition(typeConstraint, implementationType);
+                }
+
+                return typeConstraint.IsValueType && typeConstraint.IsGenericType && Nullable.GetUnderlyingType(typeConstraint) == implementationType; //? Nullable<T> 特例。
+            }
 
             if (typeConstraint.IsInterface)
             {
-                if (IsLikeInterfaces(typeConstraint, implementationType.GetInterfaces()))
-                {
-                    if (isGenericTypeDefinition)
-                    {
-                        goto label_generic_type_definition;
-                    }
-
-                    return true;
-                }
-
-                return false;
+                return IsLikeInterfaces(typeConstraint, implementationType.GetInterfaces());
             }
 
-            if (IsLikeClass(typeConstraint, implementationType))
-            {
-                if (isGenericTypeDefinition)
-                {
-                    goto label_generic_type_definition;
-                }
-
-                return true;
-            }
-
-            return false;
-
-label_generic_type_definition:
-
-            return IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments());
+            return IsLikeClass(typeConstraint, implementationType);
         }
 
         private static bool IsLikeClass(Type typeConstraint, Type implementationType)
@@ -266,7 +245,10 @@ label_generic_type_definition:
                 {
                     if (implementationType.IsGenericType && implementationType.GetGenericTypeDefinition() == typeDefinition)
                     {
-                        return true;
+                        if (typeConstraint.IsGenericTypeDefinition || IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments()))
+                        {
+                            return true;
+                        }
                     }
 
                     implementationType = implementationType.BaseType;
@@ -295,13 +277,18 @@ label_generic_type_definition:
                 return implementationTypes.Contains(interfaceType);
             }
 
-            var typeDefinition = interfaceType.GetGenericTypeDefinition();
+            var typeDefinition = interfaceType.IsGenericTypeDefinition
+                ? interfaceType
+                : interfaceType.GetGenericTypeDefinition();
 
             foreach (var type in implementationTypes)
             {
                 if (type.IsGenericType && type.GetGenericTypeDefinition() == typeDefinition)
                 {
-                    return true;
+                    if (interfaceType.IsGenericTypeDefinition || IsLikeGenericArguments(interfaceType.GetGenericArguments(), type.GetGenericArguments()))
+                    {
+                        return true;
+                    }
                 }
             }
 
