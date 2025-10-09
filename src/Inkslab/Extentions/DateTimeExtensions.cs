@@ -308,7 +308,13 @@ namespace System
         {
             if (startDate > endDate)
             {
+                #if NET6_0_OR_GREATER
                 (endDate, startDate) = (startDate, endDate);
+                #else
+                var temp = startDate;
+                startDate = endDate;
+                endDate = temp;
+                #endif
             }
 
             var workingDays = 0;
