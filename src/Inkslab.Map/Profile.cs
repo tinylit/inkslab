@@ -1,7 +1,6 @@
 ﻿using Inkslab.Map.Maps;
 using Inkslab.Map.Visitors;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -605,7 +604,7 @@ namespace Inkslab.Map
 
                 // 3. 从所有参数类型映射推断
                 var minLength = Math.Min(parameters.Length, visitedArguments.Length);
-                
+
                 for (int i = 0; i < minLength; i++)
                 {
                     var parameterType = parameters[i].ParameterType;

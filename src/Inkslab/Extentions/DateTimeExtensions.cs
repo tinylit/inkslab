@@ -183,7 +183,7 @@ namespace System
         /// </summary>
         /// <param name="date">日期。</param>
         /// <returns>一年中的周数。</returns>
-        public static int GetWeekOfYear(this DateTime date)
+        public static int WeekOfYear(this DateTime date)
         {
             var jan1 = new DateTime(date.Year, 1, 1);
             var daysOffset = (int)jan1.DayOfWeek - 1;
@@ -191,7 +191,7 @@ namespace System
 
             if (date < firstMonday)
             {
-                return GetWeekOfYear(new DateTime(date.Year - 1, 12, 31));
+                return WeekOfYear(new DateTime(date.Year - 1, 12, 31));
             }
 
             return (date - firstMonday).Days / 7 + 1;
@@ -272,7 +272,7 @@ namespace System
         /// <param name="date">起始日期。</param>
         /// <param name="dayOfWeek">目标星期几。</param>
         /// <returns>下一个指定星期几的日期。</returns>
-        public static DateTime GetNextWeekday(this DateTime date, DayOfWeek dayOfWeek)
+        public static DateTime NextWeekday(this DateTime date, DayOfWeek dayOfWeek)
         {
             var daysToAdd = ((int)dayOfWeek - (int)date.DayOfWeek + 7) % 7;
             if (daysToAdd == 0)
@@ -288,7 +288,7 @@ namespace System
         /// <param name="date">起始日期。</param>
         /// <param name="dayOfWeek">目标星期几。</param>
         /// <returns>上一个指定星期几的日期。</returns>
-        public static DateTime GetPreviousWeekday(this DateTime date, DayOfWeek dayOfWeek)
+        public static DateTime PreviousWeekday(this DateTime date, DayOfWeek dayOfWeek)
         {
             var daysToSubtract = ((int)date.DayOfWeek - (int)dayOfWeek + 7) % 7;
             if (daysToSubtract == 0)
@@ -304,13 +304,11 @@ namespace System
         /// <param name="startDate">开始日期。</param>
         /// <param name="endDate">结束日期。</param>
         /// <returns>工作日数量。</returns>
-        public static int GetWorkingDays(this DateTime startDate, DateTime endDate)
+        public static int WorkingDays(this DateTime startDate, DateTime endDate)
         {
             if (startDate > endDate)
             {
-                var temp = startDate;
-                startDate = endDate;
-                endDate = temp;
+                (endDate, startDate) = (startDate, endDate);
             }
 
             var workingDays = 0;

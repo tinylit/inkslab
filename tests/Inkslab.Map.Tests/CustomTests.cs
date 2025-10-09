@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Inkslab.Map.Tests
@@ -1031,6 +1032,291 @@ namespace Inkslab.Map.Tests
             Assert.True(source.First().Name == destination.Data.First().Name);
             Assert.True(source.First().Contact == destination.Data.First().Contact);
             Assert.True(source.First().Phone == destination.Data.First().Phone);
+        }
+
+        /// <summary>
+        /// 测试非泛型 Map 方法。
+        /// </summary>
+        [Fact]
+        public void MapWithTypeParameterTest()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<C1, C2>()
+                .Map(x => x.R1, y => y.From(z => z.P1))
+                .Map(x => x.T3, y => y.From(z => z.P3.ToString()))
+                .Map(x => x.D4, y => y.Constant(DateTimeKind.Utc));
+
+            var sourceC1 = new C1
+            {
+                P1 = 42,
+                P2 = "TestValue",
+                P3 = DateTime.Now
+            };
+
+            // 测试非泛型 Map 方法
+            var destinationObject = instance.Map(sourceC1, typeof(C2));
+            
+            Assert.NotNull(destinationObject);
+            Assert.IsType<C2>(destinationObject);
+            
+            var destinationC2 = (C2)destinationObject;
+            Assert.Equal(sourceC1.P1, destinationC2.R1);
+            Assert.Equal(sourceC1.P2, destinationC2.P2);
+            Assert.Equal(sourceC1.P3.ToString(), destinationC2.T3);
+            Assert.Equal(DateTimeKind.Utc, destinationC2.D4);
+        }
+
+        /// <summary>
+        /// 测试 null 源对象处理。
+        /// </summary>
+        [Fact]
+        public void MapWithNullSourceTest()
+        {
+            using var instance = new MapperInstance();
+
+            // 测试泛型方法的 null 处理
+            var result1 = instance.Map<C2>(null);
+            Assert.Null(result1);
+
+            // 测试非泛型方法的 null 处理
+            var result2 = instance.Map(null, typeof(C2));
+            Assert.Null(result2);
+        }
+
+        /// <summary>
+        /// 测试 null 目标类型异常。
+        /// </summary>
+        [Fact]
+        public void MapWithNullDestinationTypeTest()
+        {
+            using var instance = new MapperInstance();
+
+            var sourceC1 = new C1 { P1 = 1, P2 = "Test" };
+
+            // 测试非泛型方法的 null 目标类型
+            Assert.Throws<ArgumentNullException>(() => instance.Map(sourceC1, null));
+        }
+
+        /// <summary>
+        /// 测试默认值映射。
+        /// </summary>
+        [Fact]
+        public void MapDefaultValuesTest()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<C1, C2>();
+
+            var sourceC1 = new C1(); // 使用默认值
+
+            var destinationC2 = instance.Map<C2>(sourceC1);
+
+            Assert.NotNull(destinationC2);
+            Assert.Equal(0, destinationC2.R1); // int 默认值
+            Assert.Null(destinationC2.P2);     // string 默认值
+            Assert.Null(destinationC2.T3);     // string 默认值
+            Assert.Null(destinationC2.D4);     // DateTimeKind? 默认值
+        }
+
+        /// <summary>
+        /// 测试复杂类型映射。
+        /// </summary>
+        [Fact]
+        public void MapComplexTypesTest()
+        {
+            using var instance = new MapperInstance();
+
+            var sourceDict = new Dictionary<string, object>
+            {
+                { "Key1", "Value1" },
+                { "Key2", 123 },
+                { "Key3", DateTime.Now }
+            };
+
+            // 测试 Dictionary 到 Dictionary 的映射
+            var destinationDict = instance.Map<Dictionary<string, object>>(sourceDict);
+
+            Assert.NotNull(destinationDict);
+            Assert.Equal(sourceDict.Count, destinationDict.Count);
+            Assert.Equal(sourceDict["Key1"], destinationDict["Key1"]);
+            Assert.Equal(sourceDict["Key2"], destinationDict["Key2"]);
+        }
+
+        /// <summary>
+        /// 测试值类型映射。
+        /// </summary>
+        [Fact]
+        public void MapValueTypesTest()
+        {
+            using var instance = new MapperInstance();
+
+            // 测试基本值类型
+            var intResult = instance.Map<int>(42);
+            Assert.Equal(42, intResult);
+
+            var stringResult = instance.Map<string>("TestString");
+            Assert.Equal("TestString", stringResult);
+
+            var boolResult = instance.Map<bool>(true);
+            Assert.True(boolResult);
+
+            var dateResult = instance.Map<DateTime>(DateTime.Today);
+            Assert.Equal(DateTime.Today, dateResult);
+        }
+
+        /// <summary>
+        /// 测试接口映射到具体类型。
+        /// </summary>
+        [Fact]
+        public void MapInterfaceToConcreteTypeTest()
+        {
+            using var instance = new MapperInstance();
+
+            var sourceList = new List<int> { 1, 2, 3, 4, 5 };
+
+            // 测试 IEnumerable<T> 到 List<T> 的映射
+            var destinationList = instance.Map<List<int>>(sourceList);
+
+            Assert.NotNull(destinationList);
+            Assert.Equal(sourceList.Count, destinationList.Count);
+            Assert.Equal(sourceList, destinationList);
+
+            // 测试通过非泛型方法
+            var destinationObject = instance.Map(sourceList, typeof(List<int>));
+            Assert.IsType<List<int>>(destinationObject);
+        }
+
+        /// <summary>
+        /// 测试继承类型映射。
+        /// </summary>
+        [Fact]
+        public void MapInheritanceTypesTest()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<C1, C2>()
+                .Map(x => x.R1, y => y.From(z => z.P1));
+
+            var sourceC3 = new C3
+            {
+                P1 = 100,
+                P2 = "Inheritance Test",
+                P3 = DateTime.Now,
+                D4 = DateTimeKind.Local
+            };
+
+            // C3 继承自 C1，应该能够使用 C1 到 C2 的映射规则
+            var destinationC2 = instance.Map<C2>(sourceC3);
+
+            Assert.NotNull(destinationC2);
+            Assert.Equal(sourceC3.P1, destinationC2.R1);
+            Assert.Equal(sourceC3.P2, destinationC2.P2);
+        }
+
+        /// <summary>
+        /// 测试 IDisposable 接口实现。
+        /// </summary>
+        [Fact]
+        public void MapperInstanceDisposableTest()
+        {
+            var instance = new MapperInstance();
+
+            instance.Map<C1, C2>();
+
+            var sourceC1 = new C1 { P1 = 1, P2 = "Test" };
+
+            // 使用映射器
+            var result = instance.Map<C2>(sourceC1);
+            Assert.NotNull(result);
+
+            // 释放资源
+            instance.Dispose();
+
+            // 释放后仍应能正常工作（缓存可能被清理，但基本功能仍可用）
+            var result2 = instance.Map<C2>(sourceC1);
+            Assert.NotNull(result2);
+        }
+
+        /// <summary>
+        /// 测试多线程映射安全性。
+        /// </summary>
+        [Fact]
+        public async Task MapperInstanceThreadSafetyTestAsync()
+        {
+            using var instance = new MapperInstance();
+
+            instance.Map<C1, C2>()
+                .Map(x => x.R1, y => y.From(z => z.P1));
+
+            var tasks = new Task<C2>[10];
+
+            for (int i = 0; i < 10; i++)
+            {
+                int index = i;
+                tasks[i] = Task.Run(() =>
+                {
+                    var source = new C1 { P1 = index, P2 = $"Test{index}" };
+                    return instance.Map<C2>(source);
+                });
+            }
+
+            var results = await Task.WhenAll(tasks);
+
+            // 验证所有结果
+            for (int i = 0; i < 10; i++)
+            {
+                Assert.NotNull(results[i]);
+                Assert.Equal(i, results[i].R1);
+                Assert.Equal($"Test{i}", results[i].P2);
+            }
+        }
+
+        /// <summary>
+        /// 测试枚举类型映射。
+        /// </summary>
+        [Fact]
+        public void MapEnumTypesTest()
+        {
+            using var instance = new MapperInstance();
+
+            // 枚举到枚举的映射
+            var sourceEnum = DateTimeKind.Utc;
+            var destinationEnum = instance.Map<DateTimeKind>(sourceEnum);
+            Assert.Equal(sourceEnum, destinationEnum);
+
+            // 枚举到可空枚举的映射
+            var nullableEnum = instance.Map<DateTimeKind?>(sourceEnum);
+            Assert.Equal(sourceEnum, nullableEnum.Value);
+
+            // 可空枚举到枚举的映射
+            DateTimeKind? nullableSource = DateTimeKind.Local;
+            var enumResult = instance.Map<DateTimeKind>(nullableSource);
+            Assert.Equal(DateTimeKind.Local, enumResult);
+        }
+
+        /// <summary>
+        /// 测试自引用类型映射。
+        /// </summary>
+        [Fact]
+        public void MapSelfReferencingTypesTest()
+        {
+            using var instance = new MapperInstance();
+
+            var source = new C1
+            {
+                P1 = 42,
+                P2 = "SelfRef",
+                P3 = DateTime.Now
+            };
+
+            // 同类型映射（应该返回相同或克隆的对象）
+            var destination = instance.Map<C1>(source);
+
+            Assert.NotNull(destination);
+            Assert.Equal(source.P1, destination.P1);
+            Assert.Equal(source.P2, destination.P2);
+            Assert.Equal(source.P3, destination.P3);
         }
     }
 }

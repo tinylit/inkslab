@@ -240,7 +240,7 @@ namespace Inkslab.Tests
             var date = DateTime.Parse(dateStr);
 
             // Act
-            var result = date.GetWeekOfYear();
+            var result = date.WeekOfYear();
 
             // Assert
             Assert.Equal(expectedWeek, result);
@@ -406,7 +406,7 @@ namespace Inkslab.Tests
             var expectedNextMonday = new DateTime(2023, 12, 18); // 下周一
 
             // Act
-            var result = friday.GetNextWeekday(DayOfWeek.Monday);
+            var result = friday.NextWeekday(DayOfWeek.Monday);
 
             // Assert
             Assert.Equal(expectedNextMonday, result);
@@ -423,7 +423,7 @@ namespace Inkslab.Tests
             var expectedPreviousMonday = new DateTime(2023, 12, 11); // 本周一
 
             // Act
-            var result = friday.GetPreviousWeekday(DayOfWeek.Monday);
+            var result = friday.PreviousWeekday(DayOfWeek.Monday);
 
             // Assert
             Assert.Equal(expectedPreviousMonday, result);
@@ -440,7 +440,7 @@ namespace Inkslab.Tests
             var endDate = new DateTime(2023, 12, 15);   // 周五
 
             // Act
-            var result = startDate.GetWorkingDays(endDate);
+            var result = startDate.WorkingDays(endDate);
 
             // Assert
             Assert.Equal(5, result); // 周一到周五，5个工作日
