@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Inkslab
 {
@@ -13,7 +15,22 @@ namespace Inkslab
         /// <summary>
         /// 服务。
         /// </summary>
-        private static readonly Dictionary<Type, Type> _serviceCachings = new Dictionary<Type, Type>();
+        private static readonly ConcurrentDictionary<Type, Type> _serviceCachings = new ConcurrentDictionary<Type, Type>();
+        
+        /// <summary>
+        /// 构造函数缓存。
+        /// </summary>
+        private static readonly ConcurrentDictionary<Type, ConstructorInfo[]> _constructorCache = new ConcurrentDictionary<Type, ConstructorInfo[]>();
+        
+        /// <summary>
+        /// 参数信息缓存。
+        /// </summary>
+        private static readonly ConcurrentDictionary<ConstructorInfo, ParameterInfo[]> _parameterCache = new ConcurrentDictionary<ConstructorInfo, ParameterInfo[]>();
+        
+        /// <summary>
+        /// 属性信息缓存。
+        /// </summary>
+        private static readonly ConcurrentDictionary<Type, PropertyInfo> _propertyCache = new ConcurrentDictionary<Type, PropertyInfo>();
 
         /// <summary>
         /// 添加服务。
@@ -130,7 +147,7 @@ namespace Inkslab
                         return false;
                     }
 
-                    _serviceCachings[typeof(TService)] = typeof(Nested<TService>);
+                    _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
 
                     lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
 
@@ -179,50 +196,16 @@ namespace Inkslab
                     var serviceType = typeof(TService);
                     var conversionType = typeof(TImplementation);
 
-                    var constructorInfos = conversionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                        .OrderBy(x => x.IsPublic ? 0 : 1)
-                        .ThenByDescending(x =>
-                        {
-                            //? 参数。
-                            var parameterInfos = x.GetParameters();
-
-                            //! 客户最优注册的类型。
-                            var specifiedCount = parameterInfos.Count(y => _serviceCachings.ContainsKey(y.ParameterType));
-
-                            return parameterInfos.Length * parameterInfos.Length + specifiedCount;
-                        })
-                        .ToList();
+                    // 使用缓存的构造函数获取
+                    var constructorInfos = GetCachedConstructors(conversionType);
 
                     var constructorInfo = Resolved(typeof(Nested<TImplementation>), constructorInfos);
 
                     if (constructorInfo is null)
                     {
-                        foreach (var item in constructorInfos.Skip(constructorInfos.Count - 1))
-                        {
-                            var parameterInfos = item.GetParameters();
-
-                            foreach (var parameterInfo in parameterInfos)
-                            {
-                                if (parameterInfo.IsOptional || IsSupport(conversionType, parameterInfo.ParameterType))
-                                {
-                                    continue;
-                                }
-
-                                throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【SingletonPools.TryAdd<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
-                            }
-                        }
-                    }
-
-                    Instance = CreateInstance(constructorInfo);
-                }
-
-                private static ConstructorInfo Resolved(Type conversionType, List<ConstructorInfo> constructorInfos)
-                {
-                    foreach (var constructorInfo in constructorInfos)
-                    {
-                        bool flag = true;
-
-                        var parameterInfos = constructorInfo.GetParameters();
+                        // 优化：只检查最后一个构造函数，因为已经按优先级排序
+                        var lastConstructor = constructorInfos[constructorInfos.Length - 1];
+                        var parameterInfos = GetCachedParameters(lastConstructor);
 
                         foreach (var parameterInfo in parameterInfos)
                         {
@@ -231,12 +214,67 @@ namespace Inkslab
                                 continue;
                             }
 
-                            flag = false;
+                            throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【SingletonPools.TryAdd<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
+                        }
+                    }
 
-                            break;
+                    Instance = CreateInstance(constructorInfo);
+                }
+
+                /// <summary>
+                /// 获取缓存的构造函数列表
+                /// </summary>
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                private static ConstructorInfo[] GetCachedConstructors(Type conversionType)
+                {
+                    return _constructorCache.GetOrAdd(conversionType, type =>
+                        type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                            .OrderBy(x => x.IsPublic ? 0 : 1)
+                            .ThenByDescending(x =>
+                            {
+                                var parameterInfos = GetCachedParameters(x);
+                                var specifiedCount = 0;
+                                
+                                // 优化：避免 LINQ Count() 的开销
+                                foreach (var param in parameterInfos)
+                                {
+                                    if (_serviceCachings.ContainsKey(param.ParameterType))
+                                    {
+                                        specifiedCount++;
+                                    }
+                                }
+
+                                return parameterInfos.Length * parameterInfos.Length + specifiedCount;
+                            })
+                            .ToArray());
+                }
+
+                /// <summary>
+                /// 获取缓存的参数信息
+                /// </summary>
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                private static ParameterInfo[] GetCachedParameters(ConstructorInfo constructorInfo)
+                {
+                    return _parameterCache.GetOrAdd(constructorInfo, ctor => ctor.GetParameters());
+                }
+
+                private static ConstructorInfo Resolved(Type conversionType, ConstructorInfo[] constructorInfos)
+                {
+                    foreach (var constructorInfo in constructorInfos)
+                    {
+                        var parameterInfos = GetCachedParameters(constructorInfo);
+                        bool isValid = true;
+
+                        foreach (var parameterInfo in parameterInfos)
+                        {
+                            if (!parameterInfo.IsOptional && !IsSupport(conversionType, parameterInfo.ParameterType))
+                            {
+                                isValid = false;
+                                break;
+                            }
                         }
 
-                        if (flag)
+                        if (isValid)
                         {
                             return constructorInfo;
                         }
@@ -245,51 +283,58 @@ namespace Inkslab
                     return null;
                 }
 
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 private static bool IsSupport(Type conversionType, Type parameterType)
                 {
+                    // 快速路径：直接检查缓存
                     if (_serviceCachings.ContainsKey(parameterType))
                     {
                         return true;
                     }
 
+                    // 对于非抽象类型，尝试找到匹配的实现
                     if (!parameterType.IsAbstract)
                     {
                         foreach (var kv in _serviceCachings)
                         {
-                            if (kv.Value == parameterType)
+                            if (ReferenceEquals(kv.Value, parameterType))
                             {
-                                _serviceCachings[parameterType] = kv.Value;
-
+                                _serviceCachings.TryAdd(parameterType, kv.Value);
                                 return true;
                             }
                         }
                     }
 
+                    // 检查可分配性
                     foreach (var kv in _serviceCachings)
                     {
-                        if (kv.Value == conversionType) //? 防递归注入。
+                        if (ReferenceEquals(kv.Value, conversionType)) // 防递归注入
                         {
                             continue;
                         }
 
-                        if (!parameterType.IsAssignableFrom(kv.Key))
+                        if (parameterType.IsAssignableFrom(kv.Key))
                         {
-                            continue;
+                            _serviceCachings.TryAdd(parameterType, kv.Value);
+                            return true;
                         }
-
-                        _serviceCachings[parameterType] = kv.Value;
-
-                        return true;
                     }
 
                     return false;
                 }
 
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 private static TImplementation CreateInstance(ConstructorInfo constructorInfo)
                 {
-                    var parameterInfos = constructorInfo.GetParameters();
+                    var parameterInfos = GetCachedParameters(constructorInfo);
 
-                    object[] arguments = new object[parameterInfos.Length];
+                    if (parameterInfos.Length == 0)
+                    {
+                        // 快速路径：无参构造函数
+                        return (TImplementation)constructorInfo.Invoke(new object[0]);
+                    }
+
+                    var arguments = new object[parameterInfos.Length];
 
                     for (int i = 0; i < parameterInfos.Length; i++)
                     {
@@ -297,9 +342,9 @@ namespace Inkslab
 
                         if (_serviceCachings.TryGetValue(parameterInfo.ParameterType, out Type implementType))
                         {
-                            PropertyInfo propertyInfo = implementType.GetProperty("Instance", DefaultLookup);
-
-                            arguments[i] = propertyInfo!.GetValue(null, null);
+                            // 使用缓存的属性信息
+                            var propertyInfo = GetCachedInstanceProperty(implementType);
+                            arguments[i] = propertyInfo.GetValue(null, null);
                         }
                         else
                         {
@@ -308,6 +353,17 @@ namespace Inkslab
                     }
 
                     return (TImplementation)constructorInfo.Invoke(arguments);
+                }
+
+                /// <summary>
+                /// 获取缓存的实例属性
+                /// </summary>
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                private static PropertyInfo GetCachedInstanceProperty(Type implementType)
+                {
+                    return _propertyCache.GetOrAdd(implementType, type => 
+                        type.GetProperty("Instance", DefaultLookup) ?? 
+                        throw new InvalidOperationException($"Type {type.FullName} does not have an Instance property"));
                 }
 
                 public static TImplementation Instance { get; }

@@ -25,8 +25,9 @@ namespace Inkslab.Tests
     {
         private CombinationC() { }
 
+#pragma warning disable IDE0051 // 删除未访问的私有成员
         private CombinationC(SimpleB b) => SimpleB = b;
-
+#pragma warning restore IDE0051 // 删除未访问的私有成员
         /// <summary>
         /// 注入对象。
         /// </summary>

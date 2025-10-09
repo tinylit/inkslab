@@ -3,12 +3,12 @@ using Xunit;
 namespace Inkslab.Tests
 {
     /// <summary>
-    /// <see cref="AssemblyFinder"/> ²âÊÔ¡£
+    /// <see cref="AssemblyFinder"/> æµ‹è¯•ã€‚
     /// </summary>
     public class AssemblyFinderTests
     {
         /// <summary>
-        /// ²éÕÒËùÓĞ¡£
+        /// æµ‹è¯• AssemblyFinder.FindAll æ–¹æ³•ã€‚
         /// </summary>
         [Fact]
         public void FindAll()

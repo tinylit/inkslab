@@ -30,7 +30,7 @@ namespace Inkslab
         /// <param name="pageIndex">页码（索引从1开始）。</param>
         /// <param name="pageSize">分页条数。</param>
         /// <param name="total">总数。</param>
-        public PagedList(ICollection<T> datas, int pageIndex, int pageSize, int total)
+        public PagedList(IReadOnlyCollection<T> datas, int pageIndex, int pageSize, int total)
         {
             _datas = datas ?? throw new ArgumentNullException(nameof(datas));
 

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Inkslab.Map
 {
@@ -436,12 +437,372 @@ namespace Inkslab.Map
                     return _parameters[indexOf];
                 }
 
-                if (node.NodeType == NodeTypeMap)
+                if (node?.NodeType == NodeTypeMap)
                 {
                     return _application.Map(Visit(node.Reduce()), node.Type);
                 }
 
                 return base.Visit(node);
+            }
+
+            protected override Expression VisitMethodCall(MethodCallExpression node)
+            {
+                if (node.Method.IsGenericMethod)
+                {
+                    // 访问方法调用的实例表达式（如果有）
+                    var visitedObject = Visit(node.Object);
+
+                    // 访问所有参数表达式
+                    var visitedArguments = node.Arguments.Select(Visit).ToArray();
+
+                    // 缓存反射信息
+                    var genericMethodDefinition = node.Method.GetGenericMethodDefinition();
+                    var originalTypeArguments = node.Method.GetGenericArguments();
+
+                    // 全面推断泛型类型参数，寻找最优类型
+                    var newTypeArguments = InferOptimalTypeArguments(
+                        originalTypeArguments,
+                        visitedObject,
+                        visitedArguments,
+                        node.Method,
+                        genericMethodDefinition);
+
+                    // 重新构造泛型方法
+                    var newMethod = genericMethodDefinition.MakeGenericMethod(newTypeArguments);
+
+                    // 返回更新后的方法调用表达式
+                    return Call(visitedObject, newMethod, visitedArguments);
+                }
+
+                return base.VisitMethodCall(node);
+            }
+
+            /// <summary>
+            /// 全面推断最优泛型类型参数
+            /// </summary>
+            private static Type[] InferOptimalTypeArguments(
+                Type[] originalTypeArguments,
+                Expression visitedObject,
+                Expression[] visitedArguments,
+                MethodInfo originalMethod,
+                MethodInfo genericMethodDefinition)
+            {
+                var newTypeArguments = originalTypeArguments; // 默认使用原始类型
+                bool hasChanges = false;
+
+                // 缓存方法信息
+                var isStatic = originalMethod.IsStatic;
+                var isExtensionMethod = isStatic && IsExtensionMethodCached(originalMethod);
+                var parameters = genericMethodDefinition.GetParameters();
+                var genericParameters = genericMethodDefinition.GetGenericArguments();
+
+                for (int i = 0; i < originalTypeArguments.Length; i++)
+                {
+                    // 对所有泛型参数进行最优类型推断
+                    var inferredType = InferOptimalSingleType(
+                        originalTypeArguments[i],
+                        genericParameters[i],
+                        visitedObject,
+                        visitedArguments,
+                        parameters,
+                        isStatic,
+                        isExtensionMethod);
+
+                    // 如果推断出了更优的类型，则使用它
+                    if (inferredType != null && ShouldUseInferredType(originalTypeArguments[i], inferredType))
+                    {
+                        if (!hasChanges)
+                        {
+                            // 延迟复制数组，仅在需要时创建
+                            newTypeArguments = new Type[originalTypeArguments.Length];
+                            Array.Copy(originalTypeArguments, newTypeArguments, originalTypeArguments.Length);
+                            hasChanges = true;
+                        }
+                        newTypeArguments[i] = inferredType;
+                    }
+                }
+
+                return newTypeArguments;
+            }
+
+            /// <summary>
+            /// 判断是否应该使用推断的类型
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static bool ShouldUseInferredType(Type originalType, Type inferredType)
+            {
+                // 如果原始类型是 object，推断类型更具体，则使用推断类型
+                if (originalType == typeof(object) && inferredType != typeof(object))
+                {
+                    return true;
+                }
+
+                // 如果推断类型是原始类型的更具体实现，则使用推断类型
+                if (originalType.IsGenericParameter && !inferredType.IsGenericParameter)
+                {
+                    return true;
+                }
+
+                // 如果推断类型比原始类型更具体（继承关系）
+                if (originalType.IsAssignableFrom(inferredType) && originalType != inferredType)
+                {
+                    return true;
+                }
+
+                // 如果原始类型是泛型定义，推断类型是具体的泛型实例
+                if (originalType.IsGenericTypeDefinition && inferredType.IsGenericType && 
+                    !inferredType.IsGenericTypeDefinition)
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            /// <summary>
+            /// 缓存的扩展方法检查
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static bool IsExtensionMethodCached(MethodInfo method)
+            {
+                return method.IsDefined(typeof(ExtensionAttribute), false);
+            }
+
+            /// <summary>
+            /// 推断单个泛型参数的最优类型
+            /// </summary>
+            private static Type InferOptimalSingleType(
+                Type originalType,
+                Type targetGenericParameter,
+                Expression visitedObject,
+                Expression[] visitedArguments,
+                ParameterInfo[] parameters,
+                bool isStatic,
+                bool isExtensionMethod)
+            {
+                Type bestInferredType = null;
+
+                // 1. 实例方法：从对象类型推断
+                if (!isStatic && visitedObject?.Type != null)
+                {
+                    var inferredType = ExtractOptimalTypeFromExpression(visitedObject, targetGenericParameter, originalType);
+                    if (IsMoreSpecificType(bestInferredType, inferredType))
+                    {
+                        bestInferredType = inferredType;
+                    }
+                }
+
+                // 2. 扩展方法：从第一个参数推断
+                if (isExtensionMethod && visitedArguments.Length > 0 && visitedArguments[0]?.Type != null)
+                {
+                    var inferredType = ExtractOptimalTypeFromExpression(visitedArguments[0], targetGenericParameter, originalType);
+                    if (IsMoreSpecificType(bestInferredType, inferredType))
+                    {
+                        bestInferredType = inferredType;
+                    }
+                }
+
+                // 3. 从所有参数类型映射推断
+                var minLength = Math.Min(parameters.Length, visitedArguments.Length);
+
+                for (int i = 0; i < minLength; i++)
+                {
+                    var parameterType = parameters[i].ParameterType;
+                    var argumentType = visitedArguments[i]?.Type;
+                    
+                    if (argumentType != null)
+                    {
+                        var inferredType = TryInferFromParameterTypeAdvanced(
+                            parameterType, argumentType, targetGenericParameter, originalType);
+                        if (IsMoreSpecificType(bestInferredType, inferredType))
+                        {
+                            bestInferredType = inferredType;
+                        }
+                    }
+                }
+
+                return bestInferredType;
+            }
+
+            /// <summary>
+            /// 从表达式中提取最优类型
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Type ExtractOptimalTypeFromExpression(Expression expression, Type targetGenericParameter, Type originalType)
+            {
+                var expressionType = expression.Type;
+
+                // 如果表达式类型直接匹配目标泛型参数
+                if (expressionType == targetGenericParameter)
+                {
+                    return expressionType;
+                }
+
+                // 数组类型优化
+                if (expressionType.IsArray)
+                {
+                    var elementType = expressionType.GetElementType();
+                    if (elementType != null && IsMoreSpecificThanOriginal(originalType, elementType))
+                    {
+                        return elementType;
+                    }
+                }
+
+                // 泛型集合类型优化
+                if (expressionType.IsGenericType)
+                {
+                    var genericArgs = expressionType.GetGenericArguments();
+                    if (genericArgs.Length > 0)
+                    {
+                        var elementType = genericArgs[0];
+                        if (IsMoreSpecificThanOriginal(originalType, elementType))
+                        {
+                            return elementType;
+                        }
+                    }
+                    
+                    // 返回更具体的泛型类型本身
+                    if (IsMoreSpecificThanOriginal(originalType, expressionType))
+                    {
+                        return expressionType;
+                    }
+                }
+
+                // 如果表达式类型比原始类型更具体，返回它
+                if (IsMoreSpecificThanOriginal(originalType, expressionType))
+                {
+                    return expressionType;
+                }
+
+                return null;
+            }
+
+            /// <summary>
+            /// 高级参数类型推断
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static Type TryInferFromParameterTypeAdvanced(
+                Type parameterType, 
+                Type argumentType, 
+                Type targetGenericParameter,
+                Type originalType)
+            {
+                // 直接类型匹配
+                if (parameterType == targetGenericParameter)
+                {
+                    return argumentType;
+                }
+
+                // 泛型类型匹配
+                if (parameterType.IsGenericType && argumentType.IsGenericType)
+                {
+                    var paramGenericArgs = parameterType.GetGenericArguments();
+                    var argGenericArgs = argumentType.GetGenericArguments();
+                    
+                    var minLength = Math.Min(paramGenericArgs.Length, argGenericArgs.Length);
+                    for (int i = 0; i < minLength; i++)
+                    {
+                        if (paramGenericArgs[i] == targetGenericParameter)
+                        {
+                            var candidateType = argGenericArgs[i];
+                            if (IsMoreSpecificThanOriginal(originalType, candidateType))
+                            {
+                                return candidateType;
+                            }
+                        }
+                    }
+                }
+
+                // 如果参数类型是泛型参数，但实参是具体类型
+                if (parameterType == targetGenericParameter && IsMoreSpecificThanOriginal(originalType, argumentType))
+                {
+                    return argumentType;
+                }
+
+                return null;
+            }
+
+            /// <summary>
+            /// 判断类型是否比另一个类型更具体
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static bool IsMoreSpecificType(Type currentBest, Type candidate)
+            {
+                if (candidate == null)
+                {
+                    return false;
+                }
+                if (currentBest == null)
+                {
+                    return true;
+                }
+                
+                // 非泛型参数比泛型参数更具体
+                if (currentBest.IsGenericParameter && !candidate.IsGenericParameter)
+                {
+                    return true;
+                }
+
+                // 具体类型比 object 更具体
+                if (currentBest == typeof(object) && candidate != typeof(object))
+                {
+                    return true;
+                }
+
+                // 子类比父类更具体
+                if (currentBest.IsAssignableFrom(candidate) && currentBest != candidate)
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
+            /// <summary>
+            /// 判断候选类型是否比原始类型更具体
+            /// </summary>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            private static bool IsMoreSpecificThanOriginal(Type originalType, Type candidateType)
+            {
+                if (candidateType == null)
+                {
+                    return false;
+                }
+                if (originalType == candidateType)
+                {
+                    return false;
+                }
+
+                // object 类型总是可以被更具体的类型替换
+                if (originalType == typeof(object) && candidateType != typeof(object))
+                {
+                    return true;
+                }
+
+                // 泛型参数可以被具体类型替换
+                if (originalType.IsGenericParameter && !candidateType.IsGenericParameter)
+                {
+                    return true;
+                }
+
+                // 父类可以被子类替换
+                if (originalType.IsAssignableFrom(candidateType))
+                {
+                    return true;
+                }
+
+                // 泛型定义可以被具体泛型实例替换
+                if (originalType.IsGenericTypeDefinition && candidateType.IsGenericType && 
+                    !candidateType.IsGenericTypeDefinition)
+                {
+                    var candidateDefinition = candidateType.GetGenericTypeDefinition();
+                    if (originalType.IsAssignableFrom(candidateDefinition))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
         }
 
