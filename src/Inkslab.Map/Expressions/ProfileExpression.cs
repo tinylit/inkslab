@@ -112,8 +112,8 @@ namespace Inkslab.Map.Expressions
         private class MapperDestination : IDisposable
         {
             private readonly Type _runtimeType;
-            private readonly ConcurrentDictionary<Type, Delegate> _valueTypeCachings = new ConcurrentDictionary<Type, Delegate>();
-            private readonly ConcurrentDictionary<Type, Func<object, object>> _cachings = new ConcurrentDictionary<Type, Func<object, object>>();
+            private readonly ConcurrentDictionary<Type, Lazy<Delegate>> _valueTypeCachings = new ConcurrentDictionary<Type, Lazy<Delegate>>();
+            private readonly ConcurrentDictionary<Type, Lazy<Func<object, object>>> _cachings = new ConcurrentDictionary<Type, Lazy<Func<object, object>>>();
 
             public MapperDestination(Type runtimeType)
             {
@@ -243,14 +243,17 @@ namespace Inkslab.Map.Expressions
 
                 var factory = _cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    var tuple = Map(application, type, _runtimeType);
+                    return new Lazy<Func<object, object>>(() =>
+                    {
+                        var tuple = Map(application, type, _runtimeType);
 
-                    var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
+                        var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
 
-                    return lambda.Compile();
+                        return lambda.Compile();
+                    });
                 });
 
-                return factory.Invoke(source);
+                return factory.Value.Invoke(source);
             }
 
             public TDestination Map<TDestination>(IMapApplication application, object source)
@@ -264,14 +267,17 @@ namespace Inkslab.Map.Expressions
 
                 var factory = _valueTypeCachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
                 {
-                    var tuple = Map(application, type, _runtimeType);
+                    return new Lazy<Delegate>(() =>
+                    {
+                        var tuple = Map(application, type, _runtimeType);
 
-                    var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
+                        var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
 
-                    return lambda.Compile();
+                        return lambda.Compile();
+                    });
                 });
 
-                return ((Func<object, TDestination>)factory).Invoke(source);
+                return ((Func<object, TDestination>)factory.Value).Invoke(source);
             }
 
             public void Dispose()

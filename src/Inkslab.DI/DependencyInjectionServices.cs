@@ -28,6 +28,11 @@ namespace Inkslab.DI
         private readonly HashSet<Type> _effectiveTypes = new HashSet<Type>();
         private readonly List<Type> _implementTypes = new List<Type>();
         private readonly HashSet<Type> _ignoreTypes = new HashSet<Type>();
+        
+        // 性能优化：缓存
+        private readonly HashSet<Type> _registeredServices = new HashSet<Type>();
+        private readonly Dictionary<Type, Type[]> _interfaceCache = new Dictionary<Type, Type[]>();
+        private readonly Dictionary<Type, List<Type>> _implementationTypeCache = new Dictionary<Type, List<Type>>();
 
         public DependencyInjectionServices(
             IServiceCollection services,
@@ -331,7 +336,7 @@ namespace Inkslab.DI
                 else
                 {
                     //? 已注入。
-                    if (_services.Any(x => x.ServiceType == type && x.ImplementationType == type))
+                    if (_registeredServices.Contains(type))
                     {
                         continue;
                     }
@@ -613,7 +618,7 @@ namespace Inkslab.DI
                 goto label_core;
             }
 
-            if (_services.Any(x => x.ServiceType == serviceType)) //? 已有注入时，不再自动注入。
+            if (_registeredServices.Contains(serviceType)) //? 已有注入时，不再自动注入。
             {
                 return true;
             }
@@ -622,17 +627,18 @@ namespace Inkslab.DI
             {
                 var typeDefinition = serviceType.GetGenericTypeDefinition();
 
-                if (_ignoreTypes.Contains(typeDefinition)
-                    || _services.Any(x => x.ServiceType == typeDefinition)) //? 已有注入时，不再自动注入。
-                {
-                    return true;
-                }
+            if (_ignoreTypes.Contains(typeDefinition)
+                    || _registeredServices.Contains(typeDefinition)) //? 已有注入时，不再自动注入。
+            {
+                return true;
+            }
             }
 
         label_core:
 
+            // 性能优化：缓存接口查询
             var interfaceTypes = serviceType.IsInterface
-                ? serviceType.GetInterfaces()
+                ? GetCachedInterfaces(serviceType)
                 : Type.EmptyTypes;
 
             if (serviceType.IsGenericTypeDefinition)
@@ -647,12 +653,8 @@ namespace Inkslab.DI
                 );
             }
 
-            var implementationTypes =
-                (serviceType.IsInterface || serviceType.IsAbstract)
-                    ? effectiveTypes
-                        .Where(serviceType.IsAssignableFrom)
-                        .ToList()
-                    : new List<Type> { serviceType };
+            // 性能优化：缓存实现类型查询
+            var implementationTypes = GetCachedImplementationTypes(serviceType, effectiveTypes);
 
             implementationTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
 
@@ -908,12 +910,14 @@ namespace Inkslab.DI
                         _services.TryAddEnumerable(
                             new ServiceDescriptor(serviceType, implementationType, lifetime)
                         );
+                        _registeredServices.Add(serviceType);
                     }
                     else
                     {
                         _services.Add(
                             new ServiceDescriptor(serviceType, implementationType, lifetime)
                         );
+                        _registeredServices.Add(serviceType);
                     }
 
                     if (isMulti) //? 注入一个支持。
@@ -1154,6 +1158,39 @@ namespace Inkslab.DI
             return this;
         }
 
+        /// <summary>
+        /// 获取缓存的接口类型列表
+        /// </summary>
+        private Type[] GetCachedInterfaces(Type type)
+        {
+            if (!_interfaceCache.TryGetValue(type, out var interfaces))
+            {
+                interfaces = type.GetInterfaces();
+                _interfaceCache[type] = interfaces;
+            }
+            return interfaces;
+        }
+
+        /// <summary>
+        /// 获取缓存的实现类型列表
+        /// </summary>
+        private List<Type> GetCachedImplementationTypes(Type serviceType, IReadOnlyCollection<Type> effectiveTypes)
+        {
+            if (!(serviceType.IsInterface || serviceType.IsAbstract))
+            {
+                return new List<Type> { serviceType };
+            }
+
+            if (!_implementationTypeCache.TryGetValue(serviceType, out var implementationTypes))
+            {
+                implementationTypes = effectiveTypes
+                    .Where(serviceType.IsAssignableFrom)
+                    .ToList();
+                _implementationTypeCache[serviceType] = implementationTypes;
+            }
+            return implementationTypes;
+        }
+
         private void Dispose(bool disposing)
         {
             lock (_collectionsLock)
@@ -1166,6 +1203,9 @@ namespace Inkslab.DI
                     _effectiveTypes.Clear();
                     _implementTypes.Clear();
                     _ignoreTypes.Clear();
+                    _registeredServices.Clear();
+                    _interfaceCache.Clear();
+                    _implementationTypeCache.Clear();
                 }
             }
 
