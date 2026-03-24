@@ -44,7 +44,11 @@ namespace Inkslab.DI
             _options = options;
             _serviceProvider = serviceProvider;
 
+#if NET6_0_OR_GREATER
             _registeredServices = new HashSet<Type>(services.Count);
+#else
+            _registeredServices = new HashSet<Type>();
+#endif
 
             _dependencies = new ThreadLocal<List<Type>>(() => new List<Type>(options.MaxDepth * 2 + 3));
 
