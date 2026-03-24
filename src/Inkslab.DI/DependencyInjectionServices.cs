@@ -28,9 +28,9 @@ namespace Inkslab.DI
         private readonly HashSet<Type> _effectiveTypes = new HashSet<Type>();
         private readonly List<Type> _implementTypes = new List<Type>();
         private readonly HashSet<Type> _ignoreTypes = new HashSet<Type>();
-        
+
         // 性能优化：缓存
-        private readonly HashSet<Type> _registeredServices = new HashSet<Type>();
+        private readonly HashSet<Type> _registeredServices;
         private readonly Dictionary<Type, Type[]> _interfaceCache = new Dictionary<Type, Type[]>();
         private readonly Dictionary<Type, List<Type>> _implementationTypeCache = new Dictionary<Type, List<Type>>();
 
@@ -44,7 +44,16 @@ namespace Inkslab.DI
             _options = options;
             _serviceProvider = serviceProvider;
 
+            _registeredServices = new HashSet<Type>(services.Count);
+
             _dependencies = new ThreadLocal<List<Type>>(() => new List<Type>(options.MaxDepth * 2 + 3));
+
+            // 将构造时已存在于 _services 中的服务类型加入缓存，
+            // 确保外部（如 AddControllers、手动注册）已注入的服务能被正确识别，不被重复注入。
+            foreach (var descriptor in services)
+            {
+                _registeredServices.Add(descriptor.ServiceType);
+            }
         }
 
         public IReadOnlyCollection<Assembly> Assemblies
@@ -627,11 +636,11 @@ namespace Inkslab.DI
             {
                 var typeDefinition = serviceType.GetGenericTypeDefinition();
 
-            if (_ignoreTypes.Contains(typeDefinition)
-                    || _registeredServices.Contains(typeDefinition)) //? 已有注入时，不再自动注入。
-            {
-                return true;
-            }
+                if (_ignoreTypes.Contains(typeDefinition)
+                        || _registeredServices.Contains(typeDefinition)) //? 已有注入时，不再自动注入。
+                {
+                    return true;
+                }
             }
 
         label_core:
