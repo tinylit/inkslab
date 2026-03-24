@@ -16,17 +16,17 @@ namespace Inkslab
         /// 服务。
         /// </summary>
         private static readonly ConcurrentDictionary<Type, Type> _serviceCachings = new ConcurrentDictionary<Type, Type>();
-        
+
         /// <summary>
         /// 构造函数缓存。
         /// </summary>
         private static readonly ConcurrentDictionary<Type, ConstructorInfo[]> _constructorCache = new ConcurrentDictionary<Type, ConstructorInfo[]>();
-        
+
         /// <summary>
         /// 参数信息缓存。
         /// </summary>
         private static readonly ConcurrentDictionary<ConstructorInfo, ParameterInfo[]> _parameterCache = new ConcurrentDictionary<ConstructorInfo, ParameterInfo[]>();
-        
+
         /// <summary>
         /// 属性信息缓存。
         /// </summary>
@@ -133,30 +133,33 @@ namespace Inkslab
             private static Lazy<TService> lazy = new Lazy<TService>(() => null);
             private static bool uninitialized = true;
             private static SingletonWeights singletonWeights = SingletonWeights.Lowest;
+            private static readonly object _lock = new object();
 
             public static bool TryAdd(Func<TService> factory, SingletonWeights weights)
             {
-                if (uninitialized || weights >= singletonWeights)
+                lock (_lock)
                 {
-                    uninitialized = false;
-
-                    singletonWeights = weights;
-
-                    if (lazy.IsValueCreated)
+                    if (uninitialized || weights >= singletonWeights)
                     {
-                        return false;
+                        uninitialized = false;
+
+                        singletonWeights = weights;
+
+                        if (lazy.IsValueCreated)
+                        {
+                            return false;
+                        }
+
+                        _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
+
+                        lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
+
+                        return true;
                     }
 
-                    _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
-
-                    lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
-
-                    return true;
+                    return false;
                 }
-
-                return false;
             }
-
             public static bool TryAdd(TService instance) => TryAdd(() => instance, SingletonWeights.Designation);
 
             public static TService Instance => lazy.Value;
@@ -234,7 +237,7 @@ namespace Inkslab
                             {
                                 var parameterInfos = GetCachedParameters(x);
                                 var specifiedCount = 0;
-                                
+
                                 // 优化：避免 LINQ Count() 的开销
                                 foreach (var param in parameterInfos)
                                 {
@@ -361,8 +364,8 @@ namespace Inkslab
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 private static PropertyInfo GetCachedInstanceProperty(Type implementType)
                 {
-                    return _propertyCache.GetOrAdd(implementType, type => 
-                        type.GetProperty("Instance", DefaultLookup) ?? 
+                    return _propertyCache.GetOrAdd(implementType, type =>
+                        type.GetProperty("Instance", DefaultLookup) ??
                         throw new InvalidOperationException($"Type {type.FullName} does not have an Instance property"));
                 }
 
