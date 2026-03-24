@@ -380,9 +380,18 @@ namespace Inkslab.DI
                 );
             }
 
+            if (configureServices.Count == 0)
+            {
+                return;
+            }
+
+            // 使用追踪包装集合，拦截所有写入路径（Add/Insert/索引替换），
+            // 精确维护 _registeredServices，无需全量遍历。
+            var trackingServices = new TrackingServiceCollection(_services, _registeredServices);
+
             foreach (var configure in configureServices)
             {
-                configure.ConfigureServices(_services);
+                configure.ConfigureServices(trackingServices);
             }
         }
 
@@ -1233,6 +1242,57 @@ namespace Inkslab.DI
             Dispose(true);
 
             GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// 拦截 <see cref="IServiceCollection"/> 的所有写操作，
+        /// 将新增的 <see cref="ServiceDescriptor.ServiceType"/> 自动同步到 _registeredServices，
+        /// 覆盖 Add、Insert、索引替换等全部修改路径，避免全量遍历开销。
+        /// </summary>
+        private sealed class TrackingServiceCollection : IServiceCollection
+        {
+            private readonly IServiceCollection _inner;
+            private readonly HashSet<Type> _registeredServices;
+
+            public TrackingServiceCollection(IServiceCollection inner, HashSet<Type> registeredServices)
+            {
+                _inner = inner;
+                _registeredServices = registeredServices;
+            }
+
+            public ServiceDescriptor this[int index]
+            {
+                get => _inner[index];
+                set
+                {
+                    _inner[index] = value;
+                    _registeredServices.Add(value.ServiceType);
+                }
+            }
+
+            public int Count => _inner.Count;
+            public bool IsReadOnly => _inner.IsReadOnly;
+
+            public void Add(ServiceDescriptor item)
+            {
+                _inner.Add(item);
+                _registeredServices.Add(item.ServiceType);
+            }
+
+            public void Insert(int index, ServiceDescriptor item)
+            {
+                _inner.Insert(index, item);
+                _registeredServices.Add(item.ServiceType);
+            }
+
+            public void Clear() => _inner.Clear();
+            public bool Contains(ServiceDescriptor item) => _inner.Contains(item);
+            public void CopyTo(ServiceDescriptor[] array, int arrayIndex) => _inner.CopyTo(array, arrayIndex);
+            public int IndexOf(ServiceDescriptor item) => _inner.IndexOf(item);
+            public bool Remove(ServiceDescriptor item) => _inner.Remove(item);
+            public void RemoveAt(int index) => _inner.RemoveAt(index);
+            public IEnumerator<ServiceDescriptor> GetEnumerator() => _inner.GetEnumerator();
+            IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)_inner).GetEnumerator();
         }
     }
 }
