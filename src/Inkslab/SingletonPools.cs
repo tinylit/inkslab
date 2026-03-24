@@ -295,6 +295,7 @@ namespace Inkslab
                         return true;
                     }
 
+                    // ConcurrentDictionary 支持并发枚举和修改，无需快照
                     // 对于非抽象类型，尝试找到匹配的实现
                     if (!parameterType.IsAbstract)
                     {

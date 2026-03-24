@@ -181,10 +181,10 @@ namespace Inkslab.Sugars
             ParameterExpression contextExp,
             ReflectionContext context)
         {
-            var conditions = new List<Expression>();
-            var variables = new List<ParameterExpression>();
-            var arguments = new List<Expression>();
-            var expressions = new List<Expression>();
+            var conditions = new List<Expression>(parameterInfos.Length);
+            var variables = new List<ParameterExpression>(parameterInfos.Length);
+            var arguments = new List<Expression>(parameterInfos.Length);
+            var expressions = new List<Expression>(parameterInfos.Length + 1);
 
             foreach (var parameterInfo in parameterInfos)
             {

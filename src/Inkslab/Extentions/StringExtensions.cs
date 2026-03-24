@@ -52,8 +52,8 @@ namespace System
 #else
                         string value = name[1..];
 #endif
-
-                        return string.Concat(char.ToString(char.ToLower(name[0])), _patternCamelCase.Replace(value, x => char.ToUpper(x.Value[1]).ToString()));
+                        // 优化：避免 char.ToString() 的额外分配
+                        return char.ToLower(name[0]) + _patternCamelCase.Replace(value, x => char.ToUpper(x.Value[1]).ToString());
                     }
 
                     return _patternCamelCase.Replace(name, x => char.ToUpper(x.Value[1]).ToString());
@@ -67,19 +67,17 @@ namespace System
                 case NamingType.SnakeCase:
                     return _patternSnakeCase.Replace(name, x => x.Index == 0
                         ? x.Value.ToLower()
-                        : string.Concat("_", x.Value.Length == 2
+                        : "_" + (x.Value.Length == 2
                             ? char.ToLower(x.Value[1]).ToString()
-                            : x.Value.ToLower()
-                        )
+                            : x.Value.ToLower())
                     );
 
                 case NamingType.KebabCase:
                     return _patternKebabCase.Replace(name, x => x.Index == 0
                         ? x.Value.ToLower()
-                        : string.Concat("-", x.Value.Length == 2
+                        : "-" + (x.Value.Length == 2
                             ? char.ToLower(x.Value[1]).ToString()
-                            : x.Value.ToLower()
-                        )
+                            : x.Value.ToLower())
                     );
 
                 default:
