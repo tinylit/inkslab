@@ -62,7 +62,7 @@
             <ItemGroup>
                 <None Include="..\..\*.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
         </When>
@@ -77,14 +77,14 @@
             <ItemGroup>
                 <None Include="..\..\README.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
             <ItemGroup>
                 <None Include="..\..\Inkslab.Config.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
@@ -115,7 +115,7 @@
             <ItemGroup>
                 <None Include="..\..\README.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
@@ -139,14 +139,14 @@
             <ItemGroup>
                 <None Include="..\..\README.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
             <ItemGroup>
                 <None Include="..\..\Inkslab.Json.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
@@ -165,14 +165,14 @@
             <ItemGroup>
                 <None Include="..\..\README.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
             <ItemGroup>
                 <None Include="..\..\Inkslab.Map.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
         </When>
@@ -187,14 +187,14 @@
             <ItemGroup>
                 <None Include="..\..\README.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
             <ItemGroup>
                 <None Include="..\..\Inkslab.Net.md">
                     <Pack>True</Pack>
-                    <PackagePath>\</PackagePath>
+                    <PackagePath></PackagePath>
                 </None>
             </ItemGroup>
 
