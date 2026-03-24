@@ -1,6 +1,7 @@
 ﻿using Inkslab.Map.Maps;
 using Inkslab.Map.Visitors;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -1403,7 +1404,7 @@ namespace Inkslab.Map
         private readonly List<IMapSlot> _mapSlots = new List<IMapSlot>();
         private readonly HashSet<TypeCode> _missCachings = new HashSet<TypeCode>(TypeCode.InstanceComparer);
         private readonly Dictionary<TypeCode, IMapSlot> _mapCachings = new Dictionary<TypeCode, IMapSlot>(TypeCode.InstanceComparer);
-        private readonly Dictionary<TypeCode, IInstanceMapSlot> _instanceMapCachings = new Dictionary<TypeCode, IInstanceMapSlot>(TypeCode.InstanceComparer);
+        private readonly ConcurrentDictionary<TypeCode, IInstanceMapSlot> _instanceMapCachings = new ConcurrentDictionary<TypeCode, IInstanceMapSlot>(TypeCode.InstanceComparer);
 
         /// <summary>
         /// 解决映射关系。
@@ -1541,7 +1542,8 @@ namespace Inkslab.Map
                     {
                         if (mapSlot.IsInstanceSlot)
                         {
-                            _instanceMapCachings[typeCode] = mapSlot.CreateMap(typeCode.X, typeCode.Y);
+                            var instanceSlot = mapSlot.CreateMap(typeCode.X, typeCode.Y);
+                            _instanceMapCachings.TryAdd(typeCode, instanceSlot);
                         }
 
                         _mapCachings[typeCode] = mapSlot;
