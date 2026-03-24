@@ -376,7 +376,14 @@ namespace Inkslab.Collections
 #if !NET_Traditional
                 else if (obsoleteValue is IAsyncDisposable asyncDisposable)
                 {
-                    asyncDisposable.DisposeAsync().AsTask().Wait();
+                    try
+                    {
+                        asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
+                    }
+                    catch
+                    {
+                        // 忽略释放异常，避免破坏主流程
+                    }
                 }
 #endif
             }
@@ -385,21 +392,21 @@ namespace Inkslab.Collections
         /// <inheritdoc/>
         public bool TryGet(TKey key, out TValue value)
         {
-            if (_cachings.TryGetValue(key, out var node))
+            lock (_lockObj)
             {
-                lock (_lockObj)
+                if (_cachings.TryGetValue(key, out var node))
                 {
                     UpdateFrequency(node);
+
+                    value = node.Value;
+
+                    return true;
                 }
 
-                value = node.Value;
+                value = default;
 
-                return true;
+                return false;
             }
-
-            value = default;
-
-            return false;
         }
 
         /// <inheritdoc/>
@@ -440,7 +447,14 @@ namespace Inkslab.Collections
 #if !NET_Traditional
                 else if (obsoleteValue is IAsyncDisposable asyncDisposable)
                 {
-                    asyncDisposable.DisposeAsync().AsTask().Wait();
+                    try
+                    {
+                        asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
+                    }
+                    catch
+                    {
+                        // 忽略释放异常，避免破坏主流程
+                    }
                 }
 #endif
             }

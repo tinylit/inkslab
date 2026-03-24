@@ -122,7 +122,7 @@ namespace Inkslab.Net.Tests
         [Fact]
         public async Task DownloadAsync()
         {
-            var requestable = RequestFactory.Create("https://download.visualstudio.microsoft.com/download/pr/53f250a1-318f-4350-8bda-3c6e49f40e76/e8cbbd98b08edd6222125268166cfc43/dotnet-sdk-3.0.100-win-x64.exe");
+            var requestable = RequestFactory.Create("https://wwww.baidu.com/");
 
             using var stream = await requestable
                .When(status => status == System.Net.HttpStatusCode.Unauthorized)

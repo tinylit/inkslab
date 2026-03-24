@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Threading;
 using Inkslab.Annotations;
 using Inkslab.DI.Annotations;
 using Inkslab.DI.Options;
@@ -19,12 +20,19 @@ namespace Inkslab.DI
         private readonly IServiceCollection _services;
         private readonly DependencyInjectionOptions _options;
         private readonly IServiceProvider _serviceProvider;
-        private readonly List<Type> _dependencies;
+        // 使用 ThreadLocal 确保每个线程有独立的依赖追踪列表
+        private readonly ThreadLocal<List<Type>> _dependencies;
+        private readonly object _collectionsLock = new object();
         private readonly HashSet<Assembly> _assemblies = new HashSet<Assembly>();
         private readonly HashSet<Type> _assemblyTypes = new HashSet<Type>();
         private readonly HashSet<Type> _effectiveTypes = new HashSet<Type>();
         private readonly List<Type> _implementTypes = new List<Type>();
         private readonly HashSet<Type> _ignoreTypes = new HashSet<Type>();
+        
+        // 性能优化：缓存
+        private readonly HashSet<Type> _registeredServices = new HashSet<Type>();
+        private readonly Dictionary<Type, Type[]> _interfaceCache = new Dictionary<Type, Type[]>();
+        private readonly Dictionary<Type, List<Type>> _implementationTypeCache = new Dictionary<Type, List<Type>>();
 
         public DependencyInjectionServices(
             IServiceCollection services,
@@ -36,7 +44,7 @@ namespace Inkslab.DI
             _options = options;
             _serviceProvider = serviceProvider;
 
-            _dependencies = new List<Type>(options.MaxDepth * 2 + 3);
+            _dependencies = new ThreadLocal<List<Type>>(() => new List<Type>(options.MaxDepth * 2 + 3));
         }
 
         public IReadOnlyCollection<Assembly> Assemblies
@@ -51,36 +59,39 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(assembly));
             }
 
-            if (!_assemblies.Add(assembly))
+            lock (_collectionsLock)
             {
-                return this;
-            }
-
-            foreach (var type in assembly.GetTypes())
-            {
-                if (type.IsValueType || type.IsIgnore())
+                if (!_assemblies.Add(assembly))
                 {
-                    continue;
+                    return this;
                 }
 
-                if (!type.IsAbstract)
+                foreach (var type in assembly.GetTypes())
                 {
-                    _assemblyTypes.Add(type);
-                }
-
-                if (_options.Ignore(type))
-                {
-                    continue;
-                }
-
-                if (_effectiveTypes.Add(type))
-                {
-                    if (type.IsInterface || type.IsAbstract)
+                    if (type.IsValueType || type.IsIgnore())
                     {
                         continue;
                     }
 
-                    _implementTypes.Add(type);
+                    if (!type.IsAbstract)
+                    {
+                        _assemblyTypes.Add(type);
+                    }
+
+                    if (_options.Ignore(type))
+                    {
+                        continue;
+                    }
+
+                    if (_effectiveTypes.Add(type))
+                    {
+                        if (type.IsInterface || type.IsAbstract)
+                        {
+                            continue;
+                        }
+
+                        _implementTypes.Add(type);
+                    }
                 }
             }
 
@@ -128,14 +139,20 @@ namespace Inkslab.DI
                 throw new ArgumentNullException(nameof(serviceType));
             }
 
-            _ignoreTypes.Add(serviceType);
+            lock (_collectionsLock)
+            {
+                _ignoreTypes.Add(serviceType);
+            }
 
             return this;
         }
 
         public IDependencyInjectionServices IgnoreType<TService>()
         {
-            _ignoreTypes.Add(typeof(TService));
+            lock (_collectionsLock)
+            {
+                _ignoreTypes.Add(typeof(TService));
+            }
 
             return this;
         }
@@ -265,7 +282,7 @@ namespace Inkslab.DI
                 return this;
             }
 
-            _dependencies.Add(serviceType);
+            _dependencies.Value.Add(serviceType);
 
             throw DiError("Service", serviceType);
         }
@@ -299,7 +316,7 @@ namespace Inkslab.DI
                         continue;
                     }
 
-                    _dependencies.Add(type);
+                    _dependencies.Value.Add(type);
 
                     throw DiError("Service", type);
                 }
@@ -319,7 +336,7 @@ namespace Inkslab.DI
                 else
                 {
                     //? 已注入。
-                    if (_services.Any(x => x.ServiceType == type && x.ImplementationType == type))
+                    if (_registeredServices.Contains(type))
                     {
                         continue;
                     }
@@ -409,7 +426,7 @@ namespace Inkslab.DI
                             continue;
                         }
 
-                        _dependencies.Add(parameterInfo.ParameterType);
+                        _dependencies.Value.Add(parameterInfo.ParameterType);
 
                         throw DiError($"Controller Method({methodInfo.Name})", controllerType);
                     }
@@ -419,7 +436,8 @@ namespace Inkslab.DI
 
         private Exception DiError(string name, Type type)
         {
-            var sb = new StringBuilder();
+            var sb = new StringBuilder(512);
+            var dependencies = _dependencies.Value;
 
             sb.Append(name)
                 .Append(" '")
@@ -429,15 +447,15 @@ namespace Inkslab.DI
                 )
                 .Append(_options.MaxDepth);
 
-            if (_dependencies.Count > 0)
+            if (dependencies.Count > 0)
             {
                 sb.AppendLine(".").AppendLine("Dependency details are as follows:");
 
-                _dependencies.Reverse();
+                dependencies.Reverse();
 
-                for (int i = 0, len = _dependencies.Count - 1; i <= len; i++)
+                for (int i = 0, len = dependencies.Count - 1; i <= len; i++)
                 {
-                    Type serviceType = _dependencies[i];
+                    Type serviceType = dependencies[i];
 
                     if (i > 0)
                     {
@@ -454,7 +472,7 @@ namespace Inkslab.DI
                         ++i;
                     }
 
-                    Type implementationType = _dependencies[i];
+                    Type implementationType = dependencies[i];
 
                     if (serviceType == implementationType)
                     {
@@ -470,7 +488,7 @@ namespace Inkslab.DI
                     }
                 }
 
-                _dependencies.Clear();
+                dependencies.Clear();
             }
 
             return new TypeLoadException(sb.Append('.').ToString());
@@ -508,7 +526,8 @@ namespace Inkslab.DI
         {
             bool flag = false;
 
-            int startIndex = _dependencies.Count;
+            var dependencies = _dependencies.Value;
+            int startIndex = dependencies.Count;
 
             foreach (var constructorInfo in implementationType.GetConstructors())
             {
@@ -519,9 +538,9 @@ namespace Inkslab.DI
 
                 flag = true;
 
-                if (_dependencies.Count > startIndex)
+                if (dependencies.Count > startIndex)
                 {
-                    _dependencies.RemoveRange(startIndex + 1, _dependencies.Count - startIndex - 1);
+                    dependencies.RemoveRange(startIndex + 1, dependencies.Count - startIndex - 1);
                 }
 
                 foreach (var parameterInfo in constructorInfo.GetParameters())
@@ -548,7 +567,7 @@ namespace Inkslab.DI
                         continue;
                     }
 
-                    _dependencies.Add(parameterInfo.ParameterType);
+                    dependencies.Add(parameterInfo.ParameterType);
 
                     flag = false;
 
@@ -599,7 +618,7 @@ namespace Inkslab.DI
                 goto label_core;
             }
 
-            if (_services.Any(x => x.ServiceType == serviceType)) //? 已有注入时，不再自动注入。
+            if (_registeredServices.Contains(serviceType)) //? 已有注入时，不再自动注入。
             {
                 return true;
             }
@@ -608,17 +627,18 @@ namespace Inkslab.DI
             {
                 var typeDefinition = serviceType.GetGenericTypeDefinition();
 
-                if (_ignoreTypes.Contains(typeDefinition)
-                    || _services.Any(x => x.ServiceType == typeDefinition)) //? 已有注入时，不再自动注入。
-                {
-                    return true;
-                }
+            if (_ignoreTypes.Contains(typeDefinition)
+                    || _registeredServices.Contains(typeDefinition)) //? 已有注入时，不再自动注入。
+            {
+                return true;
+            }
             }
 
         label_core:
 
+            // 性能优化：缓存接口查询
             var interfaceTypes = serviceType.IsInterface
-                ? serviceType.GetInterfaces()
+                ? GetCachedInterfaces(serviceType)
                 : Type.EmptyTypes;
 
             if (serviceType.IsGenericTypeDefinition)
@@ -633,12 +653,8 @@ namespace Inkslab.DI
                 );
             }
 
-            var implementationTypes =
-                (serviceType.IsInterface || serviceType.IsAbstract)
-                    ? effectiveTypes
-                        .Where(serviceType.IsAssignableFrom)
-                        .ToList()
-                    : new List<Type> { serviceType };
+            // 性能优化：缓存实现类型查询
+            var implementationTypes = GetCachedImplementationTypes(serviceType, effectiveTypes);
 
             implementationTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
 
@@ -883,7 +899,7 @@ namespace Inkslab.DI
                                 continue;
                             }
 
-                            _dependencies.Add(injectionType);
+                            _dependencies.Value.Add(injectionType);
 
                             throw DiError("Implementing member", injectionType);
                         }
@@ -894,12 +910,14 @@ namespace Inkslab.DI
                         _services.TryAddEnumerable(
                             new ServiceDescriptor(serviceType, implementationType, lifetime)
                         );
+                        _registeredServices.Add(serviceType);
                     }
                     else
                     {
                         _services.Add(
                             new ServiceDescriptor(serviceType, implementationType, lifetime)
                         );
+                        _registeredServices.Add(serviceType);
                     }
 
                     if (isMulti) //? 注入一个支持。
@@ -910,7 +928,7 @@ namespace Inkslab.DI
                     break;
                 }
 
-                _dependencies.Add(implementationType);
+                _dependencies.Value.Add(implementationType);
 
                 break;
             }
@@ -1131,8 +1149,8 @@ namespace Inkslab.DI
                     continue;
                 }
 
-                _dependencies.Add(descriptorType);
-                _dependencies.Add(descriptor.ServiceType);
+                _dependencies.Value.Add(descriptorType);
+                _dependencies.Value.Add(descriptor.ServiceType);
 
                 throw DiError("Service", descriptorType);
             }
@@ -1140,17 +1158,60 @@ namespace Inkslab.DI
             return this;
         }
 
+        /// <summary>
+        /// 获取缓存的接口类型列表
+        /// </summary>
+        private Type[] GetCachedInterfaces(Type type)
+        {
+            if (!_interfaceCache.TryGetValue(type, out var interfaces))
+            {
+                interfaces = type.GetInterfaces();
+                _interfaceCache[type] = interfaces;
+            }
+            return interfaces;
+        }
+
+        /// <summary>
+        /// 获取缓存的实现类型列表
+        /// </summary>
+        private List<Type> GetCachedImplementationTypes(Type serviceType, IReadOnlyCollection<Type> effectiveTypes)
+        {
+            if (!(serviceType.IsInterface || serviceType.IsAbstract))
+            {
+                return new List<Type> { serviceType };
+            }
+
+            if (!_implementationTypeCache.TryGetValue(serviceType, out var implementationTypes))
+            {
+                implementationTypes = effectiveTypes
+                    .Where(serviceType.IsAssignableFrom)
+                    .ToList();
+                _implementationTypeCache[serviceType] = implementationTypes;
+            }
+            return implementationTypes;
+        }
+
         private void Dispose(bool disposing)
         {
-            _assemblies.Clear();
-
-            if (disposing)
+            lock (_collectionsLock)
             {
-                _assemblyTypes.Clear();
-                _effectiveTypes.Clear();
-                _implementTypes.Clear();
-                _dependencies.Clear();
-                _ignoreTypes.Clear();
+                _assemblies.Clear();
+
+                if (disposing)
+                {
+                    _assemblyTypes.Clear();
+                    _effectiveTypes.Clear();
+                    _implementTypes.Clear();
+                    _ignoreTypes.Clear();
+                    _registeredServices.Clear();
+                    _interfaceCache.Clear();
+                    _implementationTypeCache.Clear();
+                }
+            }
+
+            if (disposing && _dependencies.IsValueCreated)
+            {
+                _dependencies.Value.Clear();
             }
         }
 
