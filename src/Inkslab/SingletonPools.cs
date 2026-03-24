@@ -138,6 +138,11 @@ namespace Inkslab
 
             public static bool TryAdd(Func<TService> factory, SingletonWeights weights)
             {
+                if (factory is null)
+                {
+                    throw new ArgumentNullException(nameof(factory));
+                }
+
                 lock (_lock)
                 {
                     if (uninitialized || weights >= singletonWeights)
@@ -153,7 +158,7 @@ namespace Inkslab
 
                         _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
 
-                        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+                        _factory = () => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!");
 
                         return true;
                     }
@@ -177,7 +182,7 @@ namespace Inkslab
 
                     lock (_lock)
                     {
-                        return _instance ??= _factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为\"null\"!");
+                        return _instance ??= _factory.Invoke();
                     }
                 }
             }
