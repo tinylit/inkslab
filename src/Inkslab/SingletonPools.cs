@@ -130,7 +130,8 @@ namespace Inkslab
 
         private class Nested<TService> where TService : class
         {
-            private static Lazy<TService> lazy = new Lazy<TService>(() => null);
+            private static volatile TService _instance;
+            private static Func<TService> _factory = () => null;
             private static bool uninitialized = true;
             private static SingletonWeights singletonWeights = SingletonWeights.Lowest;
             private static readonly object _lock = new object();
@@ -145,14 +146,14 @@ namespace Inkslab
 
                         singletonWeights = weights;
 
-                        if (lazy.IsValueCreated)
+                        if (_instance != null)
                         {
                             return false;
                         }
 
                         _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
 
-                        lazy = new Lazy<TService>(() => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!"), true);
+                        _factory = factory ?? throw new ArgumentNullException(nameof(factory));
 
                         return true;
                     }
@@ -162,7 +163,24 @@ namespace Inkslab
             }
             public static bool TryAdd(TService instance) => TryAdd(() => instance, SingletonWeights.Designation);
 
-            public static TService Instance => lazy.Value;
+            public static TService Instance
+            {
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                get
+                {
+                    // Double-check locking pattern for optimal performance
+                    var instance = _instance;
+                    if (instance != null)
+                    {
+                        return instance;
+                    }
+
+                    lock (_lock)
+                    {
+                        return _instance ??= _factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为\"null\"!");
+                    }
+                }
+            }
         }
 
         private class AutoNested<TService> : Nested<TService> where TService : class
