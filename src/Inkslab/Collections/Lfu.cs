@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Inkslab.Collections
 {
     /// <summary>
-    /// 【线程安全】LFU 算法，移除最近最不常使用的数据。
+    /// 【线程安全】LFU 算法，移除最近最不常使用的数据。使用分片锁降低高并发场景下的锁竞争。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
     public class Lfu<T> : IEliminationAlgorithm<T> where T : notnull
@@ -72,11 +73,133 @@ namespace Inkslab.Collections
             public bool IsEmpty() => Count == 0;
         }
 
-        private readonly int _capacity;
-        private int _minFrequency = 1;
-        private readonly Dictionary<T, Node> _cachings;
-        private readonly Dictionary<int, FrequencyList> _freqToNodes;
-        private readonly object _lockObj = new object();
+        private class Shard
+        {
+            private readonly int _capacity;
+            private int _minFrequency = 1;
+            private readonly Dictionary<T, Node> _cachings;
+            private readonly Dictionary<int, FrequencyList> _freqToNodes;
+            private readonly object _lockObj = new object();
+
+            public Shard(int capacity, IEqualityComparer<T> comparer)
+            {
+                _capacity = capacity;
+                _freqToNodes = new Dictionary<int, FrequencyList>
+                {
+                    [1] = new FrequencyList()
+                };
+
+                int dictCapacity = capacity;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    if (dictCapacity > 100 && (dictCapacity & 1) == 0)
+                    {
+                        dictCapacity /= 2;
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                _cachings = new Dictionary<T, Node>(dictCapacity, comparer);
+            }
+
+            public int Count { get { lock (_lockObj) { return _cachings.Count; } } }
+
+            public bool Put(T value, out T obsoleteValue)
+            {
+                obsoleteValue = default;
+
+                lock (_lockObj)
+                {
+                    if (_cachings.TryGetValue(value, out var node))
+                    {
+                        UpdateFrequency(node);
+
+                        return false;
+                    }
+
+                    bool flag = false;
+
+                    if (_cachings.Count >= _capacity)
+                    {
+                        flag = true;
+
+                        obsoleteValue = Evict();
+                    }
+
+                    var newNode = new Node(value);
+                    _cachings.Add(value, newNode);
+
+                    if (!_freqToNodes.TryGetValue(1, out var freq1List))
+                    {
+                        freq1List = new FrequencyList();
+                        _freqToNodes[1] = freq1List;
+                    }
+
+                    freq1List.AddToHead(newNode);
+                    _minFrequency = 1;
+
+                    return flag;
+                }
+            }
+
+            private void UpdateFrequency(Node node)
+            {
+                var currentFreq = node.Frequency;
+
+                if (currentFreq == int.MaxValue)
+                {
+                    return; // 频率已达上限，避免溢出
+                }
+
+                var newFreq = currentFreq + 1;
+
+                if (!_freqToNodes.TryGetValue(newFreq, out var newFreqList))
+                {
+                    newFreqList = new FrequencyList();
+                    _freqToNodes[newFreq] = newFreqList;
+                }
+
+                if (_freqToNodes.TryGetValue(currentFreq, out var freqList))
+                {
+                    freqList.RemoveNode(node);
+
+                    if (freqList.IsEmpty())
+                    {
+                        _freqToNodes.Remove(currentFreq);
+
+                        if (currentFreq == _minFrequency)
+                        {
+                            _minFrequency = newFreq;
+                        }
+                    }
+                }
+
+                node.Frequency = newFreq;
+                newFreqList.AddToHead(node);
+            }
+
+            private T Evict()
+            {
+                var minFreqList = _freqToNodes[_minFrequency];
+                var nodeToRemove = minFreqList.RemoveTail();
+                _cachings.Remove(nodeToRemove.Key);
+
+                if (minFreqList.IsEmpty())
+                {
+                    _freqToNodes.Remove(_minFrequency);
+                }
+
+                return nodeToRemove.Key;
+            }
+        }
+
+        private readonly Shard[] _shards;
+        private readonly int _shardMask;
+        private readonly IEqualityComparer<T> _comparer;
 
         /// <summary>
         /// 指定容器大小。
@@ -94,110 +217,73 @@ namespace Inkslab.Collections
         /// <param name="comparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
         public Lfu(int capacity, IEqualityComparer<T> comparer)
         {
-            if (capacity < 0)
+            if (capacity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            _capacity = capacity;
-            _freqToNodes = new Dictionary<int, FrequencyList>
+            _comparer = comparer ?? EqualityComparer<T>.Default;
+
+            int shardCount = ComputeShardCount(capacity);
+            _shardMask = shardCount - 1;
+
+            int perShardCapacity = capacity / shardCount;
+            int remainder = capacity % shardCount;
+
+            _shards = new Shard[shardCount];
+
+            for (int i = 0; i < shardCount; i++)
             {
-                [1] = new FrequencyList()
-            };
-
-            for (int i = 0; i < 3; i++)
-            {
-                if (capacity > 100 && (capacity & 1) == 0)
-                {
-                    capacity /= 2;
-
-                    continue;
-                }
-
-                break;
+                int shardCapacity = perShardCapacity + (i < remainder ? 1 : 0);
+                _shards[i] = new Shard(shardCapacity, _comparer);
             }
-
-            _cachings = new Dictionary<T, Node>(capacity, comparer ?? EqualityComparer<T>.Default);
         }
 
         /// <inheritdoc />
-        public int Count => _cachings.Count;
+        public int Count
+        {
+            get
+            {
+                int count = 0;
+
+                for (int i = 0; i < _shards.Length; i++)
+                {
+                    count += _shards[i].Count;
+                }
+
+                return count;
+            }
+        }
 
         /// <inheritdoc />
         public bool Put(T value, out T obsoleteValue)
         {
-            obsoleteValue = default;
-
-            lock (_lockObj)
-            {
-                if (_cachings.TryGetValue(value, out var node))
-                {
-                    UpdateFrequency(node);
-
-                    return false;
-                }
-
-                bool flag = false;
-
-                if (_cachings.Count >= _capacity)
-                {
-                    flag = true;
-
-                    obsoleteValue = Evict();
-                }
-
-                var newNode = new Node(value);
-                _cachings.Add(value, newNode);
-                _freqToNodes[1].AddToHead(newNode);
-                _minFrequency = 1; // 新添加的节点频率为1
-
-                return flag;
-            }
+            return GetShard(value).Put(value, out obsoleteValue);
         }
 
-        private void UpdateFrequency(Node node)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Shard GetShard(T key)
         {
-            var currentFreq = node.Frequency;
-            var freqList = _freqToNodes[currentFreq];
-
-            // 从当前频率链表移除
-            freqList.RemoveNode(node);
-
-            // 如果当前是最小频率链表且变空，更新最小频率
-            if (currentFreq == _minFrequency && freqList.IsEmpty())
-            {
-                _minFrequency++;
-            }
-
-            // 增加节点频率
-            node.Frequency++;
-            var newFreq = node.Frequency;
-
-            // 确保新频率链表存在
-            if (!_freqToNodes.ContainsKey(newFreq))
-            {
-                _freqToNodes[newFreq] = new FrequencyList();
-            }
-
-            // 添加到新频率链表头部
-            _freqToNodes[newFreq].AddToHead(node);
+            var hash = _comparer.GetHashCode(key) & 0x7FFFFFFF;
+            return _shards[hash & _shardMask];
         }
 
-        private T Evict()
+        private static int ComputeShardCount(int capacity)
         {
-            var minFreqList = _freqToNodes[_minFrequency];
-            var nodeToRemove = minFreqList.RemoveTail();
-            _cachings.Remove(nodeToRemove.Key);
+            int target = Environment.ProcessorCount;
+            int shardCount = 1;
 
-            // 如果最小频率链表变空，不需要立即更新_minFrequency
-            // 因为下次访问会自动更新（或添加新节点会重置为1）
+            while (shardCount < target && capacity / (shardCount * 2) >= 4)
+            {
+                shardCount <<= 1;
+            }
 
-            return nodeToRemove.Key;
+            return shardCount;
         }
     }
 
     /// <summary>
-    /// 【线程安全】LFU 算法，移除最近最不常使用的数据。
+    /// 【线程安全】LFU 算法，移除最近最不常使用的数据。使用分片锁降低高并发场景下的锁竞争，工厂在分片锁内执行以避免重复调用。
     /// </summary>
     /// <typeparam name="TKey">键。</typeparam>
     /// <typeparam name="TValue">值。</typeparam>
@@ -266,12 +352,207 @@ namespace Inkslab.Collections
             public bool IsEmpty() => Count == 0;
         }
 
-        private readonly int _capacity;
-        private readonly Func<TKey, TValue> _factory;
-        private int _minFrequency = 1;
-        private readonly Dictionary<TKey, Node> _cachings;
-        private readonly Dictionary<int, FrequencyList> _freqToNodes;
-        private readonly object _lockObj = new object();
+        private class Shard
+        {
+            private readonly int _capacity;
+            private readonly Func<TKey, TValue> _factory;
+            private int _minFrequency = 1;
+            private readonly Dictionary<TKey, Node> _cachings;
+            private readonly Dictionary<int, FrequencyList> _freqToNodes;
+            private readonly object _lockObj = new object();
+
+            public Shard(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
+            {
+                _capacity = capacity;
+                _factory = factory;
+                _freqToNodes = new Dictionary<int, FrequencyList>
+                {
+                    [1] = new FrequencyList()
+                };
+
+                int dictCapacity = capacity;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    if (dictCapacity > 100 && (dictCapacity & 1) == 0)
+                    {
+                        dictCapacity /= 2;
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                _cachings = new Dictionary<TKey, Node>(dictCapacity, comparer);
+            }
+
+            public int Count { get { lock (_lockObj) { return _cachings.Count; } } }
+
+            public TValue Get(TKey key)
+            {
+                TValue obsoleteValue = default;
+
+                try
+                {
+                    lock (_lockObj)
+                    {
+                        if (_cachings.TryGetValue(key, out var hitNode))
+                        {
+                            UpdateFrequency(hitNode);
+                            return hitNode.Value;
+                        }
+
+                        // 工厂在分片锁内执行：同一分片内相同键不会重复调用工厂
+                        var newValue = _factory.Invoke(key);
+
+                        // 工厂成功后再执行淘汰，异常不会导致已有数据被误淘汰
+                        if (_cachings.Count >= _capacity)
+                        {
+                            obsoleteValue = Evict();
+                        }
+
+                        var newNode = new Node(key, newValue);
+                        _cachings.Add(key, newNode);
+
+                        if (!_freqToNodes.TryGetValue(1, out var freq1List))
+                        {
+                            freq1List = new FrequencyList();
+                            _freqToNodes[1] = freq1List;
+                        }
+
+                        freq1List.AddToHead(newNode);
+                        _minFrequency = 1;
+
+                        return newValue;
+                    }
+                }
+                finally
+                {
+                    DisposeObsolete(obsoleteValue);
+                }
+            }
+
+            public bool TryGet(TKey key, out TValue value)
+            {
+                lock (_lockObj)
+                {
+                    if (_cachings.TryGetValue(key, out var node))
+                    {
+                        UpdateFrequency(node);
+
+                        value = node.Value;
+
+                        return true;
+                    }
+
+                    value = default;
+
+                    return false;
+                }
+            }
+
+            public void Put(TKey key, TValue value)
+            {
+                TValue obsoleteValue = default;
+
+                try
+                {
+                    lock (_lockObj)
+                    {
+                        if (_cachings.TryGetValue(key, out var node))
+                        {
+                            // 不同引用时释放旧值，防止资源泄漏
+                            if (typeof(TValue).IsValueType || !ReferenceEquals(node.Value, value))
+                            {
+                                obsoleteValue = node.Value;
+                            }
+
+                            node.Value = value;
+
+                            UpdateFrequency(node);
+
+                            return;
+                        }
+
+                        if (_cachings.Count >= _capacity)
+                        {
+                            obsoleteValue = Evict();
+                        }
+
+                        var newNode = new Node(key, value);
+                        _cachings.Add(key, newNode);
+
+                        if (!_freqToNodes.TryGetValue(1, out var freq1List))
+                        {
+                            freq1List = new FrequencyList();
+                            _freqToNodes[1] = freq1List;
+                        }
+
+                        freq1List.AddToHead(newNode);
+                        _minFrequency = 1;
+                    }
+                }
+                finally
+                {
+                    DisposeObsolete(obsoleteValue);
+                }
+            }
+
+            private void UpdateFrequency(Node node)
+            {
+                var currentFreq = node.Frequency;
+
+                if (currentFreq == int.MaxValue)
+                {
+                    return; // 频率已达上限，避免溢出
+                }
+
+                var newFreq = currentFreq + 1;
+
+                if (!_freqToNodes.TryGetValue(newFreq, out var newFreqList))
+                {
+                    newFreqList = new FrequencyList();
+                    _freqToNodes[newFreq] = newFreqList;
+                }
+
+                if (_freqToNodes.TryGetValue(currentFreq, out var freqList))
+                {
+                    freqList.RemoveNode(node);
+
+                    if (freqList.IsEmpty())
+                    {
+                        _freqToNodes.Remove(currentFreq);
+
+                        if (currentFreq == _minFrequency)
+                        {
+                            _minFrequency = newFreq;
+                        }
+                    }
+                }
+
+                node.Frequency = newFreq;
+                newFreqList.AddToHead(node);
+            }
+
+            private TValue Evict()
+            {
+                var minFreqList = _freqToNodes[_minFrequency];
+                var nodeToRemove = minFreqList.RemoveTail();
+                _cachings.Remove(nodeToRemove.Key);
+
+                if (minFreqList.IsEmpty())
+                {
+                    _freqToNodes.Remove(_minFrequency);
+                }
+
+                return nodeToRemove.Value;
+            }
+        }
+
+        private readonly Shard[] _shards;
+        private readonly int _shardMask;
+        private readonly IEqualityComparer<TKey> _comparer;
 
         /// <summary>
         /// 默认容量。
@@ -308,30 +589,38 @@ namespace Inkslab.Collections
                 throw new ArgumentException("Capacity must be greater than 0", nameof(capacity));
             }
 
-            _capacity = capacity;
-            _factory = factory;
-            _freqToNodes = new Dictionary<int, FrequencyList>
+            _comparer = comparer ?? EqualityComparer<TKey>.Default;
+
+            int shardCount = ComputeShardCount(capacity);
+            _shardMask = shardCount - 1;
+
+            int perShardCapacity = capacity / shardCount;
+            int remainder = capacity % shardCount;
+
+            _shards = new Shard[shardCount];
+
+            for (int i = 0; i < shardCount; i++)
             {
-                [1] = new FrequencyList()
-            };
-
-            for (int i = 0; i < 3; i++)
-            {
-                if (capacity > 100 && (capacity & 1) == 0)
-                {
-                    capacity /= 2;
-
-                    continue;
-                }
-
-                break;
+                int shardCapacity = perShardCapacity + (i < remainder ? 1 : 0);
+                _shards[i] = new Shard(shardCapacity, _comparer, factory);
             }
-
-            _cachings = new Dictionary<TKey, Node>(capacity, comparer ?? EqualityComparer<TKey>.Default);
         }
 
         /// <inheritdoc />
-        public int Count => _cachings.Count;
+        public int Count
+        {
+            get
+            {
+                int count = 0;
+
+                for (int i = 0; i < _shards.Length; i++)
+                {
+                    count += _shards[i].Count;
+                }
+
+                return count;
+            }
+        }
 
         /// <summary>
         /// <inheritdoc />
@@ -340,163 +629,57 @@ namespace Inkslab.Collections
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
         public TValue Get(TKey key)
         {
-            TValue obsoleteValue = default;
-
-            try
-            {
-                lock (_lockObj)
-                {
-                    if (_cachings.TryGetValue(key, out var node))
-                    {
-                        UpdateFrequency(node);
-
-                        return node.Value;
-                    }
-
-                    if (_cachings.Count >= _capacity)
-                    {
-                        obsoleteValue = Evict();
-                    }
-
-                    var value = _factory.Invoke(key);
-                    var newNode = new Node(key, value);
-                    _cachings.Add(key, newNode);
-                    _freqToNodes[1].AddToHead(newNode);
-                    _minFrequency = 1; // 新添加的节点频率为1
-
-                    return value;
-                }
-            }
-            finally
-            {
-                if (obsoleteValue is IDisposable disposableValue)
-                {
-                    disposableValue.Dispose();
-                }
-#if !NET_Traditional
-                else if (obsoleteValue is IAsyncDisposable asyncDisposable)
-                {
-                    try
-                    {
-                        asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
-                    }
-                    catch
-                    {
-                        // 忽略释放异常，避免破坏主流程
-                    }
-                }
-#endif
-            }
+            return GetShard(key).Get(key);
         }
 
         /// <inheritdoc/>
         public bool TryGet(TKey key, out TValue value)
         {
-            lock (_lockObj)
-            {
-                if (_cachings.TryGetValue(key, out var node))
-                {
-                    UpdateFrequency(node);
-
-                    value = node.Value;
-
-                    return true;
-                }
-
-                value = default;
-
-                return false;
-            }
+            return GetShard(key).TryGet(key, out value);
         }
 
         /// <inheritdoc/>
         public void Put(TKey key, TValue value)
         {
-            TValue obsoleteValue = default;
+            GetShard(key).Put(key, value);
+        }
 
-            try
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Shard GetShard(TKey key)
+        {
+            var hash = _comparer.GetHashCode(key) & 0x7FFFFFFF;
+            return _shards[hash & _shardMask];
+        }
+
+        private static int ComputeShardCount(int capacity)
+        {
+            int target = Environment.ProcessorCount;
+            int shardCount = 1;
+
+            while (shardCount < target && capacity / (shardCount * 2) >= 4)
             {
-                lock (_lockObj)
-                {
-                    if (_cachings.TryGetValue(key, out var node))
-                    {
-                        node.Value = value; // 更新值
-
-                        UpdateFrequency(node);
-
-                        return;
-                    }
-
-                    if (_cachings.Count >= _capacity)
-                    {
-                        obsoleteValue = Evict();
-                    }
-
-                    var newNode = new Node(key, value);
-                    _cachings.Add(key, newNode);
-                    _freqToNodes[1].AddToHead(newNode);
-                    _minFrequency = 1; // 新添加的节点频率为1
-                }
+                shardCount <<= 1;
             }
-            finally
+
+            return shardCount;
+        }
+
+        private static void DisposeObsolete(TValue value)
+        {
+            if (value is IDisposable disposable)
             {
-                if (obsoleteValue is IDisposable disposableValue)
-                {
-                    disposableValue.Dispose();
-                }
+                disposable.Dispose();
+            }
 #if !NET_Traditional
-                else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+            else if (value is IAsyncDisposable asyncDisposable)
+            {
+                var disposeTask = asyncDisposable.DisposeAsync();
+                if (!disposeTask.IsCompletedSuccessfully)
                 {
-                    try
-                    {
-                        asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
-                    }
-                    catch
-                    {
-                        // 忽略释放异常，避免破坏主流程
-                    }
+                    _ = disposeTask;
                 }
+            }
 #endif
-            }
-        }
-
-        private void UpdateFrequency(Node node)
-        {
-            var currentFreq = node.Frequency;
-            var freqList = _freqToNodes[currentFreq];
-
-            // 从当前频率链表移除
-            freqList.RemoveNode(node);
-
-            // 如果当前是最小频率链表且变空，更新最小频率
-            if (currentFreq == _minFrequency && freqList.IsEmpty())
-            {
-                _minFrequency++;
-            }
-
-            // 增加节点频率
-            node.Frequency++;
-            var newFreq = node.Frequency;
-
-            // 确保新频率链表存在
-            if (!_freqToNodes.ContainsKey(newFreq))
-            {
-                _freqToNodes[newFreq] = new FrequencyList();
-            }
-
-            // 添加到新频率链表头部
-            _freqToNodes[newFreq].AddToHead(node);
-        }
-
-        private TValue Evict()
-        {
-            var minFreqList = _freqToNodes[_minFrequency];
-            var nodeToRemove = minFreqList.RemoveTail();
-            _cachings.Remove(nodeToRemove.Key);
-
-            // 如果最小频率链表变空，不需要立即更新_minFrequency
-            // 因为下次访问会自动更新（或添加新节点会重置为1）
-            return nodeToRemove.Value;
         }
     }
 }
