@@ -148,7 +148,14 @@ namespace Inkslab.Collections
 
                 var newNode = new Node(value);
                 _cachings.Add(value, newNode);
-                _freqToNodes[1].AddToHead(newNode);
+
+                if (!_freqToNodes.TryGetValue(1, out var freq1List))
+                {
+                    freq1List = new FrequencyList();
+                    _freqToNodes[1] = freq1List;
+                }
+
+                freq1List.AddToHead(newNode);
                 _minFrequency = 1; // 新添加的节点频率为1
 
                 return flag;
@@ -158,29 +165,35 @@ namespace Inkslab.Collections
         private void UpdateFrequency(Node node)
         {
             var currentFreq = node.Frequency;
-            var freqList = _freqToNodes[currentFreq];
+            var newFreq = currentFreq + 1;
+
+            // 确保新频率链表存在（在修改状态之前创建，保证原子性）
+            if (!_freqToNodes.TryGetValue(newFreq, out var newFreqList))
+            {
+                newFreqList = new FrequencyList();
+                _freqToNodes[newFreq] = newFreqList;
+            }
 
             // 从当前频率链表移除
-            freqList.RemoveNode(node);
-
-            // 如果当前是最小频率链表且变空，更新最小频率
-            if (currentFreq == _minFrequency && freqList.IsEmpty())
+            if (_freqToNodes.TryGetValue(currentFreq, out var freqList))
             {
-                _minFrequency++;
+                freqList.RemoveNode(node);
+
+                // 清理空的频率链表，防止内存膨胀
+                if (freqList.IsEmpty())
+                {
+                    _freqToNodes.Remove(currentFreq);
+
+                    if (currentFreq == _minFrequency)
+                    {
+                        _minFrequency = newFreq;
+                    }
+                }
             }
 
-            // 增加节点频率
-            node.Frequency++;
-            var newFreq = node.Frequency;
-
-            // 确保新频率链表存在
-            if (!_freqToNodes.ContainsKey(newFreq))
-            {
-                _freqToNodes[newFreq] = new FrequencyList();
-            }
-
-            // 添加到新频率链表头部
-            _freqToNodes[newFreq].AddToHead(node);
+            // 更新节点频率并添加到新频率链表
+            node.Frequency = newFreq;
+            newFreqList.AddToHead(node);
         }
 
         private T Evict()
@@ -189,8 +202,11 @@ namespace Inkslab.Collections
             var nodeToRemove = minFreqList.RemoveTail();
             _cachings.Remove(nodeToRemove.Key);
 
-            // 如果最小频率链表变空，不需要立即更新_minFrequency
-            // 因为下次访问会自动更新（或添加新节点会重置为1）
+            // 清理空的频率链表，防止内存膨胀
+            if (minFreqList.IsEmpty())
+            {
+                _freqToNodes.Remove(_minFrequency);
+            }
 
             return nodeToRemove.Key;
         }
@@ -361,7 +377,14 @@ namespace Inkslab.Collections
                     var value = _factory.Invoke(key);
                     var newNode = new Node(key, value);
                     _cachings.Add(key, newNode);
-                    _freqToNodes[1].AddToHead(newNode);
+
+                    if (!_freqToNodes.TryGetValue(1, out var freq1List))
+                    {
+                        freq1List = new FrequencyList();
+                        _freqToNodes[1] = freq1List;
+                    }
+
+                    freq1List.AddToHead(newNode);
                     _minFrequency = 1; // 新添加的节点频率为1
 
                     return value;
@@ -434,7 +457,14 @@ namespace Inkslab.Collections
 
                     var newNode = new Node(key, value);
                     _cachings.Add(key, newNode);
-                    _freqToNodes[1].AddToHead(newNode);
+
+                    if (!_freqToNodes.TryGetValue(1, out var freq1List))
+                    {
+                        freq1List = new FrequencyList();
+                        _freqToNodes[1] = freq1List;
+                    }
+
+                    freq1List.AddToHead(newNode);
                     _minFrequency = 1; // 新添加的节点频率为1
                 }
             }
@@ -463,29 +493,35 @@ namespace Inkslab.Collections
         private void UpdateFrequency(Node node)
         {
             var currentFreq = node.Frequency;
-            var freqList = _freqToNodes[currentFreq];
+            var newFreq = currentFreq + 1;
+
+            // 确保新频率链表存在（在修改状态之前创建，保证原子性）
+            if (!_freqToNodes.TryGetValue(newFreq, out var newFreqList))
+            {
+                newFreqList = new FrequencyList();
+                _freqToNodes[newFreq] = newFreqList;
+            }
 
             // 从当前频率链表移除
-            freqList.RemoveNode(node);
-
-            // 如果当前是最小频率链表且变空，更新最小频率
-            if (currentFreq == _minFrequency && freqList.IsEmpty())
+            if (_freqToNodes.TryGetValue(currentFreq, out var freqList))
             {
-                _minFrequency++;
+                freqList.RemoveNode(node);
+
+                // 清理空的频率链表，防止内存膨胀
+                if (freqList.IsEmpty())
+                {
+                    _freqToNodes.Remove(currentFreq);
+
+                    if (currentFreq == _minFrequency)
+                    {
+                        _minFrequency = newFreq;
+                    }
+                }
             }
 
-            // 增加节点频率
-            node.Frequency++;
-            var newFreq = node.Frequency;
-
-            // 确保新频率链表存在
-            if (!_freqToNodes.ContainsKey(newFreq))
-            {
-                _freqToNodes[newFreq] = new FrequencyList();
-            }
-
-            // 添加到新频率链表头部
-            _freqToNodes[newFreq].AddToHead(node);
+            // 更新节点频率并添加到新频率链表
+            node.Frequency = newFreq;
+            newFreqList.AddToHead(node);
         }
 
         private TValue Evict()
@@ -494,8 +530,12 @@ namespace Inkslab.Collections
             var nodeToRemove = minFreqList.RemoveTail();
             _cachings.Remove(nodeToRemove.Key);
 
-            // 如果最小频率链表变空，不需要立即更新_minFrequency
-            // 因为下次访问会自动更新（或添加新节点会重置为1）
+            // 清理空的频率链表，防止内存膨胀
+            if (minFreqList.IsEmpty())
+            {
+                _freqToNodes.Remove(_minFrequency);
+            }
+
             return nodeToRemove.Value;
         }
     }
