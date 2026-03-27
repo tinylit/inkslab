@@ -1,82 +1,130 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace Inkslab.Collections
 {
     /// <summary>
-    /// 【线程安全】LRU 算法，移除最近最少使用的数据。
+    /// 【线程安全】LRU 算法，移除最近最少使用的数据。使用分片锁降低高并发场景下的锁竞争。
     /// </summary>
     /// <typeparam name="T">元素类型。</typeparam>
     public class Lru<T> : IEliminationAlgorithm<T> where T : notnull
     {
-        /// <summary>
-        /// 双向链表节点，存储缓存项的键和值。
-        /// </summary>
         private class Node
         {
-            /// <summary>
-            /// 节点对应的值。
-            /// </summary>
             public T Value { get; }
-
-            /// <summary>
-            /// 前一个节点。
-            /// </summary>
             public Node Previous { get; set; }
-
-            /// <summary>
-            /// 后一个节点。
-            /// </summary>
             public Node Next { get; set; }
 
-            /// <summary>
-            /// 默认构造函数。
-            /// </summary>
             public Node()
             {
-
             }
 
-            /// <summary>
-            /// 使用指定值初始化节点。
-            /// </summary>
-            /// <param name="value">值。</param>
             public Node(T value)
             {
                 Value = value;
             }
         }
 
-        /// <summary>
-        /// 缓存容量上限。
-        /// </summary>
-        private readonly int _capacity;
+        private class Shard
+        {
+            private readonly int _capacity;
+            private readonly Node _head;
+            private readonly Node _tail;
+            private readonly Dictionary<T, Node> _cachings;
+            private readonly object _lockObj = new object();
+
+            public Shard(int capacity, IEqualityComparer<T> comparer)
+            {
+                _capacity = capacity;
+
+                _head = new Node();
+                _tail = new Node();
+                _head.Next = _tail;
+                _tail.Previous = _head;
+
+                int dictCapacity = capacity;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    if (dictCapacity > 100 && (dictCapacity & 1) == 0)
+                    {
+                        dictCapacity /= 2;
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                _cachings = new Dictionary<T, Node>(dictCapacity, comparer);
+            }
+
+            public int Count { get { lock (_lockObj) { return _cachings.Count; } } }
+
+            public bool Put(T value, out T obsoleteValue)
+            {
+                obsoleteValue = default;
+
+                lock (_lockObj)
+                {
+                    if (_cachings.TryGetValue(value, out var node))
+                    {
+                        MoveToHead(node);
+
+                        return false;
+                    }
+
+                    bool flag = false;
+
+                    if (_cachings.Count >= _capacity)
+                    {
+                        flag = true;
+
+                        var lastNode = RemoveTail();
+                        _cachings.Remove(lastNode.Value);
+                        obsoleteValue = lastNode.Value;
+                    }
+
+                    var newNode = new Node(value);
+                    _cachings.Add(value, newNode);
+                    AddToHead(newNode);
+
+                    return flag;
+                }
+            }
+
+            private void MoveToHead(Node node)
+            {
+                RemoveNode(node);
+                AddToHead(node);
+            }
+
+            private void AddToHead(Node node)
+            {
+                node.Previous = _head;
+                node.Next = _head.Next;
+                _head.Next!.Previous = node;
+                _head.Next = node;
+            }
+
+            private static void RemoveNode(Node node)
+            {
+                node.Previous!.Next = node.Next;
+                node.Next!.Previous = node.Previous;
+            }
+
+            private Node RemoveTail()
+            {
+                var lastNode = _tail.Previous!;
+                RemoveNode(lastNode);
+                return lastNode;
+            }
+        }
+
+        private readonly Shard[] _shards;
+        private readonly int _shardMask;
         private readonly IEqualityComparer<T> _comparer;
-
-        /// <summary>
-        /// 链表头部哨兵节点（最常用）。
-        /// </summary>
-        private readonly Node _head;
-
-        /// <summary>
-        /// 链表尾部哨兵节点（最少用）。
-        /// </summary>
-        private readonly Node _tail;
-
-        /// <summary>
-        /// 用于快速查找节点的字典。
-        /// </summary>
-        private readonly ConcurrentDictionary<T, Node> _keys;
-
-        /// <summary>
-        /// 线程同步锁。
-        /// </summary>
-        private readonly object _lockObj = new object();
-
-
-        /// <inheritdoc />
-        public int Count => _keys.Count;
 
         /// <summary>
         /// 指定容器大小。
@@ -94,146 +142,264 @@ namespace Inkslab.Collections
         /// <param name="comparer">比较键时要使用的 <see cref="IEqualityComparer{T}"/> 实现，或者为 null，以便为键类型使用默认的 <seealso cref="EqualityComparer{T}"/> 。</param>
         public Lru(int capacity, IEqualityComparer<T> comparer)
         {
-            if (capacity < 0)
+            if (capacity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
-            _capacity = capacity;
             _comparer = comparer ?? EqualityComparer<T>.Default;
 
-            int concurrencyLevel = capacity;
+            int shardCount = ComputeShardCount(capacity);
+            _shardMask = shardCount - 1;
 
-            for (int i = 0; i < 3; i++)
+            int perShardCapacity = capacity / shardCount;
+            int remainder = capacity % shardCount;
+
+            _shards = new Shard[shardCount];
+
+            for (int i = 0; i < shardCount; i++)
             {
-                if (concurrencyLevel > 100 && (concurrencyLevel & 1) == 0)
-                {
-                    concurrencyLevel /= 2;
+                int shardCapacity = perShardCapacity + (i < remainder ? 1 : 0);
+                _shards[i] = new Shard(shardCapacity, _comparer);
+            }
+        }
 
-                    continue;
+        /// <inheritdoc />
+        public int Count
+        {
+            get
+            {
+                int count = 0;
+
+                for (int i = 0; i < _shards.Length; i++)
+                {
+                    count += _shards[i].Count;
                 }
 
-                break;
+                return count;
             }
-
-            // 初始化双向链表（带哨兵节点）
-            _head = new Node();
-            _tail = new Node();
-            _head.Next = _tail;
-            _tail.Previous = _head;
-            _keys = new ConcurrentDictionary<T, Node>(concurrencyLevel, capacity, _comparer);
-        }
-
-        /// <summary>
-        /// 将指定节点移动到链表头部。
-        /// </summary>
-        /// <param name="node">要移动的节点。</param>
-        private void MoveToHead(Node node)
-        {
-            RemoveNode(node);
-            AddToHead(node);
-        }
-
-        /// <summary>
-        /// 将节点添加到链表头部。
-        /// </summary>
-        /// <param name="node">要添加的节点。</param>
-        private void AddToHead(Node node)
-        {
-            node.Previous = _head;
-            node.Next = _head.Next;
-            _head.Next!.Previous = node;
-            _head.Next = node;
-        }
-
-        /// <summary>
-        /// 从链表中移除指定节点。
-        /// </summary>
-        /// <param name="node">要移除的节点。</param>
-        private static void RemoveNode(Node node)
-        {
-            node.Previous!.Next = node.Next;
-            node.Next!.Previous = node.Previous;
-        }
-
-        /// <summary>
-        /// 移除链表尾部节点（最久未使用），并返回该节点。
-        /// </summary>
-        /// <returns>被移除的节点。</returns>
-        private Node RemoveTail()
-        {
-            var lastNode = _tail.Previous!;
-            RemoveNode(lastNode);
-            return lastNode;
         }
 
         /// <inheritdoc/>
         public bool Put(T value, out T obsoleteValue)
         {
-            obsoleteValue = default;
+            return GetShard(value).Put(value, out obsoleteValue);
+        }
 
-            lock (_lockObj)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Shard GetShard(T key)
+        {
+            var hash = _comparer.GetHashCode(key) & 0x7FFFFFFF;
+            return _shards[hash & _shardMask];
+        }
+
+        private static int ComputeShardCount(int capacity)
+        {
+            int target = Environment.ProcessorCount;
+            int shardCount = 1;
+
+            while (shardCount < target && capacity / (shardCount * 2) >= 4)
             {
-                if (_keys.TryGetValue(value, out var node))
-                {
-                    MoveToHead(node);
-
-                    return false;
-                }
-
-                if (_keys.Count >= _capacity)
-                {
-                    var lastNode = RemoveTail();
-
-                    _keys.TryRemove(lastNode.Value, out node);
-
-                    obsoleteValue = node.Value;
-                }
-
-                var newNode = new Node(value);
-
-                _keys[value] = newNode;
-
-                AddToHead(newNode);
-
-                return true;
+                shardCount <<= 1;
             }
+
+            return shardCount;
         }
     }
 
     /// <summary>
-    /// 【线程安全】LRU（Least Recently Used）缓存算法实现，自动移除最近最少使用的数据。
+    /// 【线程安全】LRU（Least Recently Used）缓存算法实现，自动移除最近最少使用的数据。使用分片锁降低高并发场景下的锁竞争，工厂在分片锁内执行以避免重复调用。
     /// </summary>
     /// <typeparam name="TKey">键类型。</typeparam>
     /// <typeparam name="TValue">值类型。</typeparam>
     public class Lru<TKey, TValue> : IEliminationAlgorithm<TKey, TValue> where TKey : notnull
     {
-        /// <summary>
-        /// 缓存容量上限。
-        /// </summary>
-        private readonly int _capacity;
+        private class Node
+        {
+            public TKey Key { get; }
+            public TValue Value { get; set; }
+            public Node Previous { get; set; }
+            public Node Next { get; set; }
 
-        private readonly Func<TKey, TValue> _factory;
+            public Node()
+            {
+            }
 
-        /// <summary>
-        /// 链表头部哨兵节点（最常用）。
-        /// </summary>
-        private readonly Node _head;
+            public Node(TKey key, TValue value)
+            {
+                Key = key;
+                Value = value;
+            }
+        }
 
-        /// <summary>
-        /// 链表尾部哨兵节点（最少用）。
-        /// </summary>
-        private readonly Node _tail;
+        private class Shard
+        {
+            private readonly int _capacity;
+            private readonly Func<TKey, TValue> _factory;
+            private readonly Node _head;
+            private readonly Node _tail;
+            private readonly Dictionary<TKey, Node> _cachings;
+            private readonly object _lockObj = new object();
 
-        /// <summary>
-        /// 用于快速查找节点的字典。
-        /// </summary>
-        private readonly ConcurrentDictionary<TKey, Node> _keys;
+            public Shard(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
+            {
+                _capacity = capacity;
+                _factory = factory;
 
-        /// <summary>
-        /// 线程同步锁。
-        /// </summary>
-        private readonly object _lockObj = new object();
+                _head = new Node();
+                _tail = new Node();
+                _head.Next = _tail;
+                _tail.Previous = _head;
+
+                int dictCapacity = capacity;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    if (dictCapacity > 100 && (dictCapacity & 1) == 0)
+                    {
+                        dictCapacity /= 2;
+
+                        continue;
+                    }
+
+                    break;
+                }
+
+                _cachings = new Dictionary<TKey, Node>(dictCapacity, comparer);
+            }
+
+            public int Count { get { lock (_lockObj) { return _cachings.Count; } } }
+
+            public TValue Get(TKey key)
+            {
+                TValue obsoleteValue = default;
+
+                try
+                {
+                    lock (_lockObj)
+                    {
+                        if (_cachings.TryGetValue(key, out var node))
+                        {
+                            MoveToHead(node);
+
+                            return node.Value;
+                        }
+
+                        // 工厂在分片锁内执行：同一分片内相同键不会重复调用工厂
+                        var value = _factory.Invoke(key);
+
+                        // 工厂成功后再执行淘汰，异常不会导致已有数据被误淘汰
+                        if (_cachings.Count >= _capacity)
+                        {
+                            var lastNode = RemoveTail();
+                            _cachings.Remove(lastNode.Key);
+                            obsoleteValue = lastNode.Value;
+                        }
+
+                        var newNode = new Node(key, value);
+                        _cachings.Add(key, newNode);
+                        AddToHead(newNode);
+
+                        return value;
+                    }
+                }
+                finally
+                {
+                    DisposeObsolete(obsoleteValue);
+                }
+            }
+
+            public bool TryGet(TKey key, out TValue value)
+            {
+                lock (_lockObj)
+                {
+                    if (_cachings.TryGetValue(key, out var node))
+                    {
+                        MoveToHead(node);
+
+                        value = node.Value;
+
+                        return true;
+                    }
+
+                    value = default;
+
+                    return false;
+                }
+            }
+
+            public void Put(TKey key, TValue value)
+            {
+                TValue obsoleteValue = default;
+
+                try
+                {
+                    lock (_lockObj)
+                    {
+                        if (_cachings.TryGetValue(key, out var node))
+                        {
+                            // 不同引用时释放旧值，防止资源泄漏
+                            if (typeof(TValue).IsValueType || !ReferenceEquals(node.Value, value))
+                            {
+                                obsoleteValue = node.Value;
+                            }
+
+                            node.Value = value;
+
+                            MoveToHead(node);
+
+                            return;
+                        }
+
+                        if (_cachings.Count >= _capacity)
+                        {
+                            var lastNode = RemoveTail();
+                            _cachings.Remove(lastNode.Key);
+                            obsoleteValue = lastNode.Value;
+                        }
+
+                        var newNode = new Node(key, value);
+                        _cachings.Add(key, newNode);
+                        AddToHead(newNode);
+                    }
+                }
+                finally
+                {
+                    DisposeObsolete(obsoleteValue);
+                }
+            }
+
+            private void MoveToHead(Node node)
+            {
+                RemoveNode(node);
+                AddToHead(node);
+            }
+
+            private void AddToHead(Node node)
+            {
+                node.Previous = _head;
+                node.Next = _head.Next;
+                _head.Next!.Previous = node;
+                _head.Next = node;
+            }
+
+            private static void RemoveNode(Node node)
+            {
+                node.Previous!.Next = node.Next;
+                node.Next!.Previous = node.Previous;
+            }
+
+            private Node RemoveTail()
+            {
+                var lastNode = _tail.Previous!;
+                RemoveNode(lastNode);
+                return lastNode;
+            }
+        }
+
+        private readonly Shard[] _shards;
+        private readonly int _shardMask;
+        private readonly IEqualityComparer<TKey> _comparer;
 
         /// <summary>
         /// 默认容量。
@@ -265,129 +431,45 @@ namespace Inkslab.Collections
         /// <param name="factory">生成 <typeparamref name="TValue"/> 的工厂。</param>
         public Lru(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
         {
-            if (capacity < 0)
+            if (capacity <= 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(capacity));
             }
 
             _factory = factory ?? throw new ArgumentNullException(nameof(factory));
+            _comparer = comparer ?? EqualityComparer<TKey>.Default;
 
-            _capacity = capacity;
+            int shardCount = ComputeShardCount(capacity);
+            _shardMask = shardCount - 1;
 
-            int concurrencyLevel = capacity;
+            int perShardCapacity = capacity / shardCount;
+            int remainder = capacity % shardCount;
 
-            for (int i = 0; i < 3; i++)
+            _shards = new Shard[shardCount];
+
+            for (int i = 0; i < shardCount; i++)
             {
-                if (concurrencyLevel > 100 && (concurrencyLevel & 1) == 0)
-                {
-                    concurrencyLevel /= 2;
-
-                    continue;
-                }
-
-                break;
-            }
-
-            // 初始化双向链表（带哨兵节点）
-            _head = new Node();
-            _tail = new Node();
-            _head.Next = _tail;
-            _tail.Previous = _head;
-            _keys = new ConcurrentDictionary<TKey, Node>(concurrencyLevel, capacity, comparer ?? EqualityComparer<TKey>.Default);
-        }
-
-        /// <summary>
-        /// 双向链表节点，存储缓存项的键和值。
-        /// </summary>
-        private class Node
-        {
-            /// <summary>
-            /// Gets the key associated with the current element.
-            /// </summary>
-            public TKey Key { get; }
-
-            /// <summary>
-            /// 节点对应的值。
-            /// </summary>
-            public TValue Value { get; set; }
-
-            /// <summary>
-            /// 前一个节点。
-            /// </summary>
-            public Node Previous { get; set; }
-
-            /// <summary>
-            /// 后一个节点。
-            /// </summary>
-            public Node Next { get; set; }
-
-            /// <summary>
-            /// 默认构造函数。
-            /// </summary>
-            public Node()
-            {
-
-            }
-
-            /// <summary>
-            /// 使用指定值初始化节点。
-            /// </summary>
-            /// <param name="key">键。</param>
-            /// <param name="value">值。</param>
-            public Node(TKey key, TValue value)
-            {
-                Key = key;
-                Value = value;
+                int shardCapacity = perShardCapacity + (i < remainder ? 1 : 0);
+                _shards[i] = new Shard(shardCapacity, _comparer, _factory);
             }
         }
 
+        private readonly Func<TKey, TValue> _factory;
 
         /// <inheritdoc />
-        public int Count => _keys.Count;
-
-        /// <summary>
-        /// 将指定节点移动到链表头部。
-        /// </summary>
-        /// <param name="node">要移动的节点。</param>
-        private void MoveToHead(Node node)
+        public int Count
         {
-            RemoveNode(node);
-            AddToHead(node);
-        }
+            get
+            {
+                int count = 0;
 
-        /// <summary>
-        /// 将节点添加到链表头部。
-        /// </summary>
-        /// <param name="node">要添加的节点。</param>
-        private void AddToHead(Node node)
-        {
-            node.Previous = _head;
-            node.Next = _head.Next;
-            _head.Next!.Previous = node;
-            _head.Next = node;
-        }
+                for (int i = 0; i < _shards.Length; i++)
+                {
+                    count += _shards[i].Count;
+                }
 
-        /// <summary>
-        /// 从链表中移除指定节点。
-        /// </summary>
-        /// <param name="node">要移除的节点。</param>
-        private static void RemoveNode(Node node)
-        {
-            node.Previous!.Next = node.Next;
-            node.Next!.Previous = node.Previous;
-        }
-
-        /// <summary>
-        /// 移除链表尾部节点（最久未使用），并返回该节点。
-        /// </summary>
-        /// <returns>被移除的节点。</returns>
-        private Node RemoveTail()
-        {
-            var lastNode = _tail.Previous!;
-
-            RemoveNode(lastNode);
-
-            return lastNode;
+                return count;
+            }
         }
 
         /// <summary>
@@ -397,135 +479,57 @@ namespace Inkslab.Collections
         /// <returns>指定键使用构造函数工厂生成的值。</returns>
         public TValue Get(TKey key)
         {
-            TValue obsoleteValue = default;
-
-            try
-            {
-                lock (_lockObj)
-                {
-                    if (_keys.TryGetValue(key, out var node))
-                    {
-                        MoveToHead(node);
-
-                        return node.Value;
-                    }
-
-                    if (_keys.Count >= _capacity)
-                    {
-                        var lastNode = RemoveTail();
-
-                        _keys.TryRemove(lastNode.Key, out _);
-
-                        obsoleteValue = lastNode.Value;
-                    }
-
-                    var value = _factory.Invoke(key);
-
-                    var newNode = new Node(key, value);
-
-                    _keys[key] = newNode;
-
-                    AddToHead(newNode);
-
-                    return value;
-                }
-            }
-            finally
-            {
-                if (obsoleteValue is IDisposable disposableValue)
-                {
-                    disposableValue.Dispose();
-                }
-#if !NET_Traditional
-                else if (obsoleteValue is IAsyncDisposable asyncDisposable)
-                {
-                    try
-                    {
-                        asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
-                    }
-                    catch
-                    {
-                        // 忽略释放异常，避免破坏主流程
-                    }
-                }
-#endif
-            }
+            return GetShard(key).Get(key);
         }
 
         /// <inheritdoc/>
         public bool TryGet(TKey key, out TValue value)
         {
-            lock (_lockObj)
-            {
-                if (_keys.TryGetValue(key, out var node))
-                {
-                    MoveToHead(node);
-
-                    value = node.Value;
-
-                    return true;
-                }
-
-                value = default;
-
-                return false;
-            }
+            return GetShard(key).TryGet(key, out value);
         }
 
         /// <inheritdoc/>
         public void Put(TKey key, TValue value)
         {
-            TValue obsoleteValue = default;
+            GetShard(key).Put(key, value);
+        }
 
-            try
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private Shard GetShard(TKey key)
+        {
+            var hash = _comparer.GetHashCode(key) & 0x7FFFFFFF;
+            return _shards[hash & _shardMask];
+        }
+
+        private static int ComputeShardCount(int capacity)
+        {
+            int target = Environment.ProcessorCount;
+            int shardCount = 1;
+
+            while (shardCount < target && capacity / (shardCount * 2) >= 4)
             {
-                lock (_lockObj)
-                {
-                    if (_keys.TryGetValue(key, out var node))
-                    {
-                        node.Value = value; // 更新值
-
-                        MoveToHead(node);
-
-                        return;
-                    }
-
-                    if (_keys.Count >= _capacity)
-                    {
-                        var lastNode = RemoveTail();
-
-                        _keys.TryRemove(lastNode.Key, out _);
-
-                        obsoleteValue = lastNode.Value;
-                    }
-
-                    var newNode = new Node(key, value);
-
-                    _keys[key] = newNode;
-
-                    AddToHead(newNode);
-                }
+                shardCount <<= 1;
             }
-            finally
+
+            return shardCount;
+        }
+
+        private static void DisposeObsolete(TValue value)
+        {
+            if (value is IDisposable disposable)
             {
-                if (obsoleteValue is IDisposable disposableValue)
-                {
-                    disposableValue.Dispose();
-                }
+                disposable.Dispose();
+            }
 #if !NET_Traditional
-                else if (obsoleteValue is IAsyncDisposable asyncDisposable)
+            else if (value is IAsyncDisposable asyncDisposable)
+            {
+                var disposeTask = asyncDisposable.DisposeAsync();
+                if (!disposeTask.IsCompletedSuccessfully)
                 {
-                    try
-                    {
-                        asyncDisposable.DisposeAsync().GetAwaiter().GetResult();
-                    }
-                    catch
-                    {
-                        // 忽略释放异常，避免破坏主流程
-                    }
+                    _ = disposeTask;
                 }
-#endif
             }
+#endif
         }
     }
 }
