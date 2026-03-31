@@ -158,7 +158,7 @@ namespace Inkslab
 
                         _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
 
-                        _factory = () => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!");
+                        _factory = () => factory.Invoke() ?? throw new InvalidOperationException("注入服务工厂，返回值为“null”!");
 
                         return true;
                     }
@@ -242,6 +242,9 @@ namespace Inkslab
 
                             throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【SingletonPools.TryAdd<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
                         }
+
+                        // 验证通过后使用该构造函数（修复：避免constructorInfo为null时NullReferenceException）
+                        constructorInfo = lastConstructor;
                     }
 
                     Instance = CreateInstance(constructorInfo);
@@ -318,28 +321,25 @@ namespace Inkslab
                         return true;
                     }
 
-                    // ConcurrentDictionary 支持并发枚举和修改，无需快照
-                    // 对于非抽象类型，尝试找到匹配的实现
-                    if (!parameterType.IsAbstract)
-                    {
-                        foreach (var kv in _serviceCachings)
-                        {
-                            if (ReferenceEquals(kv.Value, parameterType))
-                            {
-                                _serviceCachings.TryAdd(parameterType, kv.Value);
-                                return true;
-                            }
-                        }
-                    }
+                    bool isAbstract = parameterType.IsAbstract;
 
-                    // 检查可分配性
+                    // 合并遍历：同时检查实现类型匹配和可分配性，减少迭代次数
                     foreach (var kv in _serviceCachings)
                     {
-                        if (ReferenceEquals(kv.Value, conversionType)) // 防递归注入
+                        // 对于非抽象类型，尝试找到匹配的实现
+                        if (!isAbstract && ReferenceEquals(kv.Value, parameterType))
+                        {
+                            _serviceCachings.TryAdd(parameterType, kv.Value);
+                            return true;
+                        }
+
+                        // 防递归注入
+                        if (ReferenceEquals(kv.Value, conversionType))
                         {
                             continue;
                         }
 
+                        // 检查可分配性
                         if (parameterType.IsAssignableFrom(kv.Key))
                         {
                             _serviceCachings.TryAdd(parameterType, kv.Value);
@@ -358,7 +358,7 @@ namespace Inkslab
                     if (parameterInfos.Length == 0)
                     {
                         // 快速路径：无参构造函数
-                        return (TImplementation)constructorInfo.Invoke(new object[0]);
+                        return (TImplementation)constructorInfo.Invoke(Array.Empty<object>());
                     }
 
                     var arguments = new object[parameterInfos.Length];

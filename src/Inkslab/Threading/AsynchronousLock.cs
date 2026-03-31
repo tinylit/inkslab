@@ -17,7 +17,7 @@ namespace System.Threading
         /// </summary>
         public AsynchronousLock()
         {
-            _semaphore = new SemaphoreSlim(1);
+            _semaphore = new SemaphoreSlim(1, 1);
             _releaser = new Releaser(_semaphore);
         }
 

@@ -1,6 +1,9 @@
 ﻿using Inkslab.Keys;
+using Inkslab.Keys.Snowflake;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -63,6 +66,89 @@ namespace Inkslab.Tests
 
                 throw new Exception("主键重复!");
             }
+        }
+
+        /// <summary>
+        /// 高并发ID唯一性测试（50000个并发任务）。
+        /// </summary>
+        [Fact]
+        public async Task HighConcurrency_ShouldGenerateUniqueIdsAsync()
+        {
+            const int count = 50000;
+            var ids = new ConcurrentBag<long>();
+            var tasks = new List<Task>(count);
+
+            for (int i = 0; i < count; i++)
+            {
+                tasks.Add(Task.Run(() => ids.Add(KeyGen.Id())));
+            }
+
+            await Task.WhenAll(tasks);
+
+            var distinct = ids.Distinct().Count();
+            Assert.Equal(count, distinct);
+        }
+
+        /// <summary>
+        /// ID应具有时间递增性。
+        /// </summary>
+        [Fact]
+        public void Ids_ShouldBeMonotonicallyIncreasing()
+        {
+            long previous = 0;
+
+            for (int i = 0; i < 1000; i++)
+            {
+                var current = KeyGen.Id();
+                Assert.True(current > previous, $"ID {current} should be greater than {previous}");
+                previous = current;
+            }
+        }
+
+        /// <summary>
+        /// Key对象应正确解析workerId和datacenterId。
+        /// </summary>
+        [Fact]
+        public void KeyNew_ShouldParseCorrectly()
+        {
+            var id = KeyGen.Id();
+            var key = KeyGen.New(id);
+
+            Assert.True(key.WorkId >= 0 && key.WorkId <= 31);
+            Assert.True(key.DataCenterId >= 0 && key.DataCenterId <= 31);
+            Assert.True(key.ToUniversalTime() <= DateTime.UtcNow);
+            Assert.True(key.ToUniversalTime() > DateTime.UtcNow.AddMinutes(-1));
+        }
+
+        /// <summary>
+        /// SnowflakeKeyGen无效参数应抛出异常。
+        /// </summary>
+        [Theory]
+        [InlineData(-1, 0)]
+        [InlineData(0, -1)]
+        [InlineData(32, 0)]
+        [InlineData(0, 32)]
+        public void SnowflakeKeyGen_InvalidArgs_ShouldThrow(int workerId, int datacenterId)
+        {
+            Assert.Throws<ArgumentException>(() => new SnowflakeKeyGen(workerId, datacenterId));
+        }
+
+        /// <summary>
+        /// SnowflakeKeyGen边界合法参数。
+        /// </summary>
+        [Theory]
+        [InlineData(0, 0)]
+        [InlineData(31, 31)]
+        [InlineData(0, 31)]
+        [InlineData(31, 0)]
+        public void SnowflakeKeyGen_BoundaryArgs_ShouldSucceed(int workerId, int datacenterId)
+        {
+            var gen = new SnowflakeKeyGen(workerId, datacenterId);
+            var id = gen.Id();
+            var key = gen.New(id);
+
+            Assert.Equal(workerId, key.WorkId);
+            Assert.Equal(datacenterId, key.DataCenterId);
         }
     }
 }
