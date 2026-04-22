@@ -66,6 +66,7 @@ namespace Inkslab
         /// </summary>
         public void DoStartup()
         {
+            // 启动配置类不考虑并发场景；在反射实例化之前过滤掉已启动的类型，避免无效的 Activator.CreateInstance 开销。
             var startups = new List<IStartup>(_types.Count);
 
             foreach (var type in _types)
@@ -78,24 +79,26 @@ namespace Inkslab
                 startups.Add((IStartup)Activator.CreateInstance(type, true));
             }
 
-            startups
-                .GroupBy(x => x.Code)
-                .OrderBy(x => x.Key)
-                .ForEach(x =>
-                {
-                    foreach (IStartup startup in x.OrderByDescending(y => y.Weight))
-                    {
-                        if (ToStartup(startup))
-                        {
-                            if (_startupCachings.Add(startup.GetType()))
-                            {
-                                startup.Startup();
-                            }
+            if (startups.Count == 0)
+            {
+                return;
+            }
 
-                            break;
+            foreach (var group in startups.GroupBy(x => x.Code).OrderBy(x => x.Key))
+            {
+                foreach (IStartup startup in group.OrderByDescending(y => y.Weight))
+                {
+                    if (ToStartup(startup))
+                    {
+                        if (_startupCachings.Add(startup.GetType()))
+                        {
+                            startup.Startup();
                         }
+
+                        break;
                     }
-                });
+                }
+            }
         }
 
         /// <summary>

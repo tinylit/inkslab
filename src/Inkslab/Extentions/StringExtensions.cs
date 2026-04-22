@@ -21,6 +21,26 @@ namespace System
 
         private static readonly Regex _patternKebabCase = new Regex("[A-Z]|(_[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
 
+        //? ASCII 字母单字符字符串缓存，避免 char.ToString() 的短生命周期 string 分配。
+        private static readonly string[] _asciiUpperStrings = BuildAsciiStrings(toUpper: true);
+        private static readonly string[] _asciiLowerStrings = BuildAsciiStrings(toUpper: false);
+
+        private static string[] BuildAsciiStrings(bool toUpper)
+        {
+            var arr = new string[128];
+            for (int i = 0; i < arr.Length; i++)
+            {
+                char c = (char)i;
+                arr[i] = (toUpper ? char.ToUpper(c) : char.ToLower(c)).ToString();
+            }
+
+            return arr;
+        }
+
+        private static string ToUpperString(char c) => c < 128 ? _asciiUpperStrings[c] : char.ToUpper(c).ToString();
+
+        private static string ToLowerString(char c) => c < 128 ? _asciiLowerStrings[c] : char.ToLower(c).ToString();
+
         /// <summary>
         /// 命名。
         /// </summary>
@@ -52,23 +72,23 @@ namespace System
 #else
                         string value = name[1..];
 #endif
-                        // 优化：避免 char.ToString() 的额外分配
-                        return char.ToLower(name[0]) + _patternCamelCase.Replace(value, x => char.ToUpper(x.Value[1]).ToString());
+                        // 优化：复用 ASCII 单字符字符串缓存，避免 char.ToString() 分配
+                        return char.ToLower(name[0]) + _patternCamelCase.Replace(value, x => ToUpperString(x.Value[1]));
                     }
 
-                    return _patternCamelCase.Replace(name, x => char.ToUpper(x.Value[1]).ToString());
+                    return _patternCamelCase.Replace(name, x => ToUpperString(x.Value[1]));
 
                 case NamingType.PascalCase:
                     return _patternPascalCase.Replace(name, x => x.Index == 0
                         ? x.Value.ToUpper()
-                        : char.ToUpper(x.Value[1]).ToString()
+                        : ToUpperString(x.Value[1])
                     );
 
                 case NamingType.SnakeCase:
                     return _patternSnakeCase.Replace(name, x => x.Index == 0
                         ? x.Value.ToLower()
                         : "_" + (x.Value.Length == 2
-                            ? char.ToLower(x.Value[1]).ToString()
+                            ? ToLowerString(x.Value[1])
                             : x.Value.ToLower())
                     );
 
@@ -76,7 +96,7 @@ namespace System
                     return _patternKebabCase.Replace(name, x => x.Index == 0
                         ? x.Value.ToLower()
                         : "-" + (x.Value.Length == 2
-                            ? char.ToLower(x.Value[1]).ToString()
+                            ? ToLowerString(x.Value[1])
                             : x.Value.ToLower())
                     );
 

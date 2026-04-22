@@ -1,4 +1,5 @@
 ﻿using Inkslab.Annotations;
+using Inkslab.Collections;
 using Inkslab.Settings;
 using System;
 using System.Collections.Concurrent;
@@ -41,7 +42,8 @@ namespace Inkslab.Sugars
             typeof(double)
         };
 
-        private static readonly ConcurrentDictionary<Type, SyntaxPool> _sugarCachings = new ConcurrentDictionary<Type, SyntaxPool>();
+        //? 使用 LFU 有界缓存，避免在动态代理等场景下 Type 无限增长导致内存泄漏。
+        private static readonly Lfu<Type, SyntaxPool> _sugarCachings = new Lfu<Type, SyntaxPool>(1024, sourceType => new SyntaxPool(sourceType));
 
         private static readonly ParameterExpression _parameterOfSource;
         private static readonly ParameterExpression _parameterOfSettings;
@@ -90,7 +92,7 @@ namespace Inkslab.Sugars
         /// <param name="source">数据源对象。</param>
         /// <param name="settings">语法糖设置。</param>
         /// <returns>处理 <see cref="RegularExpression"/> 语法的语法糖。</returns>
-        public ISugar CreateSugar(object source, DefaultSettings settings) => new StringSugar(source, settings, _sugarCachings.GetOrAdd(source.GetType(), sourceType => new SyntaxPool(sourceType)));
+        public ISugar CreateSugar(object source, DefaultSettings settings) => new StringSugar(source, settings, _sugarCachings.Get(source.GetType()));
 
         private static Expression MakeAdd(Expression left, Expression right)
         {

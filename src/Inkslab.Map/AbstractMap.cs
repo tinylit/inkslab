@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -12,6 +13,8 @@ namespace Inkslab.Map
     /// </summary>
     public abstract class AbstractMap : IMap
     {
+        //? 缓存目标类型的无参/可选构造函数 NewExpression，避免重复反射 GetConstructors + LINQ 扫描。
+        private static readonly ConcurrentDictionary<Type, NewExpression> _newExpressionCache = new ConcurrentDictionary<Type, NewExpression>();
         /// <summary>
         /// <inheritdoc/>
         /// </summary>
@@ -52,6 +55,9 @@ namespace Inkslab.Map
         #region 私有方法
 
         private static NewExpression CreateNew(Type destinationType)
+            => _newExpressionCache.GetOrAdd(destinationType, BuildNew);
+
+        private static NewExpression BuildNew(Type destinationType)
         {
             var constructorInfo = destinationType.GetConstructor(MapConstants.InstanceBindingFlags, null, Type.EmptyTypes, null);
 

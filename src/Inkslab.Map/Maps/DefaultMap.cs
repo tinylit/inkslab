@@ -69,7 +69,9 @@ namespace Inkslab.Map.Maps
         /// <exception cref="InvalidCastException">类型不能被转换。</exception>
         protected virtual IEnumerable<Expression> ToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
+            //? 按名称构建源属性索引，将 O(M*N) 的属性名匹配降为 O(M+N)。
             var propertyInfos = sourceType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            var sourceLookup = BuildPropertyLookup(propertyInfos);
 
             foreach (var propertyInfo in destinationType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
@@ -78,28 +80,48 @@ namespace Inkslab.Map.Maps
                     continue;
                 }
 
-                foreach (var memberInfo in propertyInfos)
+                if (!sourceLookup.TryGetValue(propertyInfo.Name, out var memberInfo))
                 {
-                    if (memberInfo.CanRead)
-                    {
-                        if (string.Equals(memberInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
-                        {
-                            var sourcePrt = Property(sourceExpression, memberInfo);
-                            var destinationPrt = Property(destinationExpression, propertyInfo);
+                    continue;
+                }
 
-                            if (TrySolve(destinationPrt,
-                                    sourcePrt,
-                                    application,
-                                    out Expression destinationRs))
-                            {
-                                yield return destinationRs;
-                            }
+                if (!memberInfo.CanRead)
+                {
+                    continue;
+                }
 
-                            break;
-                        }
-                    }
+                var sourcePrt = Property(sourceExpression, memberInfo);
+                var destinationPrt = Property(destinationExpression, propertyInfo);
+
+                if (TrySolve(destinationPrt,
+                        sourcePrt,
+                        application,
+                        out Expression destinationRs))
+                {
+                    yield return destinationRs;
                 }
             }
+        }
+
+        /// <summary>
+        /// 构建按名称不区分大小写索引的属性字典，供属性映射快速查找。
+        /// </summary>
+        /// <param name="properties">源属性集合。</param>
+        /// <returns>属性名到 <see cref="PropertyInfo"/> 的字典。</returns>
+        internal static Dictionary<string, PropertyInfo> BuildPropertyLookup(PropertyInfo[] properties)
+        {
+            var lookup = new Dictionary<string, PropertyInfo>(properties.Length, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var info in properties)
+            {
+                //? 同名按大小写碰撞时，保留首个可读属性，尽量选择可用字段。
+                if (!lookup.ContainsKey(info.Name))
+                {
+                    lookup[info.Name] = info;
+                }
+            }
+
+            return lookup;
         }
 
         /// <summary>

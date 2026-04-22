@@ -251,31 +251,54 @@ namespace Inkslab
                 }
 
                 /// <summary>
-                /// 获取缓存的构造函数列表
+                /// 获取缓存的构造函数列表（按当前 _serviceCachings 快照排序，避免排序结果被陈旧快照污染）。
                 /// </summary>
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 private static ConstructorInfo[] GetCachedConstructors(Type conversionType)
                 {
-                    return _constructorCache.GetOrAdd(conversionType, type =>
-                        type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                            .OrderBy(x => x.IsPublic ? 0 : 1)
-                            .ThenByDescending(x =>
-                            {
-                                var parameterInfos = GetCachedParameters(x);
-                                var specifiedCount = 0;
+                    //? 只缓存类型固有的构造函数数组（类型稳定），排序依赖 _serviceCachings 的动态快照，故每次排序一份副本。
+                    var ctors = _constructorCache.GetOrAdd(conversionType, type =>
+                        type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
 
-                                // 优化：避免 LINQ Count() 的开销
-                                foreach (var param in parameterInfos)
-                                {
-                                    if (_serviceCachings.ContainsKey(param.ParameterType))
-                                    {
-                                        specifiedCount++;
-                                    }
-                                }
+                    if (ctors.Length <= 1)
+                    {
+                        return ctors;
+                    }
 
-                                return parameterInfos.Length * parameterInfos.Length + specifiedCount;
-                            })
-                            .ToArray());
+                    //? 复制数组后排序，避免并发修改共享数组；也消除排序结果因 _serviceCachings 变化而 TOCTOU 的风险。
+                    var sorted = new ConstructorInfo[ctors.Length];
+                    Array.Copy(ctors, sorted, ctors.Length);
+
+                    Array.Sort(sorted, static (a, b) =>
+                    {
+                        int cmp = (a.IsPublic ? 0 : 1) - (b.IsPublic ? 0 : 1);
+
+                        if (cmp != 0)
+                        {
+                            return cmp;
+                        }
+
+                        return ComputeCtorScore(b) - ComputeCtorScore(a);
+                    });
+
+                    return sorted;
+                }
+
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                private static int ComputeCtorScore(ConstructorInfo ctor)
+                {
+                    var parameterInfos = GetCachedParameters(ctor);
+                    var specifiedCount = 0;
+
+                    foreach (var param in parameterInfos)
+                    {
+                        if (_serviceCachings.ContainsKey(param.ParameterType))
+                        {
+                            specifiedCount++;
+                        }
+                    }
+
+                    return parameterInfos.Length * parameterInfos.Length + specifiedCount;
                 }
 
                 /// <summary>
