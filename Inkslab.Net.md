@@ -1,141 +1,239 @@
-
 ![Inkslab](inkslab.jpg 'Logo')
 
-## "Inkslab.Net"是什么？
+<!-- AI-META
+Package: Inkslab.Net
+Version: 1.2.23
+TargetFrameworks: net461; netstandard2.1; net6.0
+Namespace: Inkslab.Net, Inkslab.Net.Options
+Dependencies: Inkslab
+EntryContract: IRequestFactory (src/Inkslab.Net/IRequestFactory.cs)
+DefaultImplementation: RequestFactory (src/Inkslab.Net/RequestFactory.cs)
+InitializeHook: IRequestInitialize (src/Inkslab.Net/IRequestInitialize.cs)
+Keywords: HTTP, HttpClient, REST, JSON, XML, multipart, download, retry, auth refresh, DataVerify
+-->
 
-**Inkslab.Net** 是一个高性能、易扩展的 HTTP/HTTPS 请求工具，支持认证刷新、重试、序列化/反序列化、数据验证、文件上传下载等功能，适用于多种 .NET 应用场景。
+## Inkslab.Net 是什么？
+
+**Inkslab.Net** 是一个可链式调用的 HTTP 请求客户端，基于 `HttpClient` 实现，提供：
+
+- **流式 API**：URL → 参数 → 头 → 内容 → 转换 → 校验 → 发送。
+- **统一序列化**：`Json` / `Xml` / `Form` / `Body`，配合 `JsonCast<T>` / `XmlCast<T>` / `CustomCast<T>` 反序列化。
+- **失败重试与认证刷新**：`When(...).ThenAsync(...)` 条件重试链。
+- **数据验证**：`DataVerify(...).Success(...).Fail(...)` 语义化结果处理。
+- **流下载**：`DownloadAsync`。
+- **请求初始化钩子**：`IRequestInitialize`（全局头、鉴权注入等）。
 
 ---
 
+## 安装
 
-## 🚀 快速入门
-
-### 1. 获得请求能力
-```csharp
-// 注入 IRequestFactory 接口
-// 使用 IRequestFactory.CreateRequestable("{api}") 获得请求能力
+```bash
+dotnet add package Inkslab.Net
 ```
 
-### 2. 普通请求
+Inkslab.Net 通过 DI 暴露 `IRequestFactory`，推荐与 `Inkslab.DI` 或 ASP.NET Core 自带的 `IServiceCollection` 一起使用。
+
+---
+
+## 核心契约
+
+### `IRequestFactory` [src/Inkslab.Net/IRequestFactory.cs](src/Inkslab.Net/IRequestFactory.cs)
+
 ```csharp
-string result = await requestFactory.CreateRequestable("api")
-  .AppendQueryString("?{params}")
-  .GetAsync();
+public interface IRequestFactory
+{
+    IRequestable CreateRequestable(string requestUri);
+}
 ```
 
-### 3. 认证信息刷新请求
+### 链式接口族
+
+| 接口 | 作用 | 源文件 |
+| --- | --- | --- |
+| `IRequestableBase<T>` | 请求头、Query 参数 | [IRequestableBase.cs](src/Inkslab.Net/IRequestableBase.cs) |
+| `IRequestable` | 基础请求器（编码、内容设置） | [IRequestable.cs](src/Inkslab.Net/IRequestable.cs) |
+| `IRequestableEncoding` | Body 编码（JSON/XML/Form/Body） | [IRequestableContent.cs](src/Inkslab.Net/IRequestableContent.cs) |
+| `IRequestableContent` | 已设置内容后的请求器 | [IRequestableContent.cs](src/Inkslab.Net/IRequestableContent.cs) |
+| `IDeserializeRequestable` | `JsonCast` / `XmlCast` / `CustomCast` | [IDeserializeRequestable.cs](src/Inkslab.Net/IDeserializeRequestable.cs) |
+| `IWhenRequestable` / `IThenRequestable` | 条件重试链 | [IWhenRequestable.cs](src/Inkslab.Net/IWhenRequestable.cs) |
+| `IRequestableDataVerify<T>` | 结果校验 → `Success` / `Fail` | [IRequestableDataVerify.cs](src/Inkslab.Net/IRequestableDataVerify.cs) |
+| `IStreamRequestable` | `DownloadAsync` 流下载 | [IStreamRequestable.cs](src/Inkslab.Net/IStreamRequestable.cs) |
+| `IRequestInitialize` | 全局初始化钩子 | [IRequestInitialize.cs](src/Inkslab.Net/IRequestInitialize.cs) |
+
+---
+
+## 快速入门
+
+### 1. 获取请求器
+
 ```csharp
-string result = await requestFactory.CreateRequestable("api")
-  .AppendQueryString("?{params}")
-  .AssignHeader("Authorization", "Bearer 3506555d8a256b82211a62305b6dx317")
-  .When(status => status == HttpStatusCode.Unauthorized)
-  .ThenAsync((requestable, e) => {
-    // 刷新认证信息
-    return Task.CompletedTask;
-  })
-  .GetAsync();
+public class MyService
+{
+    private readonly IRequestFactory _factory;
+    public MyService(IRequestFactory factory) => _factory = factory;
+
+    public Task<string> GetAsync() =>
+        _factory.CreateRequestable("https://api.example.com/users")
+                .AppendQueryString("page", 1)
+                .AppendQueryString("size", 20)
+                .GetAsync();
+}
 ```
 
-### 4. 序列化、反序列化、验证与重发
+### 2. 查询参数
 
-#### 结果实体
+```csharp
+.AppendQueryString("?keyword=test&page=1")
+.AppendQueryString("name", "tom")
+.AppendQueryString("time", DateTime.UtcNow, "yyyy-MM-ddTHH:mm:ssZ")
+.AppendQueryString(new { PageIndex = 1, PageSize = 20 }, NamingType.KebabCase)
+```
+
+> **说明**：多次调用同一参数名 → 追加为数组；仅在命中 `ThenAsync` 认证重试时覆盖。
+
+### 3. 请求头
+
+```csharp
+.AssignHeader("Authorization", "Bearer <token>")
+.AssignHeaders(new Dictionary<string, string>
+{
+    ["X-Trace-Id"] = traceId,
+    ["X-Tenant"]   = tenantId
+});
+```
+
+---
+
+## 发送请求
+
+每个发送方法默认 `timeout = 1000ms`；流下载默认 `10000ms`。
+
+```csharp
+await r.GetAsync();
+await r.DeleteAsync();
+await r.PostAsync();
+await r.PutAsync();
+await r.PatchAsync();
+await r.HeadAsync();
+await r.SendAsync("CONNECT");              // 自定义 HTTP 方法
+
+var stream = await r.DownloadAsync();      // 流下载
+```
+
+---
+
+## 请求体
+
+| 方法 | Content-Type | 说明 |
+| --- | --- | --- |
+| `.Json(obj)` / `.Json<T>(obj, naming)` | `application/json` | 自动调用 `IJsonHelper` |
+| `.Xml(obj)` / `.Xml<T>(obj)` | `application/xml` | 基于 `XmlHelper` |
+| `.Form(dict)` | `application/x-www-form-urlencoded` | 纯键值对 |
+| `.Form(multipart)` | `multipart/form-data` | 文件上传 |
+| `.Body(str, contentType)` | 自定义 | 原始字节 |
+
+---
+
+## 响应反序列化
+
+```csharp
+// JSON
+var dto = await r.Json(req)
+                 .JsonCast<ServResult<User>>()
+                 .PostAsync();
+
+// XML
+var dto = await r.XmlCast<ServResult>()
+                 .GetAsync();
+
+// 自定义
+var dto = await r.CustomCast(body => Parse(body))
+                 .GetAsync();
+
+// 匿名类型
+var anon = await r.JsonCast(new { Code = 0, Data = default(User) })
+                  .GetAsync();
+```
+
+---
+
+## 条件重试 / 认证刷新
+
+```csharp
+var data = await factory.CreateRequestable("https://api.example.com/me")
+    .AssignHeader("Authorization", $"Bearer {token}")
+    .When(status => status == HttpStatusCode.Unauthorized)
+    .ThenAsync(async (req, _) =>
+    {
+        token = await RefreshTokenAsync();
+        req.AssignHeader("Authorization", $"Bearer {token}");   // 会覆盖同名头
+    })
+    .JsonCast<ServResult<UserInfo>>()
+    .GetAsync();
+```
+
+> **注意**：每一组 `When → ThenAsync` 仅执行**一次**，避免死循环。
+
+---
+
+## 数据验证
+
 ```csharp
 public class ServResult
 {
-  [XmlElement("code")]
-  public int Code { get; set; }
-  private bool? success = null;
-  [XmlIgnore]
-  public bool Success {
-    get => success ?? Code == StatusCodes.OK;
-    set => success = value;
-  }
-  [XmlElement("msg")]
-  public string Msg { get; set; }
-  [XmlElement("timestamp")]
-  public DateTime Timestamp { get; set; }
+    public int    Code      { get; set; }
+    public bool   Success   { get => Code == 0; set { } }
+    public string Msg       { get; set; }
+    public DateTime Timestamp { get; set; }
 }
+public class ServResult<T> : ServResult { public T Data { get; set; } }
 
-public class ServResult<TData> : ServResult
-{
-  [XmlElement("data")]
-  public TData Data { get; set; }
-}
-```
-
-#### 序列化
-```csharp
-string result = await requestFactory.CreateRequestable("api")
-  .Json(new {
-    Date = DateTime.Now,
-    TemperatureC = 1,
-    Summary = 50
-  })
-  .PostAsync();
-```
-
-#### 反序列化
-```csharp
-ServResult result = await requestFactory.CreateRequestable("api")
-  .Json(new {
-    Date = DateTime.Now,
-    TemperatureC = 1,
-    Summary = 50
-  })
-  .JsonCast<ServResult>()
-  .PostAsync();
-```
-
-#### 验证
-```csharp
-int result = await requestFactory.CreateRequestable("api")
-  .Json(new {
-    Date = DateTime.Now,
-    TemperatureC = 1,
-    Summary = 50
-  })
-  .JsonCast<ServResult<int>>()
-  .DataVerify(r => r.Success)
-  .Success(r => r.Data)
-  .Fail(r => new BusiException(r.Msg, r.Code))
-  .PostAsync();
+int userId = await factory.CreateRequestable("https://api.example.com/user")
+    .Json(payload)
+    .JsonCast<ServResult<int>>()
+    .DataVerify(r => r.Success)
+    .Success (r => r.Data)
+    .Fail    (r => new BusiException(r.Msg, r.Code))
+    .PostAsync();
 ```
 
 ---
 
+## 全局初始化钩子 `IRequestInitialize`
 
-## 📖 说明
+```csharp
+public class AuthInitializer : IRequestInitialize
+{
+    public void Initialize(IRequestableBase req)
+        => req.AssignHeader("X-Tenant", TenantContext.Current);
+}
 
-**基础请求配置**
-- `AssignHeader` 设置请求头
-- `AppendQueryString` 添加请求参数（多次添加同名参数不会覆盖，数组场景；认证刷新时重设会覆盖）
+// 注册（启动前）
+SingletonPools.TryAdd<IRequestInitialize, AuthInitializer>();
+```
 
-**请求方式**
-- 显式支持：GET、DELETE、POST、PUT、HEAD、PATCH
-- 隐式支持：`SendAsync` 方法，第一个参数为请求方式
-- 流处理：`DownloadAsync` 流下载
+---
 
-**数据传输**
-- Json：`content-type = "application/json"`
-- Xml：`content-type = "application/xml"`
-- Form：`content-type = "application/x-www-form-urlencoded"` / `multipart/form-data`（根据消息内容自动切换）
-- Body：自定义序列化和 `content-type`
+## 编码与异常容忍
 
-**数据接收**
-- `XmlCast<T>`：接收 Xml 格式数据并自动反序列化为 T 类型
-- `JsonCast<T>`：接收 JSON 格式数据并自动反序列化为 T 类型（需 IJsonHelper 支持，可用 Inkslab.Json 包）
-- `String`：接收任意格式结果
+```csharp
+.UseEncoding(Encoding.UTF8)
+.JsonCatch<MyResult>(ex => MyResult.Empty)   // 反序列化失败兜底
+.XmlCatch<MyResult>(ex => MyResult.Empty)
+```
 
-**认证刷新**
-- `When`：设置认证刷新条件
-- `ThenAsync`：请求异常时刷新认证（每个设置最多执行一次）
+---
 
-**数据验证**
-- `DataVerify`：数据验证（返回 true 代表数据符合预期）
-- `Fail`：指定失败结果或抛出异常
-- `Success`：成功时返回的数据
+## 单元测试
 
-**其它**
-- `XmlCatch<T>`：捕获 XmlException 并返回 T 结果，不抛异常
-- `JsonCatch<T>`：捕获 JsonException 并返回 T 结果，不抛异常
-- `UseEncoding`：数据编码格式，默认 UTF8
+参见 [tests/Inkslab.Net.Tests/UnitTest1.cs](tests/Inkslab.Net.Tests/UnitTest1.cs)。
+
+---
+
+## 说明要点
+
+- **请求方式**：显式支持 `GET` / `DELETE` / `POST` / `PUT` / `HEAD` / `PATCH`；任意方法使用 `SendAsync(method)`；流场景使用 `DownloadAsync`。
+- **JsonCast 依赖**：需有 `IJsonHelper` 实现（推荐 `Inkslab.Json`）。
+- **XML 反序列化**：使用 `System.Xml.Serialization`，请配合 `[XmlElement]` / `[XmlIgnore]` 标注。
+- **超时**：以毫秒为单位，所有发送方法第一参数均为 `double timeout`。
+- **并发**：`IRequestFactory` 与 `HttpClient` 一致，推荐**单例注入**复用连接池。

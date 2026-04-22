@@ -1,195 +1,252 @@
 ![Inkslab](inkslab.jpg 'Logo')
 
-## "Inkslab.DI"是什么？
+<!-- AI-META
+Package: Inkslab.DI
+Version: 1.2.23
+TargetFrameworks: net461; netstandard2.1; net6.0
+Namespace: Inkslab.DI, Inkslab.DI.Annotations, Inkslab.DI.Options, Microsoft.Extensions.DependencyInjection
+Dependencies: Inkslab; Microsoft.Extensions.DependencyInjection.Abstractions
+EntryType: IServiceCollection.DependencyInjection(DependencyInjectionOptions)
+CoreInterface: IDependencyInjectionServices (src/Inkslab.DI/IDependencyInjectionServices.cs)
+Hooks: IConfigureServices (src/Inkslab.DI/IConfigureServices.cs)
+Attributes: SingletonAttribute, ScopedAttribute, TransientAttribute, DependencySeekAttribute
+Keywords: dependency injection, auto-registration, convention, ServiceLifetime, assembly scanning, ASP.NET Core
+-->
 
-**Inkslab.DI** 是一套自动化、约定优先的依赖注入扩展，兼容 .NET Framework、.NET Standard 和 .NET Core。它支持自动发现、注册、配置服务，简化复杂项目的依赖管理，提升开发效率和可维护性。
+## Inkslab.DI 是什么？
+
+**Inkslab.DI** 是 `Microsoft.Extensions.DependencyInjection.IServiceCollection` 的自动装配扩展：
+
+- **按特性注册**：类上标注 `[Singleton]` / `[Scoped]` / `[Transient]` 自动注册。
+- **按约定注册**：`ConfigureByAuto()` 根据控制器/动作参数反向拉起依赖。
+- **按检查注册**：`ConfigureByExamine(type => ...)` 自定义筛选。
+- **按 `IConfigureServices` 注册**：约定式手动注册点。
+- **跨平台**：同一套 API 适用于 .NET Framework / .NET Standard / .NET 6+。
 
 ---
 
-## 🚀 快速入门
-
-### 1. 安装包
+## 安装
 
 ```bash
-PM> Install-Package Inkslab.DI
+dotnet add package Inkslab.DI
 ```
 
-### 2. 基础用法
+---
+
+## 快速入门
+
+### 最小可运行样例
 
 ```csharp
 using Inkslab.DI;
 using Microsoft.Extensions.DependencyInjection;
 
-// 创建服务集合
 var services = new ServiceCollection();
 
-// 配置依赖注入（自动扫描并注册）
-services.DependencyInjection(new DependencyInjectionOptions());
+services.DependencyInjection(new DependencyInjectionOptions())
+        .SeekAssemblies("MyApp.*.dll")   // 1) 发现程序集
+        .ConfigureByDefined()            // 2) 执行 IConfigureServices
+        .ConfigureByAuto();              // 3) 自动按需注入
 
-// 构建服务提供者
 var provider = services.BuildServiceProvider();
-
-// 获取服务
-var myService = provider.GetService<IMyService>();
+var svc = provider.GetRequiredService<IMyService>();
 ```
 
-### 3. 自动注册程序集
+### 使用特性声明生命周期
 
 ```csharp
-// 自动查找并注册所有相关程序集
-services.DependencyInjection(new DependencyInjectionOptions())
-    .SeekAssemblies("*.dll");
+public interface IMyService { }
+
+[Singleton]                       // 单例
+public class MyService : IMyService { }
+
+[Scoped(Many = true)]             // 作用域 + 同时暴露多个契约
+public class UserService : IUserReader, IUserWriter { }
+
+[Transient]                       // 瞬时
+public class Formatter { }
 ```
+
+装配阶段自动按特性写入 `IServiceCollection`，无需手动 `AddSingleton` 等调用。
 
 ---
 
-## 🏗️ 接口契约
+## 核心契约
 
-### 1. 依赖注入主接口
+### `IDependencyInjectionServices` [src/Inkslab.DI/IDependencyInjectionServices.cs](src/Inkslab.DI/IDependencyInjectionServices.cs)
+
+构建器接口，支持流畅链式调用。
 
 ```csharp
-/// <summary>
-/// 依赖注入服务接口，支持自动发现、注册、配置服务。
-/// </summary>
 public interface IDependencyInjectionServices : IDisposable
 {
-    /// <summary>已注册的程序集集合。</summary>
     IReadOnlyCollection<Assembly> Assemblies { get; }
-    /// <summary>添加程序集。</summary>
+
+    // 程序集范围
     IDependencyInjectionServices AddAssembly(Assembly assembly);
-    /// <summary>按模式查找程序集。</summary>
     IDependencyInjectionServices SeekAssemblies(string pattern = "*");
     IDependencyInjectionServices SeekAssemblies(params string[] patterns);
 
-    /// <summary>忽略指定类型的自动注入。</summary>
+    // 忽略指定类型
     IDependencyInjectionServices IgnoreType(Type serviceType);
     IDependencyInjectionServices IgnoreType<TService>();
 
-    /// <summary>按定义配置服务。</summary>
-    IDependencyInjectionServices ConfigureByDefined();
-    /// <summary>按选项配置服务。</summary>
-    IDependencyInjectionServices ConfigureServices(DependencyInjectionServicesOptions servicesOptions);
-    /// <summary>自动配置服务。</summary>
-    IDependencyInjectionServices ConfigureByAuto();
-    /// <summary>按条件配置服务。</summary>
-    IDependencyInjectionServices ConfigureByExamine(Predicate<Type> match);
+    // 三种装配模式
+    IDependencyInjectionServices ConfigureByDefined();                                  // 运行所有 IConfigureServices
+    IDependencyInjectionServices ConfigureServices(DependencyInjectionServicesOptions o); // 按 MVC/动作参数反向注入
+    IDependencyInjectionServices ConfigureByAuto();                                     // 基于 ConfigureServices(Instance)
+    IDependencyInjectionServices ConfigureByExamine(Predicate<Type> match);             // 自定义筛选
 
-    /// <summary>注册服务。</summary>
+    // 显式注册（默认生命周期取自 DependencyInjectionOptions.Lifetime）
     IDependencyInjectionServices Add<TService>() where TService : class;
-    IDependencyInjectionServices Add(Type serviceType);
     IDependencyInjectionServices Add<TService, TImplementation>() where TService : class where TImplementation : TService;
+    IDependencyInjectionServices Add(Type serviceType);
     IDependencyInjectionServices Add(Type serviceType, Type implementationType);
-    IDependencyInjectionServices Add(Type serviceType, ServiceLifetime lifetime, Type implementationType);
 
-    /// <summary>注册瞬态服务。</summary>
+    // 指定生命周期
     IDependencyInjectionServices AddTransient<TService>() where TService : class;
-    IDependencyInjectionServices AddTransient(Type serviceType);
-    IDependencyInjectionServices AddTransient<TService, TImplementation>() where TService : class where TImplementation : TService;
-    IDependencyInjectionServices AddTransient(Type serviceType, Type implementationType);
-
-    /// <summary>注册单例服务。</summary>
+    IDependencyInjectionServices AddScoped<TService>()    where TService : class;
     IDependencyInjectionServices AddSingleton<TService>() where TService : class;
-    IDependencyInjectionServices AddSingleton(Type serviceType);
-    IDependencyInjectionServices AddSingleton<TService, TImplementation>() where TService : class where TImplementation : TService;
-    IDependencyInjectionServices AddSingleton(Type serviceType, Type implementationType);
+    // ...以及对应的 (Type)、(Type,Type)、(TService,TImplementation) 重载
 }
 ```
 
-### 2. 服务配置扩展
+### `IConfigureServices` [src/Inkslab.DI/IConfigureServices.cs](src/Inkslab.DI/IConfigureServices.cs)
+
+约定式服务注册钩子：实现该接口的类在 `ConfigureByDefined()` 阶段自动执行。
 
 ```csharp
-/// <summary>
-/// 服务配置扩展接口，支持自定义服务注册。
-/// </summary>
-public interface IConfigureServices
+public class MyModule : IConfigureServices
 {
-    void ConfigureServices(IServiceCollection services);
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<IFoo, Foo>();
+        services.AddOptions<MyOptions>().BindConfiguration("MyOptions");
+    }
 }
 ```
 
-### 3. 配置选项
+### `DependencyInjectionOptions` [src/Inkslab.DI/Options/DependencyInjectionOptions.cs](src/Inkslab.DI/Options/DependencyInjectionOptions.cs)
 
 ```csharp
-/// <summary>
-/// 依赖注入选项。
-/// </summary>
 public class DependencyInjectionOptions
 {
-    /// <summary>最大递归深度。</summary>
-    public int MaxDepth { get; set; } = 8;
-    /// <summary>默认生命周期。</summary>
-    public ServiceLifetime Lifetime { get; set; } = ServiceLifetime.Scoped;
-    /// <summary>忽略类型判断。</summary>
-    public virtual bool Ignore(Type serviceType) => serviceType.IsNotPublic || serviceType.IsNested;
+    public int             MaxDepth { get; set; } = 8;                   // 自动注入最大递归深度
+    public ServiceLifetime Lifetime { get; set; } = ServiceLifetime.Scoped; // 未标注特性时的默认生命周期
+
+    public virtual bool Ignore(Type serviceType);                        // 默认：非 public 或嵌套类型忽略
+    public virtual Type ResolveConflictingTypes(Type serviceType,
+                                                List<Type> implementations); // 多实现冲突时的仲裁
 }
 ```
 
+### `DependencyInjectionServicesOptions` [src/Inkslab.DI/Options/DependencyInjectionServicesOptions.cs](src/Inkslab.DI/Options/DependencyInjectionServicesOptions.cs)
+
+控制"从控制器动作参数反向拉起依赖"的行为。
+
 ```csharp
-/// <summary>
-/// 依赖注入服务配置选项。
-/// </summary>
 public class DependencyInjectionServicesOptions
 {
-    /// <summary>是否从服务参数获取。</summary>
-    public bool DiServicesActionIsFromServicesParameters { get; set; } = true;
-    /// <summary>判断是否为服务类型。</summary>
+    // net461 默认 false；其他目标默认 true
+    public bool DiServicesActionIsFromServicesParameters { get; set; }
+
     public virtual bool IsServicesType(Type type);
-    /// <summary>判断参数是否来自服务。</summary>
     public virtual bool ActionParameterIsFromServices(ParameterInfo parameterInfo);
-    /// <summary>单例实例。</summary>
+
     public static DependencyInjectionServicesOptions Instance { get; }
 }
 ```
 
 ---
 
-## 🏗️ 进阶用法
+## 生命周期特性
 
-### 1. 忽略类型自动注入
+所有特性均继承自 [`ServiceLifetimeAttribute`](src/Inkslab.DI/Annotations/ServiceLifetimeAttribute.cs)，而该特性本身继承自 `Inkslab.Annotations.ExportAttribute`：`Many` 属性控制是否"同一实现暴露给其所有实现的接口"。
+
+| 特性 | 生命周期 | 源文件 |
+| --- | --- | --- |
+| `[Singleton]` | `ServiceLifetime.Singleton` | [SingletonAttribute.cs](src/Inkslab.DI/Annotations/SingletonAttribute.cs) |
+| `[Scoped]` | `ServiceLifetime.Scoped` | [ScopedAttribute.cs](src/Inkslab.DI/Annotations/ScopedAttribute.cs) |
+| `[Transient]` | `ServiceLifetime.Transient` | [TransientAttribute.cs](src/Inkslab.DI/Annotations/TransientAttribute.cs) |
 
 ```csharp
-services.DependencyInjection(new DependencyInjectionOptions())
-    .IgnoreType<IMyService>();
+[Singleton(Many = true)]              // 暴露该类实现的所有接口
+public class Cache : ICache, IDisposable { }
+
+[Scoped]
+public class OrderService : IOrderService { }
 ```
 
-### 2. 按条件自动注册
+### 依赖查找特性
+
+[`DependencySeekAttribute`](src/Inkslab.DI/Annotations/DependencySeekAttribute.cs)：声明一个实现所依赖的类型族，供自动装配搜索。
 
 ```csharp
-services.DependencyInjection(new DependencyInjectionOptions())
-    .ConfigureByExamine(type => type.Name.EndsWith("Service"));
-```
-
-### 3. 自定义服务配置
-
-实现 [`IConfigureServices`](src/Inkslab.DI/IConfigureServices.cs) 并自动调用：
-
-```csharp
-public class CustomConfigure : IConfigureServices
+public class MyAttribute : DependencySeekAttribute
 {
-    public void ConfigureServices(IServiceCollection services)
-    {
-        services.AddSingleton<IMyService, MyServiceImpl>();
-    }
+    public override IEnumerable<Type> Dependencies(Type implementationType) => /* ... */;
 }
 ```
 
 ---
 
-## 🧑‍💻 单元测试参考
+## 进阶用法
 
-请参考 [tests/Inkslab.DI.Tests/](tests/Inkslab.DI.Tests/) 目录下的测试用例，涵盖自动注入、生命周期管理、服务查找等场景。
+### 1. 忽略类型
+
+```csharp
+services.DependencyInjection(new DependencyInjectionOptions())
+        .IgnoreType<IDontInjectMe>();
+```
+
+### 2. 条件注册
+
+```csharp
+services.DependencyInjection(new DependencyInjectionOptions())
+        .ConfigureByExamine(t => t.Name.EndsWith("Service") && !t.IsAbstract);
+```
+
+### 3. 在 ASP.NET Core 中反向装配控制器依赖
+
+```csharp
+services.DependencyInjection(new DependencyInjectionOptions())
+        .SeekAssemblies()
+        .ConfigureServices(DependencyInjectionServicesOptions.Instance);
+```
+
+参见 [tests/Inkslab.DI.Tests/Startup.cs](tests/Inkslab.DI.Tests/Startup.cs)。
 
 ---
 
-## 💡 常见问题与建议
+## 典型装配顺序
 
-- 支持自动发现和注册，实现约定优先，减少手动配置。
-- 支持多种生命周期（Transient/Scoped/Singleton）。
-- 可通过扩展接口和配置选项灵活定制注入行为。
-- 推荐在大型项目中结合自动程序集扫描和自定义配置，提升开发效率。
+```csharp
+services.DependencyInjection(new DependencyInjectionOptions
+        {
+            Lifetime = ServiceLifetime.Scoped,
+            MaxDepth = 8
+        })
+        .SeekAssemblies("MyApp.*.dll")
+        .ConfigureByDefined()       // 执行所有 IConfigureServices
+        .ConfigureByAuto();         // 自动反向装配
+```
 
 ---
 
-## 📖 说明
+## 单元测试
 
-Inkslab.DI 兼容 Microsoft.Extensions.DependencyInjection，支持主流 .NET 平台，适合微服务、Web、桌面等多种应用场景。详细源码请参考 [src/Inkslab.DI/](src/Inkslab.DI/) 目录。
+- [tests/Inkslab.DI.Tests/](tests/Inkslab.DI.Tests/) 提供了完整的 ASP.NET Core 宿主样例，覆盖自动扫描、特性标记、`IConfigureServices` 钩子及控制器动作参数注入。
+
+---
+
+## 常见问题
+
+- **类未被注册**：确认其程序集已通过 `AddAssembly` / `SeekAssemblies` 纳入，且类型为 `public`（非 `nested`）。
+- **多实现冲突**：重写 `DependencyInjectionOptions.ResolveConflictingTypes` 自行仲裁，或使用 `IgnoreType` 排除。
+- **net461 下 Controller 参数未注入**：将 `DependencyInjectionServicesOptions.DiServicesActionIsFromServicesParameters` 显式置为 `true`。
+
+---
+
+## 说明
+
+Inkslab.DI 与 `Microsoft.Extensions.DependencyInjection` 完全兼容，仅在其上添加装配约定，所有生成的 `ServiceDescriptor` 均为标准实现。

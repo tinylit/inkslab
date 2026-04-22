@@ -15,10 +15,13 @@ namespace Inkslab.Map
     /// <summary>
     /// 映射配置。
     /// </summary>
-    public class MapConfiguration : Singleton<MapConfiguration>, IMapConfiguration, IConfiguration
+    public class MapConfiguration : Singleton<MapConfiguration>, IMapConfiguration, IConfiguration, IDisposable
     {
         private readonly IList<IMap> _maps;
-        private readonly List<Profile> _profiles = new List<Profile>();
+        //? 采用写时复制（copy-on-write）策略，_profiles 数组成为快照，读取无锁。
+        private readonly object _profilesLock = new object();
+        private volatile Profile[] _profiles = Array.Empty<Profile>();
+        private bool _disposed;
 
         /// <summary>
         /// 默认映射规则集合。
@@ -107,7 +110,17 @@ namespace Inkslab.Map
                 return true;
             }
 
-            return _profiles.Any(x => x.IsMatch(sourceType, destinationType)) || _maps.Any(x => x.IsMatch(sourceType, destinationType));
+            var profiles = _profiles;
+
+            for (int i = 0; i < profiles.Length; i++)
+            {
+                if (profiles[i].IsMatch(sourceType, destinationType))
+                {
+                    return true;
+                }
+            }
+
+            return _maps.Any(x => x.IsMatch(sourceType, destinationType));
         }
 
         /// <summary>
@@ -121,7 +134,15 @@ namespace Inkslab.Map
                 throw new ArgumentNullException(nameof(profile));
             }
 
-            _profiles.Add(profile);
+            //? 写时复制：生成新快照后原子替换，读取者无需加锁。
+            lock (_profilesLock)
+            {
+                var current = _profiles;
+                var next = new Profile[current.Length + 1];
+                Array.Copy(current, next, current.Length);
+                next[current.Length] = profile;
+                _profiles = next;
+            }
         }
 
         /// <summary>
@@ -480,8 +501,12 @@ namespace Inkslab.Map
         {
             if (sourceType.IsClass && destinationType.IsClass)
             {
-                foreach (var profile in _profiles)
+                var profiles = _profiles;
+
+                for (int i = 0; i < profiles.Length; i++)
                 {
+                    var profile = profiles[i];
+
                     if (profile.IsMatch(sourceType, destinationType))
                     {
                         return profile.Map(sourceExpression, destinationType, application);
@@ -883,5 +908,49 @@ label_original:
         }
 
         #endregion
+
+        /// <summary>
+        /// 释放 <see cref="Profile"/> 集合中已注册的资源。
+        /// </summary>
+        /// <param name="disposing">是否释放托管资源。</param>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                Profile[] profiles;
+
+                lock (_profilesLock)
+                {
+                    profiles = _profiles;
+                    _profiles = Array.Empty<Profile>();
+                }
+
+                for (int i = 0; i < profiles.Length; i++)
+                {
+                    try
+                    {
+                        profiles[i].Dispose();
+                    }
+                    catch
+                    {
+                        //? 忽略单个 Profile 释放异常，保证其他 Profile 能继续释放。
+                    }
+                }
+            }
+
+            _disposed = true;
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
     }
 }

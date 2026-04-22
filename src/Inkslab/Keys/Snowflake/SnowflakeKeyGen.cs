@@ -78,7 +78,7 @@ namespace Inkslab.Keys.Snowflake
 
                 if (timestamp < lastTimestamp)
                 {
-                    throw new Exception(string.Format("Clock moved backwards. Refusing to generate id for {0} milliseconds", lastTimestamp - timestamp));
+                    throw new InvalidOperationException(string.Format("Clock moved backwards. Refusing to generate id for {0} milliseconds", lastTimestamp - timestamp));
                 }
 
                 // 下面是说假设在同一个毫秒内，又发送了一个请求生成一个id

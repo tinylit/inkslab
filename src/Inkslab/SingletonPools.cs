@@ -158,7 +158,7 @@ namespace Inkslab
 
                         _serviceCachings.TryAdd(typeof(TService), typeof(Nested<TService>));
 
-                        _factory = () => factory.Invoke() ?? throw new NullReferenceException("注入服务工厂，返回值为“null”!");
+                        _factory = () => factory.Invoke() ?? throw new InvalidOperationException("注入服务工厂，返回值为“null”!");
 
                         return true;
                     }
@@ -242,37 +242,63 @@ namespace Inkslab
 
                             throw new NotSupportedException($"单例服务（{conversionType.FullName}=>{serviceType.FullName}）的构造函数参数（{parameterInfo.ParameterType.FullName}）未注入单例支持，可以使用【SingletonPools.TryAdd<{parameterInfo.ParameterType.Name}, {parameterInfo.ParameterType.Name}Impl>()】注入服务实现。");
                         }
+
+                        // 验证通过后使用该构造函数（修复：避免constructorInfo为null时NullReferenceException）
+                        constructorInfo = lastConstructor;
                     }
 
                     Instance = CreateInstance(constructorInfo);
                 }
 
                 /// <summary>
-                /// 获取缓存的构造函数列表
+                /// 获取缓存的构造函数列表（按当前 _serviceCachings 快照排序，避免排序结果被陈旧快照污染）。
                 /// </summary>
                 [MethodImpl(MethodImplOptions.AggressiveInlining)]
                 private static ConstructorInfo[] GetCachedConstructors(Type conversionType)
                 {
-                    return _constructorCache.GetOrAdd(conversionType, type =>
-                        type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                            .OrderBy(x => x.IsPublic ? 0 : 1)
-                            .ThenByDescending(x =>
-                            {
-                                var parameterInfos = GetCachedParameters(x);
-                                var specifiedCount = 0;
+                    //? 只缓存类型固有的构造函数数组（类型稳定），排序依赖 _serviceCachings 的动态快照，故每次排序一份副本。
+                    var ctors = _constructorCache.GetOrAdd(conversionType, type =>
+                        type.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic));
 
-                                // 优化：避免 LINQ Count() 的开销
-                                foreach (var param in parameterInfos)
-                                {
-                                    if (_serviceCachings.ContainsKey(param.ParameterType))
-                                    {
-                                        specifiedCount++;
-                                    }
-                                }
+                    if (ctors.Length <= 1)
+                    {
+                        return ctors;
+                    }
 
-                                return parameterInfos.Length * parameterInfos.Length + specifiedCount;
-                            })
-                            .ToArray());
+                    //? 复制数组后排序，避免并发修改共享数组；也消除排序结果因 _serviceCachings 变化而 TOCTOU 的风险。
+                    var sorted = new ConstructorInfo[ctors.Length];
+                    Array.Copy(ctors, sorted, ctors.Length);
+
+                    Array.Sort(sorted, static (a, b) =>
+                    {
+                        int cmp = (a.IsPublic ? 0 : 1) - (b.IsPublic ? 0 : 1);
+
+                        if (cmp != 0)
+                        {
+                            return cmp;
+                        }
+
+                        return ComputeCtorScore(b) - ComputeCtorScore(a);
+                    });
+
+                    return sorted;
+                }
+
+                [MethodImpl(MethodImplOptions.AggressiveInlining)]
+                private static int ComputeCtorScore(ConstructorInfo ctor)
+                {
+                    var parameterInfos = GetCachedParameters(ctor);
+                    var specifiedCount = 0;
+
+                    foreach (var param in parameterInfos)
+                    {
+                        if (_serviceCachings.ContainsKey(param.ParameterType))
+                        {
+                            specifiedCount++;
+                        }
+                    }
+
+                    return parameterInfos.Length * parameterInfos.Length + specifiedCount;
                 }
 
                 /// <summary>
@@ -318,28 +344,25 @@ namespace Inkslab
                         return true;
                     }
 
-                    // ConcurrentDictionary 支持并发枚举和修改，无需快照
-                    // 对于非抽象类型，尝试找到匹配的实现
-                    if (!parameterType.IsAbstract)
-                    {
-                        foreach (var kv in _serviceCachings)
-                        {
-                            if (ReferenceEquals(kv.Value, parameterType))
-                            {
-                                _serviceCachings.TryAdd(parameterType, kv.Value);
-                                return true;
-                            }
-                        }
-                    }
+                    bool isAbstract = parameterType.IsAbstract;
 
-                    // 检查可分配性
+                    // 合并遍历：同时检查实现类型匹配和可分配性，减少迭代次数
                     foreach (var kv in _serviceCachings)
                     {
-                        if (ReferenceEquals(kv.Value, conversionType)) // 防递归注入
+                        // 对于非抽象类型，尝试找到匹配的实现
+                        if (!isAbstract && ReferenceEquals(kv.Value, parameterType))
+                        {
+                            _serviceCachings.TryAdd(parameterType, kv.Value);
+                            return true;
+                        }
+
+                        // 防递归注入
+                        if (ReferenceEquals(kv.Value, conversionType))
                         {
                             continue;
                         }
 
+                        // 检查可分配性
                         if (parameterType.IsAssignableFrom(kv.Key))
                         {
                             _serviceCachings.TryAdd(parameterType, kv.Value);
@@ -358,7 +381,7 @@ namespace Inkslab
                     if (parameterInfos.Length == 0)
                     {
                         // 快速路径：无参构造函数
-                        return (TImplementation)constructorInfo.Invoke(new object[0]);
+                        return (TImplementation)constructorInfo.Invoke(Array.Empty<object>());
                     }
 
                     var arguments = new object[parameterInfos.Length];

@@ -41,7 +41,7 @@ namespace Inkslab
         {
             private static readonly Regex _patternSni = new Regex(@"(\.|\\|\/)[\w-]*(sni|std|crypt|copyright|32|64|86)\.", RegexOptions.IgnoreCase | RegexOptions.RightToLeft | RegexOptions.Compiled);
 
-            private static readonly List<string> _strings = new List<string>(40)
+            private static readonly string[] _ignorePrefixes = new[]
             {
                 "Google.",
                 "Microsoft.",
@@ -84,6 +84,62 @@ namespace Inkslab
                 "Zstandard."
             };
 
+            //? 按首字符索引，过滤时 O(1) 定位到候选子集，显著降低加载大量 DLL 时的扫描开销。
+            private static readonly Dictionary<char, string[]> _prefixIndex = BuildPrefixIndex(_ignorePrefixes);
+
+            private static Dictionary<char, string[]> BuildPrefixIndex(string[] prefixes)
+            {
+                var dict = new Dictionary<char, List<string>>();
+
+                foreach (var prefix in prefixes)
+                {
+                    if (prefix.Length == 0)
+                    {
+                        continue;
+                    }
+
+                    char key = prefix[0];
+
+                    if (!dict.TryGetValue(key, out var list))
+                    {
+                        dict[key] = list = new List<string>();
+                    }
+
+                    list.Add(prefix);
+                }
+
+                var result = new Dictionary<char, string[]>(dict.Count);
+                foreach (var kv in dict)
+                {
+                    result[kv.Key] = kv.Value.ToArray();
+                }
+
+                return result;
+            }
+
+            private static bool IsIgnoredPrefix(string fileName)
+            {
+                if (fileName.Length == 0)
+                {
+                    return false;
+                }
+
+                if (!_prefixIndex.TryGetValue(fileName[0], out var candidates))
+                {
+                    return false;
+                }
+
+                foreach (var prefix in candidates)
+                {
+                    if (fileName.StartsWith(prefix, StringComparison.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
             public string[] GetFiles(string path, string searchPattern)
             {
                 bool flag = true;
@@ -117,7 +173,7 @@ namespace Inkslab
 
                         string fileName = Path.GetFileName(file);
 
-                        if (_strings.Exists(s => fileName.StartsWith(s)))
+                        if (IsIgnoredPrefix(fileName))
                         {
                             continue;
                         }

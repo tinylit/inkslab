@@ -453,8 +453,13 @@ namespace Inkslab.Map
                     // 访问方法调用的实例表达式（如果有）
                     var visitedObject = Visit(node.Object);
 
-                    // 访问所有参数表达式
-                    var visitedArguments = node.Arguments.Select(Visit).ToArray();
+                    // 访问所有参数表达式（预分配数组，避免 LINQ Select().ToArray() 产生的中间缓冲区）
+                    var argumentCount = node.Arguments.Count;
+                    var visitedArguments = new Expression[argumentCount];
+                    for (int i = 0; i < argumentCount; i++)
+                    {
+                        visitedArguments[i] = Visit(node.Arguments[i]);
+                    }
 
                     // 缓存反射信息
                     var genericMethodDefinition = node.Method.GetGenericMethodDefinition();
@@ -1115,7 +1120,11 @@ namespace Inkslab.Map
                     }
                 }
 
-                _mapSlots.Add(mapSlot);
+                //? 保护 _mapSlots 写入，与外层 Profile 共享同一把锁。
+                lock (_mapSlots)
+                {
+                    _mapSlots.Add(mapSlot);
+                }
             }
 
             protected override void Dispose(bool disposing)
@@ -1400,10 +1409,11 @@ namespace Inkslab.Map
 
         private bool disposedValue;
 
-        private readonly object _lockObj = new object();
+        //? 使用 _mapSlots 自身作为锁对象，便于内部 MapSlot.NewEnumerable 也能共享同一把锁。
         private readonly List<IMapSlot> _mapSlots = new List<IMapSlot>();
-        private readonly HashSet<TypeCode> _missCachings = new HashSet<TypeCode>(TypeCode.InstanceComparer);
-        private readonly Dictionary<TypeCode, IMapSlot> _mapCachings = new Dictionary<TypeCode, IMapSlot>(TypeCode.InstanceComparer);
+        //? 读多写少，用 ConcurrentDictionary 避免 DCL 中对 Dictionary/HashSet 的无锁读写竞态。
+        private readonly ConcurrentDictionary<TypeCode, byte> _missCachings = new ConcurrentDictionary<TypeCode, byte>(TypeCode.InstanceComparer);
+        private readonly ConcurrentDictionary<TypeCode, IMapSlot> _mapCachings = new ConcurrentDictionary<TypeCode, IMapSlot>(TypeCode.InstanceComparer);
         private readonly ConcurrentDictionary<TypeCode, IInstanceMapSlot> _instanceMapCachings = new ConcurrentDictionary<TypeCode, IInstanceMapSlot>(TypeCode.InstanceComparer);
 
         /// <summary>
@@ -1431,7 +1441,8 @@ namespace Inkslab.Map
 
         private IEnumerable<Expression> PrivateToSolveCore(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application, IMapSlot mapSlot)
         {
-            PropertyInfo[] propertyInfos = null;
+            //? 懒加载源属性名称索引，避免 O(M*N) 的嵌套查找。
+            Dictionary<string, PropertyInfo> sourceLookup = null;
 
             foreach (var propertyInfo in destinationType.GetProperties())
             {
@@ -1476,24 +1487,19 @@ namespace Inkslab.Map
 
             label_auto:
 
-                propertyInfos ??= sourceType.GetProperties();
+                sourceLookup ??= DefaultMap.BuildPropertyLookup(sourceType.GetProperties());
 
-                foreach (var memberInfo in propertyInfos)
+                if (sourceLookup.TryGetValue(propertyInfo.Name, out var memberInfo) && memberInfo.CanRead)
                 {
-                    if (memberInfo.CanRead && string.Equals(memberInfo.Name, propertyInfo.Name, StringComparison.OrdinalIgnoreCase))
+                    var sourcePrt = Property(sourceExpression, memberInfo);
+                    var destinationPrt = Property(destinationExpression, propertyInfo);
+
+                    if (TrySolve(destinationPrt,
+                            sourcePrt,
+                            application,
+                            out var destinationRs))
                     {
-                        var sourcePrt = Property(sourceExpression, memberInfo);
-                        var destinationPrt = Property(destinationExpression, propertyInfo);
-
-                        if (TrySolve(destinationPrt,
-                                sourcePrt,
-                                application,
-                                out var destinationRs))
-                        {
-                            yield return destinationRs;
-                        }
-
-                        break;
+                        yield return destinationRs;
                     }
                 }
             }
@@ -1519,19 +1525,19 @@ namespace Inkslab.Map
                 return true;
             }
 
-            if (_missCachings.Contains(typeCode))
+            if (_missCachings.ContainsKey(typeCode))
             {
                 return false;
             }
 
-            lock (_lockObj)
+            lock (_mapSlots)
             {
                 if (_mapCachings.ContainsKey(typeCode))
                 {
                     return true;
                 }
 
-                if (_missCachings.Contains(typeCode))
+                if (_missCachings.ContainsKey(typeCode))
                 {
                     return false;
                 }
@@ -1552,7 +1558,7 @@ namespace Inkslab.Map
                     }
                 }
 
-                _missCachings.Add(typeCode);
+                _missCachings.TryAdd(typeCode, 0);
 
                 return false;
             }
@@ -1619,12 +1625,16 @@ namespace Inkslab.Map
 
             var mapSlot = new MapSlot(sourceType, destinationType, _mapSlots);
 
-            _mapSlots.Add(mapSlot);
-
-            if (!isContract)
+            //? 保护 _mapSlots 写入，避免与 IsMatch 中的遍历产生并发竞态。
+            lock (_mapSlots)
             {
-                //? 优先使用自定义。
-                _mapCachings[new TypeCode(sourceType, destinationType)] = mapSlot;
+                _mapSlots.Add(mapSlot);
+
+                if (!isContract)
+                {
+                    //? 优先使用自定义。
+                    _mapCachings[new TypeCode(sourceType, destinationType)] = mapSlot;
+                }
             }
 
             return new ProfileExpression<TSource, TDestination>(mapSlot);
@@ -1666,12 +1676,16 @@ namespace Inkslab.Map
                 }
             }
 
-            _mapSlots.Add(mapSlot);
-
             //? 优先使用自定义。
             var typeCode = new TypeCode(sourceType, destinationType);
 
-            _mapCachings[typeCode] = mapSlot;
+            //? 保护 _mapSlots 写入，避免与 IsMatch 中的遍历产生并发竞态。
+            lock (_mapSlots)
+            {
+                _mapSlots.Add(mapSlot);
+
+                _mapCachings[typeCode] = mapSlot;
+            }
 
             _instanceMapCachings[typeCode] = instanceFactory.CreateMap(sourceType, destinationType);
 
@@ -1688,15 +1702,18 @@ namespace Inkslab.Map
             {
                 if (disposing)
                 {
-                    foreach (var mapSlot in _mapSlots)
+                    lock (_mapSlots)
                     {
-                        mapSlot.Dispose();
+                        foreach (var mapSlot in _mapSlots)
+                        {
+                            mapSlot.Dispose();
+                        }
+
+                        _mapSlots.Clear();
                     }
 
-                    _mapSlots.Clear();
-
+                    _mapCachings.Clear();
                     _missCachings.Clear();
-
                     _instanceMapCachings.Clear();
                 }
 

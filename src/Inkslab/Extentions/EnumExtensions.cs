@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text;
 using static System.Linq.Expressions.Expression;
@@ -20,54 +21,68 @@ namespace System
         /// <returns>枚举的描述。</returns>
         public static string GetText<TEnum>(this TEnum @enum) where TEnum : struct, Enum
         {
-            var type = typeof(TEnum);
+            //? 按值缓存已计算结果（含 Flags 组合），避免每次调用都反射遍历字段和拼接字符串。
+            return TextCache<TEnum>.Get(@enum);
+        }
 
-            if (Convert<TEnum>.IsFlags)
+        private static class TextCache<TEnum> where TEnum : struct, Enum
+        {
+            private static readonly ConcurrentDictionary<TEnum, string> _texts = new ConcurrentDictionary<TEnum, string>();
+            private static readonly Func<TEnum, string> _factory = Compute;
+
+            public static string Get(TEnum @enum) => _texts.GetOrAdd(@enum, _factory);
+
+            private static string Compute(TEnum @enum)
             {
-                bool flag = false;
+                var type = typeof(TEnum);
 
-                var sb = new StringBuilder();
-
-                foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+                if (Convert<TEnum>.IsFlags)
                 {
-                    var constantValue = info.GetRawConstantValue()!;
+                    bool flag = false;
 
-                    if (!Nested<TEnum>.Contains(@enum, (TEnum)constantValue))
+                    var sb = new StringBuilder();
+
+                    foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
                     {
-                        continue;
+                        var constantValue = info.GetRawConstantValue()!;
+
+                        if (!Nested<TEnum>.Contains(@enum, (TEnum)constantValue))
+                        {
+                            continue;
+                        }
+
+                        if (flag)
+                        {
+                            sb.Append('|');
+                        }
+                        else
+                        {
+                            flag = true;
+                        }
+
+                        sb.Append(info.GetDescription());
                     }
 
-                    if (flag)
-                    {
-                        sb.Append('|');
-                    }
-                    else
-                    {
-                        flag = true;
-                    }
-
-                    sb.Append(info.GetDescription());
+                    return sb.ToString();
                 }
 
-                return sb.ToString();
-            }
-
-            if (Enum.IsDefined(type, @enum))
-            {
-                foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
+                if (Enum.IsDefined(type, @enum))
                 {
-                    var constantValue = info.GetRawConstantValue()!;
-
-                    if (!Nested<TEnum>.Equals(@enum, (TEnum)constantValue))
+                    foreach (var info in type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static))
                     {
-                        continue;
+                        var constantValue = info.GetRawConstantValue()!;
+
+                        if (!Nested<TEnum>.Equals(@enum, (TEnum)constantValue))
+                        {
+                            continue;
+                        }
+
+                        return info.GetDescription();
                     }
-
-                    return info.GetDescription();
                 }
-            }
 
-            return "N/A";
+                return "N/A";
+            }
         }
 
         /// <summary>
