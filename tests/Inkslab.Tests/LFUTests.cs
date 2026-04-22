@@ -376,8 +376,11 @@ namespace Inkslab.Tests
         [Fact]
         public async Task Get_FactoryShouldRunConcurrently_ForDifferentKeysAsync()
         {
+            const int Parallelism = 16;
+
             int running = 0;
             int maxRunning = 0;
+            int expectedConcurrency = 1;
 
             var lfu = new Lfu<int, int>(64, key =>
             {
@@ -389,24 +392,66 @@ namespace Inkslab.Tests
                     Interlocked.CompareExchange(ref maxRunning, current, snapshot);
                 }
 
-                Thread.Sleep(50);
+                // 等待其它分片的兄弟调用进入工厂，消除线程池调度延迟带来的抖动。
+                // 带超时，避免单分片或线程池 worker 不足时死等。
+                var target = Volatile.Read(ref expectedConcurrency);
+                var waitSw = Stopwatch.StartNew();
+
+                while (Volatile.Read(ref running) < target && waitSw.ElapsedMilliseconds < 500)
+                {
+                    Thread.SpinWait(128);
+                }
+
+                var observed = Volatile.Read(ref running);
+
+                while ((snapshot = maxRunning) < observed)
+                {
+                    Interlocked.CompareExchange(ref maxRunning, observed, snapshot);
+                }
+
+                Thread.Sleep(20);
                 Interlocked.Decrement(ref running);
 
                 return key;
             });
 
-            var tasks = new List<Task<int>>(16);
+            // 读取实际分片数：工厂在分片锁内执行，只有多分片才可能真正并发。
+            var shardsField = typeof(Lfu<int, int>).GetField("_shards", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(shardsField);
 
-            for (int i = 0; i < 16; i++)
+            var shards = (Array)shardsField!.GetValue(lfu)!;
+            int shardCount = shards.Length;
+
+            Volatile.Write(ref expectedConcurrency, Math.Min(Parallelism, shardCount));
+
+            // 预热线程池，确保足够的 worker 能够同时拾取任务。
+            ThreadPool.GetMinThreads(out var minWorker, out var minIo);
+            ThreadPool.SetMinThreads(Math.Max(minWorker, Parallelism + 4), minIo);
+
+            try
             {
-                int key = i;
-                tasks.Add(Task.Run(() => lfu.Get(key)));
+                var tasks = new List<Task<int>>(Parallelism);
+
+                for (int i = 0; i < Parallelism; i++)
+                {
+                    int key = i;
+                    tasks.Add(Task.Run(() => lfu.Get(key)));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            finally
+            {
+                ThreadPool.SetMinThreads(minWorker, minIo);
             }
 
-            await Task.WhenAll(tasks);
+            // 单分片环境（如 ProcessorCount == 1）下工厂必然串行，跳过并发断言。
+            if (shardCount > 1)
+            {
+                Assert.True(maxRunning > 1, $"expected concurrent factory execution, but maxRunning={maxRunning}, shardCount={shardCount}.");
+            }
 
-            Assert.True(maxRunning > 1);
-            Assert.Equal(16, lfu.Count);
+            Assert.Equal(Parallelism, lfu.Count);
         }
 
         /// <summary>
