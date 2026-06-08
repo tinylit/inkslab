@@ -1688,7 +1688,10 @@ namespace Inkslab.Net
                 {
                     foreach (var kv in options.Headers)
                     {
-                        httpMsg.Headers.Add(kv.Key, kv.Value);
+                        if (options.SkipValidationHeaders.Contains(kv.Key))
+                            httpMsg.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+                        else
+                            httpMsg.Headers.Add(kv.Key, kv.Value);
                     }
                 }
 
