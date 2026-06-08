@@ -754,6 +754,7 @@ namespace Inkslab.Net
         {
             private readonly RequestFactory _factory;
             private readonly Dictionary<string, string> _headers;
+            private readonly HashSet<string> _skipValidationHeaders;
             private readonly QueryString<Requestable> _queryString;
             private static readonly Encoding _encodingDefault = Encoding.UTF8;
 
@@ -762,14 +763,15 @@ namespace Inkslab.Net
                 _factory = factory;
 
                 _headers = new Dictionary<string, string>();
+                _skipValidationHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 _queryString = new QueryString<Requestable>(this, requestUri);
             }
 
-            private Requestable(RequestFactory factory, Encoding encoding, QueryString<Requestable> queryString, Dictionary<string, string> headers) : base(encoding)
+            private Requestable(RequestFactory factory, Encoding encoding, QueryString<Requestable> queryString, Dictionary<string, string> headers, HashSet<string> skipValidationHeaders) : base(encoding)
             {
                 _factory = factory;
                 _headers = headers;
-
+                _skipValidationHeaders = skipValidationHeaders;
                 _queryString = queryString;
             }
 
@@ -799,6 +801,23 @@ namespace Inkslab.Net
                 return this;
             }
 
+            public IRequestable AssignHeader(string header, string value, bool skipValidation)
+            {
+                if (header is null)
+                {
+                    throw new ArgumentNullException(nameof(header));
+                }
+
+                _headers[header] = value;
+
+                if (skipValidation)
+                    _skipValidationHeaders.Add(header);
+                else
+                    _skipValidationHeaders.Remove(header);
+
+                return this;
+            }
+
             public IRequestable AssignHeaders<THeader>(THeader headers) where THeader : IEnumerable<KeyValuePair<string, string>>
             {
                 if (headers is null)
@@ -814,7 +833,7 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(_queryString.ToString(), _headers)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(_queryString.ToString(), _headers, _skipValidationHeaders)
             {
                 Method = method,
                 Timeout = timeout,
@@ -827,12 +846,19 @@ namespace Inkslab.Net
                     return this;
                 }
 
-                return new Requestable(_factory, encoding, _queryString, _headers);
+                return new Requestable(_factory, encoding, _queryString, _headers, _skipValidationHeaders);
             }
 
             IRequestableBase IRequestableBase<IRequestableBase>.AssignHeader(string header, string value)
             {
                 AssignHeader(header, value);
+
+                return this;
+            }
+
+            IRequestableBase IRequestableBase<IRequestableBase>.AssignHeader(string header, string value, bool skipValidation)
+            {
+                AssignHeader(header, value, skipValidation);
 
                 return this;
             }
