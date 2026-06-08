@@ -990,6 +990,7 @@ namespace Inkslab.Net
                 private readonly RequestableString _requestable;
                 private readonly QueryString<RequestableBase> _queryString;
                 private readonly Dictionary<string, string> _headers = new Dictionary<string, string>();
+                private readonly HashSet<string> _skipValidationHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
                 public RequestableBase(RequestableString requestable)
                 {
@@ -1020,6 +1021,23 @@ namespace Inkslab.Net
                     }
 
                     _headers[header] = value;
+
+                    return this;
+                }
+
+                public IRequestableBase AssignHeader(string header, string value, bool skipValidation)
+                {
+                    if (header is null)
+                    {
+                        throw new ArgumentNullException(nameof(header));
+                    }
+
+                    _headers[header] = value;
+
+                    if (skipValidation)
+                        _skipValidationHeaders.Add(header);
+                    else
+                        _skipValidationHeaders.Remove(header);
 
                     return this;
                 }
@@ -1093,6 +1111,14 @@ namespace Inkslab.Net
                         foreach (var header in _headers)
                         {
                             options.Headers[header.Key] = header.Value;
+                        }
+                    }
+
+                    if (_skipValidationHeaders.Count > 0)
+                    {
+                        foreach (var header in _skipValidationHeaders)
+                        {
+                            options.SkipValidationHeaders.Add(header);
                         }
                     }
 
