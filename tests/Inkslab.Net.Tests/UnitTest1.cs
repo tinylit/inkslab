@@ -160,5 +160,18 @@ namespace Inkslab.Net.Tests
 
             await Task.Delay(1000);
         }
+
+        /// <summary>
+        /// 跳过验证：发送格式不合规的 Date 头不抛出异常。
+        /// </summary>
+        [Fact]
+        public async Task AssignHeader_SkipValidation_AllowsInvalidHeaderValue()
+        {
+            // Date 头值不合规时，HttpHeaders.Add() 会抛出 FormatException。
+            // skipValidation=true 改用 TryAddWithoutValidation，不应抛出。
+            await RequestFactory.Create("http://www.baidu.com/")
+                .AssignHeader("Date", "not-a-valid-date", true)
+                .GetAsync();
+        }
     }
 }
