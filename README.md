@@ -9,7 +9,7 @@
 
 <!-- AI-META
 Project: Inkslab
-Version: 1.2.23
+Version: 1.2.25
 TargetFrameworks: net461; netstandard2.1; net6.0
 Authors: 影子和树
 License: MIT
@@ -34,19 +34,31 @@ Keywords: lightweight framework, DI, mapping, JSON, config, HTTP, snowflake, ext
 
 ## 仓库结构
 
+以下 6 个 `src/` 子目录各自对应一个独立的 NuGet 包，是唯一可被引用的交付物：
+
 ```
 inkslab/
-├─ src/
-│  ├─ Inkslab/          # 核心：单例池、启动、扩展方法、KeyGen、PagedList、IMapper/IJsonHelper/IConfigHelper 契约
-│  ├─ Inkslab.Config/   # IConfigHelper 默认实现（配置文件读取）
-│  ├─ Inkslab.Json/     # IJsonHelper 默认实现（基于 Newtonsoft.Json）
-│  ├─ Inkslab.Map/      # IMapper 默认实现（约定优先对象映射）
-│  ├─ Inkslab.DI/       # IServiceCollection 自动装配扩展
-│  └─ Inkslab.Net/      # HTTP 请求工厂 IRequestFactory
-└─ tests/               # 对应各模块的单元测试
+└─ src/
+   ├─ Inkslab/          # 核心基础包（所有场景均需引用）
+   ├─ Inkslab.Config/   # 配置读取           → 文档: Inkslab.Config.md
+   ├─ Inkslab.Json/     # JSON 序列化         → 文档: Inkslab.Json.md
+   ├─ Inkslab.Map/      # 对象映射            → 文档: Inkslab.Map.md
+   ├─ Inkslab.DI/       # 依赖注入自动装配    → 文档: Inkslab.DI.md
+   └─ Inkslab.Net/      # HTTP 请求客户端     → 文档: Inkslab.Net.md
 ```
 
----
+### 模块选择指南
+
+> **AI 使用提示**：根据下表"适用场景"一列匹配需求，点击"详细文档"链接获取完整 API 参考。`Inkslab`（核心包）是所有模块的共同依赖，始终需要引用。下表仅列出可通过 NuGet 引用的 6 个包，源码仓库中的 `tests/` 不在其中。
+
+| 包名 | 适用场景 | 核心 API | 详细文档 |
+|------|---------|---------|---------|
+| `Inkslab` | 单例池注册/获取、框架启动协调、雪花算法主键生成、LRU/LFU 有界缓存、异步锁、字符串/集合/日期/加密扩展方法、模板格式化（StringSugar）、XML 序列化、正则常量 | `SingletonPools`、`XStartup`、`KeyGen`、`Lru<K,V>`、`Lfu<K,V>`、`AsynchronousLock` | 本文 |
+| `Inkslab.Config` | 读取配置文件（`appsettings.json` / `app.config`）；强类型对象绑定；热更新监听 | `"key".Config<T>()`、`IConfigHelper`、`ConfigHelper` | [Inkslab.Config.md](./Inkslab.Config.md) |
+| `Inkslab.Json` | JSON 序列化与反序列化；命名风格转换（camelCase / snake_case）；匿名类型反序列化；属性忽略（`[Ignore]`）；键名覆盖（`[JsonProperty]`） | `JsonHelper.ToJson()`、`JsonHelper.Json<T>()` | [Inkslab.Json.md](./Inkslab.Json.md) |
+| `Inkslab.Map` | 不同类型对象互转（Entity ↔ DTO）；集合/字典映射；深拷贝；构造函数映射；自定义字段改名/忽略/常量 | `Mapper.Map<T>()`、`MapperInstance`、`Profile` | [Inkslab.Map.md](./Inkslab.Map.md) |
+| `Inkslab.DI` | 向 `IServiceCollection` 自动注册服务（按 `[Singleton]`/`[Scoped]`/`[Transient]` 特性或 `IConfigureServices` 约定），取代手动 `AddSingleton`/`AddScoped` 等调用 | `.DependencyInjection(options).SeekAssemblies().ConfigureByDefined().ConfigureByAuto()` | [Inkslab.DI.md](./Inkslab.DI.md) |
+| `Inkslab.Net` | 发送 HTTP/REST 请求；链式设置请求头、Query 参数、请求体（JSON/XML/Form/multipart）；响应反序列化；条件重试；数据验证；流下载 | `IRequestFactory.CreateRequestable(url)`、`.JsonCast<T>()`、`.When().ThenAsync()` | [Inkslab.Net.md](./Inkslab.Net.md) |
 
 ## NuGet 包一览
 
@@ -183,6 +195,8 @@ public enum NamingType
 - `Lru<T>` / `Lru<TKey, TValue>`：线程安全 LRU 淘汰。
 - `Lfu<T>` / `Lfu<TKey, TValue>`：线程安全 LFU 淘汰。
 - 共用 `IEliminationAlgorithm<T>` 契约，便于替换。
+- **分片并发**：内部按哈希分片以降低锁竞争，每个分片各自持锁。
+- **整体容量淘汰**：淘汰以**整个缓存的容量**为界（借助跨分片共享的原子计数器判断），仅当缓存整体写满才触发淘汰，避免单个分片因本地计数提前淘汰、导致整体远未达容量即开始丢数据。当整体已满但命中的分片为空时，本次写入直接放弃缓存以保持整体不超容。
 
 ### 异步锁 [`AsynchronousLock`](src/Inkslab/Threading/AsynchronousLock.cs)
 
@@ -210,6 +224,79 @@ using (await _lock.AcquireAsync())
 var asms = AssemblyFinder.Find("MyApp.*.dll");
 ```
 
+### `Singleton<T>` 泛型访问器
+
+`SingletonPools.Singleton<T>()` 的类型安全封装，适合在静态字段或字段初始化器中使用，内部采用嵌套类延迟初始化，性能与直接调用等价：
+
+```csharp
+private static readonly IJsonHelper _json = Singleton<IJsonHelper>.Instance;
+private static readonly DefaultSettings _settings = Singleton<DefaultSettings>.Instance;
+```
+
+### `Regexs` 预编译正则
+
+位于 `Inkslab.Regexs`，提供预编译的常用正则（字段以 `Is` 开头表示完整匹配，否则表示"包含"）：
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `IsMail` | `Regex` | 邮箱地址完整匹配 |
+| `IsNumber` | `Regex` | 数字（含正负号与小数点） |
+| `Whitespaces` | `Regex` | 含空白符（包括 `\t\r\n`） |
+| `ChineseCharacters` | `Regex` | 含中文字符 |
+| `DoubleByteCharacters` | `Regex` | 含双字节字符（含汉字） |
+
+```csharp
+Regexs.IsMail.IsMatch("user@example.com");     // true
+Regexs.IsNumber.IsMatch("-3.14");               // true
+Regexs.ChineseCharacters.IsMatch("Hello你好");  // true
+```
+
+### `XmlHelper` XML 序列化
+
+位于 `Inkslab.Serialize.Xml`，提供静态 XML 序列化/反序列化，与 `Inkslab.Net` 的 `.XmlCast<T>()` 内部保持一致：
+
+```csharp
+using Inkslab.Serialize.Xml;
+
+// 序列化（失败时 obj 为 null 返回 null）
+string xml = XmlHelper.XmlSerialize(dto);
+string xml = XmlHelper.XmlSerialize(dto, Encoding.UTF8, indented: true);
+
+// 反序列化（失败静默返回 null / default，不抛出异常）
+var dto = XmlHelper.XmlDeserialize<MyDto>(xml);
+var obj = XmlHelper.XmlDeserialize(xml, typeof(MyDto));
+```
+
+> `CData` 的相等比较统一采用 `StringComparison.Ordinal`（区分大小写、文化无关，且对 `null` 安全），保证序列化往返及用作字典键时行为稳定一致。
+
+---
+
+## 注解（`Inkslab.Annotations`）
+
+跨模块共享的元数据注解，无额外包依赖（位于核心 `Inkslab` 包）：
+
+| 注解 | 作用目标 | 用途 |
+| --- | --- | --- |
+| `[Export]` | 类 | DI 标记基类；`[Singleton]` / `[Scoped]` / `[Transient]` 均继承自此 |
+| `[Import]` | 构造器 / 属性 / 字段 | 标记 DI 注入点 |
+| `[Ignore]` | 属性 / 字段 | Map 映射与 JSON 序列化时跳过该成员 |
+| `[JsonProperty("name")]` | 属性 / 字段 / 参数 | 覆盖 JSON 序列化 / 反序列化时使用的键名 |
+| `[Match("groupName")]` | 方法参数 | `AdapterSugar` 中将参数绑定到指定命名正则组 |
+| `[Mismatch("groupName")]` | 方法（可多次叠加） | `AdapterSugar` 中：当指定命名正则组匹配成功时排除此方法 |
+
+```csharp
+public class User
+{
+    public int    Id   { get; set; }
+
+    [JsonProperty("user_name")]     // JSON 输出 key 为 user_name
+    public string Name { get; set; }
+
+    [Ignore]                        // Map 映射与 JSON 均跳过
+    public string Password { get; set; }
+}
+```
+
 ---
 
 ## 扩展方法索引
@@ -227,6 +314,48 @@ var asms = AssemblyFinder.Find("MyApp.*.dll");
 | 加密 | [`CryptoExtensions`](src/Inkslab/Extentions/CryptoExtensions.cs) | `Md5` · `Encrypt` · `Decrypt`（`CryptoKind.DES` / `AES` / ...） |
 
 > **日期周边界约定**：`UTC` 以周日为一周起始，`Local` 以周一为起始。
+
+### `StringSugar` 属性模板格式化
+
+通过扩展方法 `string.StringSugar(source)` 将模板字符串中的 `${PropertyName}` 占位符替换为对象属性值，底层正则规则由 `IStringSugar` 决定（可通过 `SingletonPools.TryAdd<IStringSugar, MyStringSugar>()` 替换）。
+
+默认实现（`DefaultStringSugar`）支持以下语法：
+
+| 语法 | 说明 | 示例 |
+| --- | --- | --- |
+| `${Name}` | 属性值 | `${UserName}` |
+| `${Name:format}` | 带格式化，调用 `.ToString(format)` | `${CreateAt:yyyy-MM}`、`${Status:D}` |
+| `${Name:#}` | 字符串属性的字符数（Length） | `${Title:#}` |
+| `${Name:0..5}` | 字符串属性的子串（Substring） | `${Title:0..5}` |
+| `${A?B}` / `${A??B}` | 空值合并：A 为 null 则返回 B，否则返回 A | `${Nickname?UserName}` |
+| `${A+B}` | 值合并（数值相加 / 字符串拼接） | `${First+Last}` |
+| `${A?+B}` | 空试探合并：A 为 null 则返回 null，否则返回 A+B | `${Prefix?+Name}` |
+
+```csharp
+var user = new { Name = "张三", Age = 30, Birthday = new DateTime(1994, 6, 1) };
+"姓名：${Name}，年龄：${Age}".StringSugar(user);
+// => "姓名：张三，年龄：30"
+
+"生日：${Birthday:yyyy-MM-dd}".StringSugar(user);
+// => "生日：1994-06-01"
+
+var order = new { Code = (string)null, BackupCode = "B001" };
+"编号：${Code?BackupCode}".StringSugar(order);
+// => "编号：B001"
+```
+
+通过 `DefaultSettings` 控制格式化行为：
+
+```csharp
+// DefaultSettings（默认）：字符串直接输出，null 输出 ""
+"姓名=${Name}".StringSugar(user, new DefaultSettings());
+
+// JsonSettings：字符串类型加双引号，null 输出 "null"
+"姓名=${Name}".StringSugar(user, new JsonSettings());
+// => 姓名="张三"
+```
+
+**扩展 `AdapterSugar<T>`**：继承此抽象类可自定义模板解析规则。在子类方法参数上使用 `[Match("groupName")]` 将参数绑定到指定命名正则组，在方法上使用 `[Mismatch("groupName")]` 声明"该命名组匹配时不触发此方法"。
 
 ---
 
@@ -285,28 +414,9 @@ startup.DoStartup();
 
 ---
 
-## 单元测试
-
-| 项目 | 覆盖范围 |
-| --- | --- |
-| [`tests/Inkslab.Tests`](tests/Inkslab.Tests) | 核心扩展、集合、加密、日期、异步锁等 |
-| [`tests/Inkslab.Config.Tests`](tests/Inkslab.Config.Tests) | 配置读取 |
-| [`tests/Inkslab.Json.Tests`](tests/Inkslab.Json.Tests) | JSON 序列化 |
-| [`tests/Inkslab.Map.Tests`](tests/Inkslab.Map.Tests) | 对象映射 |
-| [`tests/Inkslab.DI.Tests`](tests/Inkslab.DI.Tests) | 自动装配（ASP.NET Core 宿主） |
-| [`tests/Inkslab.Net.Tests`](tests/Inkslab.Net.Tests) | HTTP 请求 |
-
-运行：
-
-```bash
-dotnet test
-```
-
----
-
 ## 构建与发布
 
-- **版本管理**：[`Directory.Build.props`](Directory.Build.props) 统一 `Version=1.2.23`、`LangVersion=9.0`、`TreatWarningsAsErrors=true`、`GenerateDocumentationFile=true`。
+- **版本管理**：[`Directory.Build.props`](Directory.Build.props) 统一 `Version=1.2.25`、`LangVersion=9.0`、`TreatWarningsAsErrors=true`、`GenerateDocumentationFile=true`。
 - **打包**：[`build.ps1`](build.ps1) 对 6 个包逐个 `dotnet pack --configuration Release` 到 `.nupkgs/`。
 - **CI**：[`appveyor.yml`](appveyor.yml)，`main` 分支自动发布到 NuGet。
 

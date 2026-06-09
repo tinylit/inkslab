@@ -83,8 +83,6 @@ namespace System
                 }
             }
 
-            ICryptoTransform crypto;
-
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
                 var rgbKey = Encoding.UTF8.GetBytes(key);
@@ -98,23 +96,22 @@ namespace System
                 algorithm.Mode = CipherMode.ECB;
                 algorithm.Padding = PaddingMode.PKCS7;
 
-                crypto = algorithm.CreateEncryptor();
-            }
-
-            using (var ms = new MemoryStream())
-            {
-                using (var cs = new CryptoStream(ms, crypto, CryptoStreamMode.Write))
+                using (var crypto = algorithm.CreateEncryptor())
+                using (var ms = new MemoryStream())
                 {
-                    var buffer = Encoding.UTF8.GetBytes(data);
+                    using (var cs = new CryptoStream(ms, crypto, CryptoStreamMode.Write))
+                    {
+                        var buffer = Encoding.UTF8.GetBytes(data);
 
-                    cs.Write(buffer, 0, buffer.Length);
+                        cs.Write(buffer, 0, buffer.Length);
 
-                    cs.FlushFinalBlock();
+                        cs.FlushFinalBlock();
 
-                    cs.Close();
+                        cs.Close();
+                    }
+
+                    return Convert.ToBase64String(ms.ToArray());
                 }
-
-                return Convert.ToBase64String(ms.ToArray());
             }
         }
 
@@ -151,8 +148,6 @@ namespace System
                 }
             }
 
-            ICryptoTransform crypto;
-
             using (var algorithm = GetSymmetricAlgorithm(kind))
             {
                 var rgbKey = Encoding.UTF8.GetBytes(key);
@@ -166,23 +161,22 @@ namespace System
                 algorithm.Mode = CipherMode.ECB;
                 algorithm.Padding = PaddingMode.PKCS7;
 
-                crypto = algorithm.CreateDecryptor();
-            }
-
-            using (var ms = new MemoryStream())
-            {
-                using (var cs = new CryptoStream(ms, crypto, CryptoStreamMode.Write))
+                using (var crypto = algorithm.CreateDecryptor())
+                using (var ms = new MemoryStream())
                 {
-                    var buffer = Convert.FromBase64String(data);
+                    using (var cs = new CryptoStream(ms, crypto, CryptoStreamMode.Write))
+                    {
+                        var buffer = Convert.FromBase64String(data);
 
-                    cs.Write(buffer, 0, buffer.Length);
+                        cs.Write(buffer, 0, buffer.Length);
 
-                    cs.FlushFinalBlock();
+                        cs.FlushFinalBlock();
 
-                    cs.Close();
+                        cs.Close();
+                    }
+
+                    return Encoding.UTF8.GetString(ms.ToArray());
                 }
-
-                return Encoding.UTF8.GetString(ms.ToArray());
             }
         }
 

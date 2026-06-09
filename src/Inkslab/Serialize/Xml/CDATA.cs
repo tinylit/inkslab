@@ -88,7 +88,7 @@ namespace Inkslab.Serialize.Xml
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>是否相同。</returns>
-        public readonly bool Equals(CData other) => value.Equals(other.value);
+        public readonly bool Equals(CData other) => string.Equals(value, other.value, StringComparison.Ordinal);
 
         /// <summary>
         /// 比较。
@@ -109,7 +109,7 @@ namespace Inkslab.Serialize.Xml
         /// </summary>
         /// <param name="other">其它的。</param>
         /// <returns>是否相同。</returns>
-        public readonly bool Equals(string other) => value.Equals(other);
+        public readonly bool Equals(string other) => string.Equals(value, other, StringComparison.Ordinal);
 
         /// <summary>
         /// 生成字符串。

@@ -290,3 +290,5 @@ __pycache__/
 Commodity/.vscode/launch.json
 Commodity/.vscode/tasks.json
 Commodity/.vscode/settings.json
+
+/docs

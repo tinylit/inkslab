@@ -1,13 +1,18 @@
 <Project>
     <PropertyGroup>
         <!-- 版本 -->
-        <Version>1.2.24</Version>
+        <Version>1.2.25</Version>
         <!-- C#语法版本-->
         <LangVersion>9.0</LangVersion>
 
         <!-- 语法提示 -->
         <Features>strict</Features>
-        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<!-- 提升警告为异常 -->
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+		<!-- CA/IDE 分析器警告独立于编译器警告，需单独提升为错误 -->
+		<CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+		<SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
 
         <Authors>影子和树</Authors>
         <Company>TINYLIT</Company>
@@ -75,16 +80,9 @@
             </PropertyGroup>
 
             <ItemGroup>
-                <None Include="..\..\README.md">
-                    <Pack>True</Pack>
-                    <PackagePath></PackagePath>
-                </None>
-            </ItemGroup>
-
-            <ItemGroup>
                 <None Include="..\..\Inkslab.Config.md">
                     <Pack>True</Pack>
-                    <PackagePath></PackagePath>
+                    <PackagePath>README.md</PackagePath>
                 </None>
             </ItemGroup>
 
@@ -113,9 +111,9 @@
             </PropertyGroup>
 
             <ItemGroup>
-                <None Include="..\..\README.md">
+                <None Include="..\..\Inkslab.DI.md">
                     <Pack>True</Pack>
-                    <PackagePath></PackagePath>
+                    <PackagePath>README.md</PackagePath>
                 </None>
             </ItemGroup>
 
@@ -137,16 +135,9 @@
             </PropertyGroup>
 
             <ItemGroup>
-                <None Include="..\..\README.md">
-                    <Pack>True</Pack>
-                    <PackagePath></PackagePath>
-                </None>
-            </ItemGroup>
-
-            <ItemGroup>
                 <None Include="..\..\Inkslab.Json.md">
                     <Pack>True</Pack>
-                    <PackagePath></PackagePath>
+                    <PackagePath>README.md</PackagePath>
                 </None>
             </ItemGroup>
 
@@ -163,16 +154,9 @@
             </PropertyGroup>
 
             <ItemGroup>
-                <None Include="..\..\README.md">
-                    <Pack>True</Pack>
-                    <PackagePath></PackagePath>
-                </None>
-            </ItemGroup>
-
-            <ItemGroup>
                 <None Include="..\..\Inkslab.Map.md">
                     <Pack>True</Pack>
-                    <PackagePath></PackagePath>
+                    <PackagePath>README.md</PackagePath>
                 </None>
             </ItemGroup>
         </When>
@@ -185,16 +169,9 @@
             </PropertyGroup>
 
             <ItemGroup>
-                <None Include="..\..\README.md">
-                    <Pack>True</Pack>
-                    <PackagePath></PackagePath>
-                </None>
-            </ItemGroup>
-
-            <ItemGroup>
                 <None Include="..\..\Inkslab.Net.md">
                     <Pack>True</Pack>
-                    <PackagePath></PackagePath>
+                    <PackagePath>README.md</PackagePath>
                 </None>
             </ItemGroup>
 

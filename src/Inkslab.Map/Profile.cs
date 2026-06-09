@@ -359,7 +359,7 @@ namespace Inkslab.Map
 
                     for (int i = 0; i < node.Members.Count; i++)
                     {
-                        var memberInfo = memberInfos[i];
+                        var memberInfo = node.Members[i];
 
                         MemberIsRef(ref memberInfo);
 

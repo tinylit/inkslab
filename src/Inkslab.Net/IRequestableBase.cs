@@ -27,6 +27,15 @@ namespace Inkslab.Net
         /// <summary>
         /// 指定包含与请求或响应相关联的协议头。
         /// </summary>
+        /// <param name="header">协议头。</param>
+        /// <param name="value">内容。</param>
+        /// <param name="skipValidation">是否跳过 .NET HttpHeaders 格式验证（使用 TryAddWithoutValidation）。</param>
+        /// <returns>请求能力。</returns>
+        TRequestable AssignHeader(string header, string value, bool skipValidation);
+
+        /// <summary>
+        /// 指定包含与请求或响应相关联的协议头。
+        /// </summary>
         /// <typeparam name="THeader">请求头约束。</typeparam>
         /// <param name="headers">协议头。</param>
         /// <returns>请求能力。</returns>

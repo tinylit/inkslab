@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Net.Http;
 
 namespace Inkslab.Net.Options
@@ -13,10 +14,12 @@ namespace Inkslab.Net.Options
         /// </summary>
         /// <param name="requestUri">请求地址。</param>
         /// <param name="headers">请求头。</param>
-        public RequestOptions(string requestUri, Dictionary<string, string> headers)
+        /// <param name="skipValidationHeaders">跳过 .NET HttpHeaders 格式验证的请求头名集合。</param>
+        public RequestOptions(string requestUri, Dictionary<string, string> headers, HashSet<string> skipValidationHeaders = null)
         {
             RequestUri = requestUri;
             Headers = headers ?? new Dictionary<string, string>();
+            SkipValidationHeaders = skipValidationHeaders ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -28,6 +31,11 @@ namespace Inkslab.Net.Options
         /// 请求头。
         /// </summary>
         public Dictionary<string, string> Headers { get; }
+
+        /// <summary>
+        /// 跳过 .NET HttpHeaders 格式验证的请求头名集合（使用 TryAddWithoutValidation）。
+        /// </summary>
+        public HashSet<string> SkipValidationHeaders { get; }
 
         /// <summary>
         /// 获取或设置 HTTP 请求消息使用的 HTTP 方法。

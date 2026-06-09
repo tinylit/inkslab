@@ -675,10 +675,8 @@ namespace Inkslab.DI
                 );
             }
 
-            // 性能优化：缓存实现类型查询
-            var implementationTypes = GetCachedImplementationTypes(serviceType, effectiveTypes);
-
-            implementationTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
+            // 性能优化：缓存实现类型查询（构建时已排序，命中直接复用）
+            var implementationTypes = GetCachedImplementationTypes(serviceType, interfaceTypes, effectiveTypes);
 
             if (implementationTypes.Count > 0)
             {
@@ -851,6 +849,11 @@ namespace Inkslab.DI
                 var serviceAttribute = serviceType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
                 var implementationAttribute = implementationType.GetCustomAttribute<ServiceLifetimeAttribute>(false);
 
+                //? 生命周期模型（有意设计，勿误判为俘获依赖缺陷）：枚举大小关系为 Singleton(0) < Scoped(1) < Transient(2)。
+                //? - 未注解的依赖：顶层（depth==0）取默认生命周期；更深层沿用父级生命周期（被“提升”以保持与父级兼容）。
+                //? - 显式注解的依赖：若其生命周期长于父级允许范围（lifetime < attribute.Lifetime）则直接抛错，
+                //?   从而在注册期阻止“Singleton 父依赖更短命子”的经典俘获依赖。
+                //? 因此 Singleton 的依赖图要么整体兼容、要么显式不兼容时报错；把未注解依赖一律降为默认生命周期反而会重新引入运行时俘获依赖错误。
                 if (implementationAttribute is null && serviceAttribute is null)
                 {
                     if (depth == 0)
@@ -1196,7 +1199,7 @@ namespace Inkslab.DI
         /// <summary>
         /// 获取缓存的实现类型列表
         /// </summary>
-        private List<Type> GetCachedImplementationTypes(Type serviceType, IReadOnlyCollection<Type> effectiveTypes)
+        private List<Type> GetCachedImplementationTypes(Type serviceType, Type[] interfaceTypes, IReadOnlyCollection<Type> effectiveTypes)
         {
             if (!(serviceType.IsInterface || serviceType.IsAbstract))
             {
@@ -1208,6 +1211,10 @@ namespace Inkslab.DI
                 implementationTypes = effectiveTypes
                     .Where(serviceType.IsAssignableFrom)
                     .ToList();
+
+                //? 建缓存时排序一次：TypeComparer 排序键由 serviceType/interfaceTypes 唯一决定；缓存项此后按只读使用，避免每次命中重排共享 list。
+                implementationTypes.Sort(new TypeComparer(serviceType, interfaceTypes));
+
                 _implementationTypeCache[serviceType] = implementationTypes;
             }
             return implementationTypes;

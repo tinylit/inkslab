@@ -43,7 +43,7 @@ namespace Inkslab.Map.Tests
         /// 并发调用 Profile.IsMatch 不应因内部字典/哈希集的非并发读写而抛出异常。
         /// </summary>
         [Fact]
-        public async Task IsMatch_Concurrent_NoException()
+        public async Task IsMatch_Concurrent_NoExceptionAsync()
         {
             var profile = new ConcurrencyTestProfile();
 
@@ -69,7 +69,7 @@ namespace Inkslab.Map.Tests
         /// 并发调用 IsMatch 的同时持续添加新的 Map 配置，不应触发 "Collection was modified" 异常。
         /// </summary>
         [Fact]
-        public async Task IsMatch_AndConfigure_Concurrent_NoException()
+        public async Task IsMatch_AndConfigure_Concurrent_NoExceptionAsync()
         {
             var profile = new ConcurrencyTestProfile();
 
@@ -107,7 +107,7 @@ namespace Inkslab.Map.Tests
         /// MapConfiguration.AddProfile 并发调用时应保持内部数组快照一致。
         /// </summary>
         [Fact]
-        public async Task MapConfiguration_AddProfile_Concurrent_IsMatchStable()
+        public async Task MapConfiguration_AddProfile_Concurrent_IsMatchStableAsync()
         {
             using var config = new MapConfiguration(MapConfiguration.DefaultMaps, new Configuration
             {

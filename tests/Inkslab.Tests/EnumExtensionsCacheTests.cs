@@ -42,7 +42,7 @@ namespace Inkslab.Tests
         /// 并发调用 GetText 不应抛异常，且返回值一致。
         /// </summary>
         [Fact]
-        public async Task GetText_Concurrent_NoException()
+        public async Task GetText_Concurrent_NoExceptionAsync()
         {
             var tasks = new Task[16];
             for (int i = 0; i < tasks.Length; i++)
