@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Inkslab.Collections
 {
@@ -28,22 +29,24 @@ namespace Inkslab.Collections
 
         private class Shard
         {
-            private readonly int _capacity;
+            private readonly int _maxCapacity;
+            private readonly int[] _counter;
             private readonly Node _head;
             private readonly Node _tail;
             private readonly Dictionary<T, Node> _cachings;
             private readonly object _lockObj = new object();
 
-            public Shard(int capacity, IEqualityComparer<T> comparer)
+            public Shard(int perShardCapacity, int maxCapacity, int[] counter, IEqualityComparer<T> comparer)
             {
-                _capacity = capacity;
+                _maxCapacity = maxCapacity;
+                _counter = counter;
 
                 _head = new Node();
                 _tail = new Node();
                 _head.Next = _tail;
                 _tail.Previous = _head;
 
-                int dictCapacity = capacity;
+                int dictCapacity = perShardCapacity;
 
                 for (int i = 0; i < 3; i++)
                 {
@@ -77,13 +80,24 @@ namespace Inkslab.Collections
 
                     bool flag = false;
 
-                    if (_cachings.Count >= _capacity)
+                    // 淘汰以整体容量为界：仅当整个缓存已满才淘汰，避免单分片提前淘汰。
+                    if (Interlocked.Increment(ref _counter[0]) > _maxCapacity)
                     {
-                        flag = true;
+                        if (_cachings.Count > 0)
+                        {
+                            var lastNode = RemoveTail();
+                            _cachings.Remove(lastNode.Value);
+                            Interlocked.Decrement(ref _counter[0]);
+                            obsoleteValue = lastNode.Value;
+                            flag = true;
+                        }
+                        else
+                        {
+                            // 整体已满且本分片为空：放弃缓存，保持整体不超容。
+                            Interlocked.Decrement(ref _counter[0]);
 
-                        var lastNode = RemoveTail();
-                        _cachings.Remove(lastNode.Value);
-                        obsoleteValue = lastNode.Value;
+                            return false;
+                        }
                     }
 
                     var newNode = new Node(value);
@@ -125,6 +139,7 @@ namespace Inkslab.Collections
         private readonly Shard[] _shards;
         private readonly int _shardMask;
         private readonly IEqualityComparer<T> _comparer;
+        private readonly int[] _counter = new int[1];
 
         /// <summary>
         /// 指定容器大小。
@@ -160,7 +175,7 @@ namespace Inkslab.Collections
             for (int i = 0; i < shardCount; i++)
             {
                 int shardCapacity = perShardCapacity + (i < remainder ? 1 : 0);
-                _shards[i] = new Shard(shardCapacity, _comparer);
+                _shards[i] = new Shard(shardCapacity, capacity, _counter, _comparer);
             }
         }
 
@@ -234,16 +249,18 @@ namespace Inkslab.Collections
 
         private class Shard
         {
-            private readonly int _capacity;
+            private readonly int _maxCapacity;
+            private readonly int[] _counter;
             private readonly Func<TKey, TValue> _factory;
             private readonly Node _head;
             private readonly Node _tail;
             private readonly Dictionary<TKey, Node> _cachings;
             private readonly object _lockObj = new object();
 
-            public Shard(int capacity, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
+            public Shard(int perShardCapacity, int maxCapacity, int[] counter, IEqualityComparer<TKey> comparer, Func<TKey, TValue> factory)
             {
-                _capacity = capacity;
+                _maxCapacity = maxCapacity;
+                _counter = counter;
                 _factory = factory;
 
                 _head = new Node();
@@ -251,7 +268,7 @@ namespace Inkslab.Collections
                 _head.Next = _tail;
                 _tail.Previous = _head;
 
-                int dictCapacity = capacity;
+                int dictCapacity = perShardCapacity;
 
                 for (int i = 0; i < 3; i++)
                 {
@@ -288,12 +305,24 @@ namespace Inkslab.Collections
                         // 工厂在分片锁内执行：同一分片内相同键不会重复调用工厂
                         var value = _factory.Invoke(key);
 
-                        // 工厂成功后再执行淘汰，异常不会导致已有数据被误淘汰
-                        if (_cachings.Count >= _capacity)
+                        // 工厂成功后再执行淘汰，异常不会导致已有数据被误淘汰；
+                        // 淘汰以整体容量为界，避免单分片提前淘汰。
+                        if (Interlocked.Increment(ref _counter[0]) > _maxCapacity)
                         {
-                            var lastNode = RemoveTail();
-                            _cachings.Remove(lastNode.Key);
-                            obsoleteValue = lastNode.Value;
+                            if (_cachings.Count > 0)
+                            {
+                                var lastNode = RemoveTail();
+                                _cachings.Remove(lastNode.Key);
+                                Interlocked.Decrement(ref _counter[0]);
+                                obsoleteValue = lastNode.Value;
+                            }
+                            else
+                            {
+                                // 整体已满且本分片为空：不缓存，直接返回工厂值。
+                                Interlocked.Decrement(ref _counter[0]);
+
+                                return value;
+                            }
                         }
 
                         var newNode = new Node(key, value);
@@ -351,11 +380,22 @@ namespace Inkslab.Collections
                             return;
                         }
 
-                        if (_cachings.Count >= _capacity)
+                        if (Interlocked.Increment(ref _counter[0]) > _maxCapacity)
                         {
-                            var lastNode = RemoveTail();
-                            _cachings.Remove(lastNode.Key);
-                            obsoleteValue = lastNode.Value;
+                            if (_cachings.Count > 0)
+                            {
+                                var lastNode = RemoveTail();
+                                _cachings.Remove(lastNode.Key);
+                                Interlocked.Decrement(ref _counter[0]);
+                                obsoleteValue = lastNode.Value;
+                            }
+                            else
+                            {
+                                // 整体已满且本分片为空：放弃缓存（传入值由调用方持有，不释放）。
+                                Interlocked.Decrement(ref _counter[0]);
+
+                                return;
+                            }
                         }
 
                         var newNode = new Node(key, value);
@@ -400,6 +440,7 @@ namespace Inkslab.Collections
         private readonly Shard[] _shards;
         private readonly int _shardMask;
         private readonly IEqualityComparer<TKey> _comparer;
+        private readonly int[] _counter = new int[1];
 
         /// <summary>
         /// 默认容量。
@@ -450,7 +491,7 @@ namespace Inkslab.Collections
             for (int i = 0; i < shardCount; i++)
             {
                 int shardCapacity = perShardCapacity + (i < remainder ? 1 : 0);
-                _shards[i] = new Shard(shardCapacity, _comparer, _factory);
+                _shards[i] = new Shard(shardCapacity, capacity, _counter, _comparer, _factory);
             }
         }
 
