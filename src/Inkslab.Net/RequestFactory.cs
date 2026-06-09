@@ -24,20 +24,9 @@ namespace Inkslab.Net
     using static Expression;
 
     /// <summary>
-    /// 请求初始化。
-    /// </summary>
-    public class RequestInitialize : IRequestInitialize
-    {
-        /// <inheritdoc/>
-        public void Initialize(IRequestableBase requestable)
-        {
-        }
-    }
-
-    /// <summary>
     /// 请求工厂。
     /// </summary>
-    public class RequestFactory : IRequestFactory
+    public partial class RequestFactory : IRequestFactory
     {
         private static readonly RequestFactory _factory = new RequestFactory();
 
@@ -811,9 +800,13 @@ namespace Inkslab.Net
                 _headers[header] = value;
 
                 if (skipValidation)
+                {
                     _skipValidationHeaders.Add(header);
+                }
                 else
+                {
                     _skipValidationHeaders.Remove(header);
+                }
 
                 return this;
             }
@@ -1035,9 +1028,13 @@ namespace Inkslab.Net
                     _headers[header] = value;
 
                     if (skipValidation)
+                    {
                         _skipValidationHeaders.Add(header);
+                    }
                     else
+                    {
                         _skipValidationHeaders.Remove(header);
+                    }
 
                     return this;
                 }
@@ -1689,9 +1686,13 @@ namespace Inkslab.Net
                     foreach (var kv in options.Headers)
                     {
                         if (options.SkipValidationHeaders.Contains(kv.Key))
+                        {
                             httpMsg.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
+                        }
                         else
+                        {
                             httpMsg.Headers.Add(kv.Key, kv.Value);
+                        }
                     }
                 }
 
