@@ -155,7 +155,9 @@ startup.DoStartup();
 
 ---
 
-## 属性忽略
+## 属性控制
+
+### 忽略属性
 
 ```csharp
 public class User
@@ -163,9 +165,24 @@ public class User
     public int     Id   { get; set; }
     public string  Name { get; set; }
 
-    [Ignore]                          // 来自 Inkslab.Annotations
+    [Ignore]                          // 来自 Inkslab.Annotations：序列化与反序列化均跳过
     public string  Password { get; set; }
 }
+```
+
+### 覆盖 JSON 键名
+
+```csharp
+public class Order
+{
+    public int    Id   { get; set; }
+
+    [JsonProperty("order_no")]        // 来自 Inkslab.Annotations：序列化输出 order_no，反序列化也读 order_no
+    public string OrderNo { get; set; }
+}
+
+var json = JsonHelper.ToJson(new Order { Id = 1, OrderNo = "SN001" });
+// => {"Id":1,"order_no":"SN001"}
 ```
 
 ---

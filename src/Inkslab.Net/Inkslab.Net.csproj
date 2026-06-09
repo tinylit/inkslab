@@ -9,4 +9,13 @@
 		<ProjectReference Include="..\Inkslab\Inkslab.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<InternalsVisibleTo Include="Inkslab.Net.Tests" />
+	</ItemGroup>
+
+	<!-- WebRequestHandler（按处理器配置 TLS 校验，避免污染全局 ServicePointManager）位于此程序集。 -->
+	<ItemGroup Condition="$(DefineConstants.Contains('NET_Traditional'))">
+		<Reference Include="System.Net.Http.WebRequest" />
+	</ItemGroup>
+
 </Project>

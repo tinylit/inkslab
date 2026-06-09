@@ -1,5 +1,4 @@
-﻿using Inkslab.Collections;
-using Inkslab.Net.Options;
+﻿using Inkslab.Net.Options;
 using Inkslab.Serialize.Json;
 using Inkslab.Serialize.Xml;
 using System;
@@ -12,6 +11,7 @@ using System.Linq.Expressions;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Security;
 using System.Reflection;
 using System.Text;
 using System.Threading;
@@ -40,19 +40,38 @@ namespace Inkslab.Net
         private static readonly Type _dateType = typeof(DateTime);
 
 #if NET_Traditional
-        private static readonly Lfu<double, HttpClient> _clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient
+        private static readonly HttpClient _client = new HttpClient(new WebRequestHandler
         {
-            Timeout = TimeSpan.FromMilliseconds(timeout)
-        });
-#else
-        private static readonly Lfu<double, HttpClient> _clients = new Lfu<double, HttpClient>(100, timeout => new HttpClient(new HttpClientHandler
-        {
-            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            ServerCertificateValidationCallback = (request, certificate, chain, sslPolicyErrors) => ServerCertificateIsAcceptable(sslPolicyErrors)
         })
         {
-            Timeout = TimeSpan.FromMilliseconds(timeout)
-        });
+            //? 单一共享客户端，超时由每请求的 CancellationTokenSource 控制。
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+#else
+        private static readonly HttpClient _client = new HttpClient(new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (request, certificate, chain, sslPolicyErrors) => ServerCertificateIsAcceptable(sslPolicyErrors)
+        })
+        {
+            //? 单一共享客户端，超时由每请求的 CancellationTokenSource 控制。
+            Timeout = Timeout.InfiniteTimeSpan
+        };
 #endif
+
+        /// <summary>
+        /// 是否危险地接受任何服务端 TLS 证书。默认 <see langword="true"/> 以保持向后兼容；
+        /// 在任意请求发出前设为 <see langword="false"/> 可启用标准证书校验（推荐生产环境）。
+        /// </summary>
+        public static bool DangerousAcceptAnyServerCertificate { get; set; } = true;
+
+        /// <summary>
+        /// 依据当前开关与校验结果判定证书是否可接受。
+        /// </summary>
+        /// <param name="sslPolicyErrors">SSL 策略错误。</param>
+        /// <returns>放行返回 <see langword="true"/>。</returns>
+        internal static bool ServerCertificateIsAcceptable(SslPolicyErrors sslPolicyErrors)
+            => DangerousAcceptAnyServerCertificate || sslPolicyErrors == SslPolicyErrors.None;
         private static readonly ConcurrentDictionary<Type, Func<object, List<KeyValuePair<string, object>>>> _cachings = new ConcurrentDictionary<Type, Func<object, List<KeyValuePair<string, object>>>>();
 
         private static readonly Dictionary<string, MediaTypeHeaderValue> _mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
@@ -226,13 +245,6 @@ namespace Inkslab.Net
             return lambdaExp.Compile();
         }
 
-#if NET_Traditional
-        static RequestFactory()
-        {
-            ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => true;
-        }
-#endif
-
         /// <summary>
         /// 请求工厂。
         /// </summary>
@@ -309,8 +321,6 @@ namespace Inkslab.Net
                 throw new ArgumentNullException(nameof(options));
             }
 
-            var client = _clients.Get(options.Timeout);
-
             using (var httpMsg = new HttpRequestMessage(options.Method, options.RequestUri))
             {
                 httpMsg.Content = options.Content;
@@ -330,9 +340,13 @@ namespace Inkslab.Net
                     }
                 }
 
+                using var timeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                timeoutTokenSource.CancelAfter(TimeSpan.FromMilliseconds(options.Timeout));
+
                 try
                 {
-                    return await client.SendAsync(httpMsg, cancellationToken);
+                    return await _client.SendAsync(httpMsg, timeoutTokenSource.Token);
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {

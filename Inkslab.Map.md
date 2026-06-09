@@ -39,6 +39,35 @@ dotnet add package Inkslab.Map
 
 ---
 
+## 快速入门
+
+### 1. 自动映射
+
+```csharp
+FooDto foo = Mapper.Map<FooDto>(fooEntity);
+BarDto bar = Mapper.Map<BarDto>(barEntity);
+```
+
+### 2. 集合 / 数组 / 字典
+
+```csharp
+var arr  = Mapper.Map<UserDto[]>(userArr);
+var list = Mapper.Map<List<UserDto>>(users);
+var dict = Mapper.Map<Dictionary<string, object>>(user);
+```
+
+### 3. 构造函数映射
+
+目标类型具备匹配构造函数时自动选用：
+
+```csharp
+public record B(int Id, string Name, DateTime CreatedAt);
+
+var b = Mapper.Map<B>(a);
+```
+
+---
+
 ## 核心契约
 
 ### `IMapper` [src/Inkslab/Map/IMapper.cs](src/Inkslab/Map/IMapper.cs)
@@ -68,35 +97,6 @@ instance.Map<From, To>()
         .Map(...);
 
 var dto = instance.Map<To>(source);
-```
-
----
-
-## 快速入门
-
-### 1. 自动映射
-
-```csharp
-FooDto foo = Mapper.Map<FooDto>(fooEntity);
-BarDto bar = Mapper.Map<BarDto>(barEntity);
-```
-
-### 2. 集合 / 数组 / 字典
-
-```csharp
-var arr  = Mapper.Map<UserDto[]>(userArr);
-var list = Mapper.Map<List<UserDto>>(users);
-var dict = Mapper.Map<Dictionary<string, object>>(user);
-```
-
-### 3. 构造函数映射
-
-目标类型具备匹配构造函数时自动选用：
-
-```csharp
-public record B(int Id, string Name, DateTime CreatedAt);
-
-var b = Mapper.Map<B>(a);
 ```
 
 ---
@@ -157,8 +157,10 @@ public class OrderProfile : Profile
     }
 }
 
-// 在启动阶段添加到全局配置：
-// instance.AddProfile<OrderProfile>();
+// 向全局映射配置注册（必须在 Mapper.Map<T> 首次调用之前）：
+MapConfiguration.Instance.AddProfile(new OrderProfile());
+// 或按类型注册（内部自动实例化，要求有无参或参数均有默认值的构造函数）：
+MapConfiguration.Instance.AddProfile(typeof(OrderProfile));
 ```
 
 ---
@@ -200,21 +202,21 @@ SingletonPools.TryAdd<IMapper, MyMapper>();
 
 ---
 
-## 单元测试
-
-- [tests/Inkslab.Map.Tests/DefaultTests.cs](tests/Inkslab.Map.Tests/DefaultTests.cs)：默认规则。
-- [tests/Inkslab.Map.Tests/CustomTests.cs](tests/Inkslab.Map.Tests/CustomTests.cs)：自定义规则。
-- [tests/Inkslab.Map.Tests/ProfileConcurrencyTests.cs](tests/Inkslab.Map.Tests/ProfileConcurrencyTests.cs)：`Profile` 并发测试。
-- [tests/Inkslab.Map.Tests/ApplyTest.cs](tests/Inkslab.Map.Tests/ApplyTest.cs)：应用示例。
-
----
-
 ## 性能与注意事项
 
 - **默认深拷贝**：源引用不会被共享，避免后续修改误伤。
 - **不支持循环引用**：递归关系会抛出或导致栈溢出；请显式 `Ignore` 自引用。
 - **复用 `MapperInstance`**：批量映射时复用同一实例以命中表达式编译缓存。
 - **线程安全**：`MapperInstance` 的配置阶段**非线程安全**；应用（`Map` 调用）线程安全。
+
+---
+
+## 单元测试
+
+- [tests/Inkslab.Map.Tests/DefaultTests.cs](tests/Inkslab.Map.Tests/DefaultTests.cs)：默认规则。
+- [tests/Inkslab.Map.Tests/CustomTests.cs](tests/Inkslab.Map.Tests/CustomTests.cs)：自定义规则。
+- [tests/Inkslab.Map.Tests/ProfileConcurrencyTests.cs](tests/Inkslab.Map.Tests/ProfileConcurrencyTests.cs)：`Profile` 并发测试。
+- [tests/Inkslab.Map.Tests/ApplyTest.cs](tests/Inkslab.Map.Tests/ApplyTest.cs)：应用示例。
 
 ---
 

@@ -64,11 +64,17 @@ namespace Inkslab.Net
                 {
                     initializedStatusCode = true;
 
+                    //? 重试前释放首个响应，避免连接/流泄漏。
+                    httpMsg.Dispose();
+
                     var requestableRef = new RequestableBase(_requestable);
 
                     await _thenAsync(requestableRef);
 
-                    return await requestableRef.SendAsync(options, cancellationToken);
+                    //? 重建请求配置（含全新 Content），首个 options 的 Content 已随请求消息释放，不能复用。
+                    var retryOptions = _requestable.GetOptions(options.Method, options.Timeout);
+
+                    return await requestableRef.SendAsync(retryOptions, cancellationToken);
                 }
 
                 return httpMsg;
