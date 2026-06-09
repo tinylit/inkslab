@@ -165,7 +165,7 @@ namespace Inkslab.Net.Tests
         /// 跳过验证：发送格式不合规的 Date 头不抛出异常。
         /// </summary>
         [Fact]
-        public async Task AssignHeader_SkipValidation_AllowsInvalidHeaderValue()
+        public async Task AssignHeader_SkipValidation_AllowsInvalidHeaderValueAsync()
         {
             // Date 头值不合规时，HttpHeaders.Add() 会抛出 FormatException。
             // skipValidation=true 改用 TryAddWithoutValidation，不应抛出。
@@ -178,7 +178,7 @@ namespace Inkslab.Net.Tests
         /// skipValidation=false 时，若该头名曾以 true 设置，应从跳过集合中移除。
         /// </summary>
         [Fact]
-        public async Task AssignHeader_SkipValidationFalse_RemovesFromSkipSet()
+        public async Task AssignHeader_SkipValidationFalse_RemovesFromSkipSetAsync()
         {
             // 先以 skipValidation=true 设置，再以 false 覆盖同名头。
             // false 应将该头名从 SkipValidationHeaders 中移除。
@@ -193,7 +193,7 @@ namespace Inkslab.Net.Tests
         /// 重试路径（ThenAsync）中使用 skipValidation=true 不抛异常。
         /// </summary>
         [Fact]
-        public async Task AssignHeader_SkipValidation_WorksInRetryPath()
+        public async Task AssignHeader_SkipValidation_WorksInRetryPathAsync()
         {
             await RequestFactory.Create("http://www.baidu.com/")
                 .When(status => status == System.Net.HttpStatusCode.Unauthorized)

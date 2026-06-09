@@ -1,4 +1,6 @@
-﻿[*.{cs,vb}]
+﻿root = true
+
+[*.{cs,vb}]
 
 # BL0001: Component parameter should have public setters.
 dotnet_diagnostic.BL0001.severity = none
@@ -344,6 +346,9 @@ dotnet_diagnostic.IDE0110.severity = error
 dotnet_diagnostic.IDE0078.severity = suggestion
 dotnet_diagnostic.IDE0260.severity = error
 dotnet_diagnostic.CA1069.severity = error
+
+## 命名规则违反（dotnet_naming_rule.* 定义的规则经此诊断 ID 上报，必须设此项才会在编译期生效）
+dotnet_diagnostic.IDE1006.severity = error
 
 # IDE0008: 使用显式类型
 dotnet_diagnostic.IDE0008.severity = none

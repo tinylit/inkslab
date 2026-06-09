@@ -34,7 +34,7 @@ namespace Inkslab.Net.Tests
         /// 首个响应 401 触发重试时，带 body 的重试必须重新发送 body（而非复用已释放的 Content）。
         /// </summary>
         [Fact]
-        public async Task When401_RetryWithBody_ResendsBody()
+        public async Task When401_RetryWithBody_ResendsBodyAsync()
         {
             var port = GetFreePort();
             var prefix = $"http://localhost:{port}/";

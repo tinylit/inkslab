@@ -32,7 +32,7 @@ namespace Inkslab.Net.Tests
         /// 服务端慢于超时时间时，应抛出 TimeoutException。
         /// </summary>
         [Fact]
-        public async Task PerRequestTimeout_ThrowsTimeoutException()
+        public async Task PerRequestTimeout_ThrowsTimeoutExceptionAsync()
         {
             var port = GetFreePort();
             var prefix = $"http://localhost:{port}/";
@@ -68,7 +68,7 @@ namespace Inkslab.Net.Tests
         /// 不同 timeout 的请求都应正常工作（共享单一客户端）。
         /// </summary>
         [Fact]
-        public async Task DifferentTimeouts_BothSucceed()
+        public async Task DifferentTimeouts_BothSucceedAsync()
         {
             var port = GetFreePort();
             var prefix = $"http://localhost:{port}/";
