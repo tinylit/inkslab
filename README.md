@@ -9,7 +9,7 @@
 
 <!-- AI-META
 Project: Inkslab
-Version: 1.2.23
+Version: 1.2.25
 TargetFrameworks: net461; netstandard2.1; net6.0
 Authors: 影子和树
 License: MIT
@@ -195,6 +195,8 @@ public enum NamingType
 - `Lru<T>` / `Lru<TKey, TValue>`：线程安全 LRU 淘汰。
 - `Lfu<T>` / `Lfu<TKey, TValue>`：线程安全 LFU 淘汰。
 - 共用 `IEliminationAlgorithm<T>` 契约，便于替换。
+- **分片并发**：内部按哈希分片以降低锁竞争，每个分片各自持锁。
+- **整体容量淘汰**：淘汰以**整个缓存的容量**为界（借助跨分片共享的原子计数器判断），仅当缓存整体写满才触发淘汰，避免单个分片因本地计数提前淘汰、导致整体远未达容量即开始丢数据。当整体已满但命中的分片为空时，本次写入直接放弃缓存以保持整体不超容。
 
 ### 异步锁 [`AsynchronousLock`](src/Inkslab/Threading/AsynchronousLock.cs)
 
@@ -264,6 +266,8 @@ string xml = XmlHelper.XmlSerialize(dto, Encoding.UTF8, indented: true);
 var dto = XmlHelper.XmlDeserialize<MyDto>(xml);
 var obj = XmlHelper.XmlDeserialize(xml, typeof(MyDto));
 ```
+
+> `CData` 的相等比较统一采用 `StringComparison.Ordinal`（区分大小写、文化无关，且对 `null` 安全），保证序列化往返及用作字典键时行为稳定一致。
 
 ---
 
@@ -412,7 +416,7 @@ startup.DoStartup();
 
 ## 构建与发布
 
-- **版本管理**：[`Directory.Build.props`](Directory.Build.props) 统一 `Version=1.2.23`、`LangVersion=9.0`、`TreatWarningsAsErrors=true`、`GenerateDocumentationFile=true`。
+- **版本管理**：[`Directory.Build.props`](Directory.Build.props) 统一 `Version=1.2.25`、`LangVersion=9.0`、`TreatWarningsAsErrors=true`、`GenerateDocumentationFile=true`。
 - **打包**：[`build.ps1`](build.ps1) 对 6 个包逐个 `dotnet pack --configuration Release` 到 `.nupkgs/`。
 - **CI**：[`appveyor.yml`](appveyor.yml)，`main` 分支自动发布到 NuGet。
 

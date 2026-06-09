@@ -2,7 +2,7 @@
 
 <!-- AI-META
 Package: Inkslab.Net
-Version: 1.2.23
+Version: 1.2.25
 TargetFrameworks: net461; netstandard2.1; net6.0
 Namespace: Inkslab.Net, Inkslab.Net.Options
 Dependencies: Inkslab

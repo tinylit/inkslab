@@ -2,7 +2,7 @@
 
 <!-- AI-META
 Package: Inkslab.Json
-Version: 1.2.23
+Version: 1.2.25
 TargetFrameworks: net461; netstandard2.1; net6.0
 Namespace: Inkslab, Inkslab.Serialize.Json
 Dependencies: Inkslab; Newtonsoft.Json
