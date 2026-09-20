@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFrameworks>net6.0;net8.0;net10.0</TargetFrameworks>
 
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Inkslab.Map\Inkslab.Map.csproj" />
+    <Compile Include="..\MapLegacyConsumption\ArrayMappingScenarios.cs" Link="ArrayMappingScenarios.cs" />
   </ItemGroup>
 
 	<ItemGroup Condition="Exists('Protobufs\')">

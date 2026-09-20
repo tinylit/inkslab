@@ -1,4 +1,4 @@
-﻿using Inkslab.Map.Maps;
+using Inkslab.Map.Maps;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -317,10 +317,7 @@ namespace Inkslab.Map.Tests
         public DefaultTests()
         {
             //+ �������ã����Nuget���򹤳����ü���ʹ�á�
-            using (var startup = new XStartup())
-            {
-                startup.DoStartup();
-            }
+            StartupFixture.EnsureInitialized();
         }
 
         /// <summary>

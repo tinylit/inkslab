@@ -1,23 +1,14 @@
-﻿using Inkslab.Net.Options;
-using Inkslab.Serialize.Json;
-using Inkslab.Serialize.Xml;
+using Inkslab.Net.Options;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Security;
 using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
-using System.Xml;
 
 namespace Inkslab.Net
 {
@@ -74,7 +65,7 @@ namespace Inkslab.Net
             => DangerousAcceptAnyServerCertificate || sslPolicyErrors == SslPolicyErrors.None;
         private static readonly ConcurrentDictionary<Type, Func<object, List<KeyValuePair<string, object>>>> _cachings = new ConcurrentDictionary<Type, Func<object, List<KeyValuePair<string, object>>>>();
 
-        private static readonly Dictionary<string, MediaTypeHeaderValue> _mediaTypes = new Dictionary<string, MediaTypeHeaderValue>
+        private static readonly ConcurrentDictionary<string, MediaTypeHeaderValue> _mediaTypes = new ConcurrentDictionary<string, MediaTypeHeaderValue>(StringComparer.OrdinalIgnoreCase)
         {
             [".apk"] = new MediaTypeHeaderValue("application/vnd.android.package-archive"),
             [".avi"] = new MediaTypeHeaderValue("video/x-msvideo"),
@@ -294,12 +285,12 @@ namespace Inkslab.Net
                 throw new ArgumentNullException(nameof(mediaType));
             }
 
-            if (fileSuffix[0] != '.')
+            if (fileSuffix.Length == 0 || fileSuffix[0] != '.')
             {
                 throw new ArgumentException("文件后缀必须以“.”开头！");
             }
 
-            _mediaTypes[fileSuffix.ToLower()] = new MediaTypeHeaderValue(mediaType);
+            _mediaTypes[fileSuffix] = new MediaTypeHeaderValue(mediaType);
         }
 
         /// <summary>
@@ -321,40 +312,37 @@ namespace Inkslab.Net
                 throw new ArgumentNullException(nameof(options));
             }
 
-            using (var httpMsg = new HttpRequestMessage(options.Method, options.RequestUri))
+            cancellationToken.ThrowIfCancellationRequested();
+            var scope = new RequestAttemptScope(options.Timeout, cancellationToken);
+            try
             {
-                httpMsg.Content = options.Content;
-
-                if (options.Headers.Count > 0)
+                scope.Request = new HttpRequestMessage(options.Method, options.RequestUri);
+                foreach (var kv in options.Headers)
                 {
-                    foreach (var kv in options.Headers)
-                    {
-                        if (options.SkipValidationHeaders.Contains(kv.Key))
-                        {
-                            httpMsg.Headers.TryAddWithoutValidation(kv.Key, kv.Value);
-                        }
-                        else
-                        {
-                            httpMsg.Headers.Add(kv.Key, kv.Value);
-                        }
-                    }
+                    if (options.SkipValidationHeaders.Contains(kv.Key))
+                    { scope.Request.Headers.TryAddWithoutValidation(kv.Key, kv.Value); }
+                    else { scope.Request.Headers.Add(kv.Key, kv.Value); }
                 }
-
-                using var timeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-                timeoutTokenSource.CancelAfter(TimeSpan.FromMilliseconds(options.Timeout));
-
-                try
+                scope.Token.ThrowIfCancellationRequested();
+                var content = options.TakeContent();
+                if (content != null)
                 {
-                    return await _client.SendAsync(httpMsg, timeoutTokenSource.Token);
+                    try { scope.Request.Content = scope.Track(content); }
+                    catch { content.Dispose(); throw; }
                 }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    throw new TimeoutException();
-                }
+                var response = await _client.SendAsync(scope.Request, options.CompletionOption, scope.Token).ConfigureAwait(false);
+                scope.Attach(response);
+                scope.Token.ThrowIfCancellationRequested();
+                return response;
+            }
+            catch (Exception exception)
+            {
+                var classified = scope.Classify(exception);
+                await scope.StopAsync().ConfigureAwait(false);
+                if (ReferenceEquals(classified, exception)) { throw; }
+                throw classified;
             }
         }
-
         /// <summary>
         /// 创建请求能力。
         /// </summary>

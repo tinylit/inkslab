@@ -1,6 +1,7 @@
 ﻿using Inkslab.Settings;
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using Xunit;
 
 namespace Inkslab.Tests
@@ -242,6 +243,56 @@ namespace Inkslab.Tests
             var r = name.ToNamingCase(namingType);
 
             Assert.Equal(naming, r);
+        }
+
+        /// <summary>
+        /// 命名转换必须在每次调用时一致地使用当前文化。
+        /// </summary>
+        [Fact]
+        public void NamingCase_UsesCurrentCultureAfterCultureChanges()
+        {
+            var originalCulture = CultureInfo.CurrentCulture;
+
+            try
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+                Assert.Equal("NameI", "name_i".ToPascalCase());
+
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+                Assert.Equal("Name\u0130", "name_i".ToPascalCase());
+
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+                Assert.Equal("NameI", "name_i".ToPascalCase());
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = originalCulture;
+            }
+        }
+
+        /// <summary>
+        /// 名称仅拒绝协议约定的五种空白字符。
+        /// </summary>
+        [Theory]
+        [InlineData("a b")]
+        [InlineData("a\tb")]
+        [InlineData("a\rb")]
+        [InlineData("a\nb")]
+        [InlineData("a\fb")]
+        public void NamingCase_RejectsOnlyConfiguredAsciiWhitespaces(string name)
+        {
+            Assert.Throws<ArgumentException>(() => name.ToNamingCase(NamingType.Normal));
+        }
+
+        /// <summary>
+        /// 垂直制表符和不换行空格不属于原有拒绝字符集。
+        /// </summary>
+        [Theory]
+        [InlineData("a\vb")]
+        [InlineData("a\u00A0b")]
+        public void NamingCase_AcceptsOtherUnicodeWhitespaces(string name)
+        {
+            Assert.Equal(name, name.ToNamingCase(NamingType.Normal));
         }
     }
 }

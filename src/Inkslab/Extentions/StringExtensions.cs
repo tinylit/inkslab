@@ -2,6 +2,9 @@
 using Inkslab.Config;
 using Inkslab.Settings;
 using Inkslab.Sugars;
+#if NET8_0_OR_GREATER
+using System.Buffers;
+#endif
 using System.Text.RegularExpressions;
 
 #pragma warning disable IDE0130 // 命名空间与文件夹结构不匹配
@@ -21,25 +24,13 @@ namespace System
 
         private static readonly Regex _patternKebabCase = new Regex("[A-Z]|(_[a-zA-Z])", RegexOptions.Singleline | RegexOptions.Compiled);
 
-        //? ASCII 字母单字符字符串缓存，避免 char.ToString() 的短生命周期 string 分配。
-        private static readonly string[] _asciiUpperStrings = BuildAsciiStrings(toUpper: true);
-        private static readonly string[] _asciiLowerStrings = BuildAsciiStrings(toUpper: false);
+        private static string ToUpperString(char c) => char.ToUpper(c).ToString();
 
-        private static string[] BuildAsciiStrings(bool toUpper)
-        {
-            var arr = new string[128];
-            for (int i = 0; i < arr.Length; i++)
-            {
-                char c = (char)i;
-                arr[i] = (toUpper ? char.ToUpper(c) : char.ToLower(c)).ToString();
-            }
+        private static string ToLowerString(char c) => char.ToLower(c).ToString();
 
-            return arr;
-        }
-
-        private static string ToUpperString(char c) => c < 128 ? _asciiUpperStrings[c] : char.ToUpper(c).ToString();
-
-        private static string ToLowerString(char c) => c < 128 ? _asciiLowerStrings[c] : char.ToLower(c).ToString();
+#if NET8_0_OR_GREATER
+        private static readonly SearchValues<char> _nameWhitespaces = SearchValues.Create(" \t\r\n\f");
+#endif
 
         /// <summary>
         /// 命名。
@@ -54,7 +45,11 @@ namespace System
                 throw new ArgumentException("名称不能为空！", nameof(name));
             }
 
+#if NET8_0_OR_GREATER
+            if (name.AsSpan().IndexOfAny(_nameWhitespaces) >= 0)
+#else
             if (Regexs.Whitespaces.IsMatch(name))
+#endif
             {
                 throw new ArgumentException($"“{name}”不是一个有效的名称。", nameof(name));
             }

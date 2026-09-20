@@ -1,209 +1,72 @@
-﻿using Inkslab.Json;
+#pragma warning disable CS1591
+using Inkslab.Json;
 using Inkslab.Serialize.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net;
 using System.Threading.Tasks;
 using Xunit;
-
 namespace Inkslab.Net.Tests
 {
-    /// <summary>
-    /// 请求组件测试。
-    /// </summary>
     public class UnitTest1
     {
-        static UnitTest1()
+        static UnitTest1() => SingletonPools.TryAdd<IJsonHelper, DefaultJsonHelper>();
+        [Theory]
+        [InlineData(false)] [InlineData(true)]
+        public async Task QueryRetryAndDeserializeAsync(bool custom)
         {
-            SingletonPools.TryAdd<IJsonHelper, DefaultJsonHelper>();
+            int calls = 0;
+            using var handler = new TestHttpMessageHandler((request, token) =>
+            {
+                calls++;
+                Assert.Contains("wd=sql", request.RequestUri.Query);
+                if (calls == 1) { return Task.FromResult(TestHttpMessageHandler.Response("", HttpStatusCode.Unauthorized)); }
+                Assert.Contains("debug=false", request.RequestUri.Query);
+                if (calls == 2) { return Task.FromResult(TestHttpMessageHandler.Response("", HttpStatusCode.Forbidden)); }
+                Assert.Equal("token", string.Join("", request.Headers.GetValues("X-Auth")));
+                return Task.FromResult(TestHttpMessageHandler.Response("{\"value\":\"ok\"}"));
+            });
+            using var client = handler.CreateClient();
+            var request = new TestRequestFactory(client).CreateRequestable("https://unit.test/")
+                .AppendQueryString(new { wd = "sql", page = 1 })
+                .When(s => s == HttpStatusCode.Unauthorized).ThenAsync(r => { r.AppendQueryString("debug=false"); return Task.CompletedTask; })
+                .When(s => s == HttpStatusCode.Forbidden).ThenAsync(r => { r.AssignHeader("X-Auth", "token"); return Task.CompletedTask; });
+            var value = custom
+                ? await request.CustomCast(text => JsonHelper.Json<Dictionary<string, string>>(text)).GetAsync()
+                : await request.JsonCast<Dictionary<string, string>>().GetAsync();
+            Assert.Equal("ok", value["value"]); Assert.Equal(3, calls);
         }
-
-        /// <summary>
-        /// Get 请求。
-        /// </summary>
-        [Fact]
-        public async Task GetAsync()
-        {
-            var requestable = RequestFactory.Create("http://www.baidu.com/");
-
-            var value = await requestable.AppendQueryString(new
-            {
-                wd = "sql",
-                rsv_spt = 1,
-                rsv_iqid = "0x822dd2a900206e39",
-                now = DateTime.Now,
-                issp = 1,
-                rsv_bp = 1,
-                rsv_idx = 2,
-                ie = "utf8"
-            })
-            .When(status => status == System.Net.HttpStatusCode.Unauthorized)
-            .ThenAsync(r =>
-            {
-                //? 获取认证。
-                r.AppendQueryString("debug=false");
-
-                return Task.CompletedTask;
-            })
-            .When(status => status is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.ProxyAuthenticationRequired)
-            .ThenAsync(r =>
-            {
-                //? 获取有效的认证。
-                r.AssignHeader("Authorization", "{{Authorization}}");
-
-                return Task.CompletedTask;
-            })
-            .JsonCast<Dictionary<string, string>>()
-            .JsonCatch(e =>
-            {
-                return new Dictionary<string, string>();
-            })
-            //.DataVerify(r => r.Count > 0) //? 结果数据校验。
-            //.Success(r => r.Count)
-            //.Fail(r => new NotSupportedException())
-            .GetAsync(5000D);
-        }
-
-        /// <summary>
-        /// Get 请求。
-        /// </summary>
-        [Fact]
-        public async Task GetCustomCastAsync()
-        {
-            var requestable = RequestFactory.Create("http://www.baidu.com/");
-
-            var value = await requestable.AppendQueryString(new
-            {
-                wd = "sql",
-                rsv_spt = 1,
-                rsv_iqid = "0x822dd2a900206e39",
-                issp = 1,
-                rsv_bp = 1,
-                rsv_idx = 2,
-                ie = "utf8"
-            })
-            .When(status => status == System.Net.HttpStatusCode.Unauthorized)
-            .ThenAsync(r =>
-            {
-                //? 获取认证。
-                r.AppendQueryString("debug=false");
-
-                return Task.CompletedTask;
-            })
-            .When(status => status == System.Net.HttpStatusCode.Forbidden || status == System.Net.HttpStatusCode.ProxyAuthenticationRequired)
-            .ThenAsync(r =>
-            {
-                //? 获取有效的认证。
-                r.AssignHeader("Authorization", "{{Authorization}}");
-
-                return Task.CompletedTask;
-            })
-            .CustomCast(async (msg, token) =>
-            {
-                msg.EnsureSuccessStatusCode();
-
-                var value = await msg.Content.ReadAsStringAsync(token);
-
-                return JsonHelper.Json<Dictionary<string, string>>(value);
-            })
-            .Catch(e =>
-            {
-                return new Dictionary<string, string>();
-            })
-            //.DataVerify(r => r.Count > 0) //? 结果数据校验。
-            //.Success(r => r.Count)
-            //.Fail(r => new NotSupportedException())
-            .GetAsync(5000D);
-        }
-
-        /// <summary>
-        /// 下载。
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task DownloadAsync()
-        {
-            var requestable = RequestFactory.Create("https://wwww.baidu.com/");
-
-            using var stream = await requestable
-               .When(status => status == System.Net.HttpStatusCode.Unauthorized)
-               .ThenAsync(r =>
-               {
-                   return Task.CompletedTask;
-               })
-               .DownloadAsync(360000D);
-        }
-
-        /// <summary>
-        /// 测试 HttpContent 重试释放问题和认证问题。
-        /// </summary>
-        /// <returns></returns>
-        [Fact]
-        public async Task PostAsync()
-        {
-            //var requestable = RequestFactory.Create("http://localhost:5000/api/di-test");
-
-            //var value = await requestable
-            //    .AssignHeader("Authorization", "Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IkQ4NjdGNzEwMEM1OENDRDFBNUUzMzVFNEEzN0RGNTUwIiwidHlwIjoiSldUIn0.eyJuYmYiOjE2NzgwNjU2MjAsImV4cCI6MTY3ODQyNTYyMCwiaXNzIjoiaHR0cHM6Ly93d3cuaHlzemJiLmNvbSIsImF1ZCI6WyJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIiwiempzLm9zcy5hcGkiXSwiY2xpZW50X2lkIjoiSHlzTWFsbCIsInN1YiI6IjUwMjIzZjIzLTdlNzMtNDE1Yy04YzExLTlhOGJjMTcwNzQxZiIsImF1dGhfdGltZSI6MTY3ODA2NTYyMCwiaWRwIjoibG9jYWwiLCJuYW1lIjoicm9vdCIsIm5pY2tuYW1lIjoiIiwicm9sZSI6IkFkbWluaXN0cmF0b3IiLCJ0aW1lc3RhbXAiOiI2MzgxMzY5MTIyMDA1NTYxNjciLCJqdGkiOiJCQjIzNDQ4RTEyN0MwNzFFOEM0ODVDNjZFMTE4NTE2QiIsImlhdCI6MTY3ODA2NTYyMCwic2NvcGUiOiJIeXNNYWxsLlN5c01hbmFnZW1lbnQuQVBJIG9wZW5pZCBwcm9maWxlIHpqcy5vc3MuYXBpIG9mZmxpbmVfYWNjZXNzIiwiYW1yIjpbImN1c3RvbSJdfQ.JqiZIDL-BLJXgHrhSRvwR8wmcE78zz--KqCJO4VgT7DTJTuOrphL1s8vEIFsmyXtKQkp7TsJXWfiORbE3D8Iinz-EoDLcqJefSvsmmRFJq75fRwN3C1nUdBF0aY-uTp7iIJ4ofMICGKS6vaDsWsKn5HlzowdOG5-6F8Dh1H4Ff1Nq01i2Ya_8mfJgO2cAcoTrGIeYF__PT9jgfBD9cBxUOiEuUabrMR0d7A7xu-GjzO2DQDihZ5pknUJL6O-7VlBW2XfWJfN1Lk2yCWYomZLRbzV6O9_L5jZwggENNdeNTx38lYltDGdaPwKstfLDe8oc3hrhcYIxeUoiYC8JAVoOA")
-            //    .Json(new { Id = 100, Name = "测试" })
-            //    .When(status => status == System.Net.HttpStatusCode.Unauthorized)
-            //    .ThenAsync(r =>
-            //    {
-            //        return Task.CompletedTask;
-            //    })
-            //    .When(status => status == System.Net.HttpStatusCode.Unauthorized)
-            //    .ThenAsync(r =>
-            //    {
-            //        return Task.CompletedTask;
-            //    })
-            //    .JsonCast(new { Id = 0, Name = string.Empty })
-            //    .PostAsync();
-
-            await Task.Delay(1000);
-        }
-
-        /// <summary>
-        /// 跳过验证：发送格式不合规的 Date 头不抛出异常。
-        /// </summary>
-        [Fact]
-        public async Task AssignHeader_SkipValidation_AllowsInvalidHeaderValueAsync()
-        {
-            // Date 头值不合规时，HttpHeaders.Add() 会抛出 FormatException。
-            // skipValidation=true 改用 TryAddWithoutValidation，不应抛出。
-            await RequestFactory.Create("http://www.baidu.com/")
-                .AssignHeader("Date", "not-a-valid-date", true)
-                .GetAsync();
-        }
-
-        /// <summary>
-        /// skipValidation=false 时，若该头名曾以 true 设置，应从跳过集合中移除。
-        /// </summary>
-        [Fact]
-        public async Task AssignHeader_SkipValidationFalse_RemovesFromSkipSetAsync()
-        {
-            // 先以 skipValidation=true 设置，再以 false 覆盖同名头。
-            // false 应将该头名从 SkipValidationHeaders 中移除。
-            // 此后发送该头时走 Add() 路径，对合法值不抛异常。
-            await RequestFactory.Create("http://www.baidu.com/")
-                .AssignHeader("X-Test", "skip-value", true)
-                .AssignHeader("X-Test", "normal-value", false)
-                .GetAsync();
-        }
-
-        /// <summary>
-        /// 重试路径（ThenAsync）中使用 skipValidation=true 不抛异常。
-        /// </summary>
         [Fact]
         public async Task AssignHeader_SkipValidation_WorksInRetryPathAsync()
         {
-            await RequestFactory.Create("http://www.baidu.com/")
-                .When(status => status == System.Net.HttpStatusCode.Unauthorized)
-                .ThenAsync(r =>
-                {
-                    r.AssignHeader("Date", "not-a-valid-date", true);
-
-                    return Task.CompletedTask;
-                })
-                .GetAsync();
+            int calls = 0;
+            using var handler = new TestHttpMessageHandler((r, t) =>
+            {
+                calls++;
+                if (calls == 1) { return Task.FromResult(TestHttpMessageHandler.Response("", HttpStatusCode.Unauthorized)); }
+                Assert.Equal("not-a-valid-date", string.Join("", r.Headers.GetValues("Date")));
+                return Task.FromResult(TestHttpMessageHandler.Response());
+            });
+            using var client = handler.CreateClient();
+            Assert.Equal("ok", await new TestRequestFactory(client).CreateRequestable("https://unit.test/")
+                .When(s => s == HttpStatusCode.Unauthorized).ThenAsync(r => { r.AssignHeader("Date", "not-a-valid-date", true); return Task.CompletedTask; }).GetAsync());
+        }
+        [Fact]
+        public async Task AssignHeader_SkipValidationFalse_RemovesFromSkipSetAsync()
+        {
+            using var handler = new TestHttpMessageHandler((r, t) => throw new InvalidOperationException("Must not send"));
+            using var client = handler.CreateClient();
+            await Assert.ThrowsAsync<FormatException>(() => new TestRequestFactory(client).CreateRequestable("https://unit.test/")
+                .AssignHeader("Date", "invalid", true).AssignHeader("Date", "invalid", false).GetAsync());
+        }
+        [Fact]
+        public async Task DownloadAsync()
+        {
+            using var handler = new TestHttpMessageHandler((r, t) => Task.FromResult(TestHttpMessageHandler.Response("file")));
+            using var client = handler.CreateClient();
+            using var stream = await new TestRequestFactory(client).CreateRequestable("https://unit.test/").DownloadAsync();
+            using var reader = new StreamReader(stream); Assert.Equal("file", await reader.ReadToEndAsync());
         }
     }
 }

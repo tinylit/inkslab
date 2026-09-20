@@ -57,7 +57,9 @@ namespace Inkslab.Map.Maps
         /// <inheritdoc/>
         protected override Expression ToSolve(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationType, IMapApplication application)
         {
-            var propertyInfos = Array.FindAll(destinationType.GetProperties(BindingFlags.Public | BindingFlags.Instance), x => x.CanWrite && !x.IsIgnore());
+            var propertyInfos = Array.FindAll(
+                destinationType.GetProperties(BindingFlags.Public | BindingFlags.Instance),
+                x => x.CanWrite && !x.IsIgnore() && x.GetIndexParameters().Length == 0);
 
             if (propertyInfos.Length == 0)
             {
@@ -164,17 +166,22 @@ namespace Inkslab.Map.Maps
             }, new Expression[]
             {
                 Assign(enumeratorExp, Call(sourceExpression, getEnumeratorMtd)),
-                Loop(
-                    IfThenElse(
-                        Call(enumeratorExp, MapConstants.MoveNextMtd),
-                        Block(
-                            MapConstants.VoidType,
-                            Assign(keyValueExp, Property(enumeratorExp, propertyCurrent)),
-                            bodyExp,
-                            Continue(continueLabel)
-                        ),
-                        Break(breakLabel)), // push to eax/rax --> return value
-                    breakLabel, continueLabel)
+                TryFinally(
+                    Loop(
+                        IfThenElse(
+                            Call(enumeratorExp, MapConstants.MoveNextMtd),
+                            Block(
+                                MapConstants.VoidType,
+                                Assign(keyValueExp, Property(enumeratorExp, propertyCurrent)),
+                                bodyExp,
+                                Continue(continueLabel)
+                            ),
+                            Break(breakLabel)), // push to eax/rax --> return value
+                        breakLabel, continueLabel),
+                    Call(
+                        Convert(enumeratorExp, typeof(IDisposable)),
+                        typeof(IDisposable).GetMethod(nameof(IDisposable.Dispose))!)
+                )
             });
         }
     }

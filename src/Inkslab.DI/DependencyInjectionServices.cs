@@ -33,6 +33,7 @@ namespace Inkslab.DI
         private readonly HashSet<Type> _registeredServices;
         private readonly Dictionary<Type, Type[]> _interfaceCache = new Dictionary<Type, Type[]>();
         private readonly Dictionary<Type, List<Type>> _implementationTypeCache = new Dictionary<Type, List<Type>>();
+        private bool _disposed;
 
         public DependencyInjectionServices(
             IServiceCollection services,
@@ -56,6 +57,12 @@ namespace Inkslab.DI
             // 确保外部（如 AddControllers、手动注册）已注入的服务能被正确识别，不被重复注入。
             foreach (var descriptor in services)
             {
+#if NET8_0_OR_GREATER
+                if (descriptor.IsKeyedService)
+                {
+                    continue;
+                }
+#endif
                 _registeredServices.Add(descriptor.ServiceType);
             }
         }
@@ -78,6 +85,8 @@ namespace Inkslab.DI
                 {
                     return this;
                 }
+
+                _implementationTypeCache.Clear();
 
                 foreach (var type in assembly.GetTypes())
                 {
@@ -386,7 +395,7 @@ namespace Inkslab.DI
             }
 
             // 使用追踪包装集合，拦截所有写入路径（Add/Insert/索引替换），
-            // 精确维护 _registeredServices，无需全量遍历。
+            // 同步 _registeredServices，删除时检查剩余注册以保留重复项。
             var trackingServices = new TrackingServiceCollection(_services, _registeredServices);
 
             foreach (var configure in configureServices)
@@ -932,16 +941,20 @@ namespace Inkslab.DI
 
                     if (isMulti)
                     {
+                        int count = _services.Count;
                         _services.TryAddEnumerable(
                             new ServiceDescriptor(serviceType, implementationType, lifetime)
                         );
-                        _registeredServices.Add(serviceType);
+
+                        if (_services.Count > count)
+                        {
+                            _registeredServices.Add(serviceType);
+                        }
                     }
                     else
                     {
-                        _services.Add(
-                            new ServiceDescriptor(serviceType, implementationType, lifetime)
-                        );
+                        var descriptor = new ServiceDescriptor(serviceType, implementationType, lifetime);
+                        _services.Add(descriptor);
                         _registeredServices.Add(serviceType);
                     }
 
@@ -1154,6 +1167,12 @@ namespace Inkslab.DI
 
             foreach (var descriptor in serviceDescriptors)
             {
+#if NET8_0_OR_GREATER
+                if (descriptor.IsKeyedService)
+                {
+                    continue;
+                }
+#endif
                 if (
                     descriptor.ImplementationInstance != null
                     || descriptor.ImplementationFactory != null
@@ -1224,6 +1243,12 @@ namespace Inkslab.DI
         {
             lock (_collectionsLock)
             {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
                 _assemblies.Clear();
 
                 if (disposing)
@@ -1242,6 +1267,11 @@ namespace Inkslab.DI
             {
                 _dependencies.Value.Clear();
             }
+
+            if (disposing)
+            {
+                _dependencies.Dispose();
+            }
         }
 
         public void Dispose()
@@ -1253,8 +1283,8 @@ namespace Inkslab.DI
 
         /// <summary>
         /// 拦截 <see cref="IServiceCollection"/> 的所有写操作，
-        /// 将新增的 <see cref="ServiceDescriptor.ServiceType"/> 自动同步到 _registeredServices，
-        /// 覆盖 Add、Insert、索引替换等全部修改路径，避免全量遍历开销。
+        /// 将无键的 <see cref="ServiceDescriptor.ServiceType"/> 自动同步到 _registeredServices，
+        /// 删除或替换时检查剩余注册，保留同类型的重复项。
         /// </summary>
         private sealed class TrackingServiceCollection : IServiceCollection
         {
@@ -1272,7 +1302,15 @@ namespace Inkslab.DI
                 get => _inner[index];
                 set
                 {
+                    var previous = _inner[index];
                     _inner[index] = value;
+                    RemoveRegistrationIfAbsent(previous.ServiceType);
+#if NET8_0_OR_GREATER
+                    if (value.IsKeyedService)
+                    {
+                        return;
+                    }
+#endif
                     _registeredServices.Add(value.ServiceType);
                 }
             }
@@ -1283,23 +1321,72 @@ namespace Inkslab.DI
             public void Add(ServiceDescriptor item)
             {
                 _inner.Add(item);
+#if NET8_0_OR_GREATER
+                if (item.IsKeyedService)
+                {
+                    return;
+                }
+#endif
                 _registeredServices.Add(item.ServiceType);
             }
 
             public void Insert(int index, ServiceDescriptor item)
             {
                 _inner.Insert(index, item);
+#if NET8_0_OR_GREATER
+                if (item.IsKeyedService)
+                {
+                    return;
+                }
+#endif
                 _registeredServices.Add(item.ServiceType);
             }
 
-            public void Clear() => _inner.Clear();
+            public void Clear()
+            {
+                _inner.Clear();
+                _registeredServices.Clear();
+            }
             public bool Contains(ServiceDescriptor item) => _inner.Contains(item);
             public void CopyTo(ServiceDescriptor[] array, int arrayIndex) => _inner.CopyTo(array, arrayIndex);
             public int IndexOf(ServiceDescriptor item) => _inner.IndexOf(item);
-            public bool Remove(ServiceDescriptor item) => _inner.Remove(item);
-            public void RemoveAt(int index) => _inner.RemoveAt(index);
+            public bool Remove(ServiceDescriptor item)
+            {
+                if (!_inner.Remove(item))
+                {
+                    return false;
+                }
+
+                RemoveRegistrationIfAbsent(item.ServiceType);
+                return true;
+            }
+
+            public void RemoveAt(int index)
+            {
+                var item = _inner[index];
+                _inner.RemoveAt(index);
+                RemoveRegistrationIfAbsent(item.ServiceType);
+            }
             public IEnumerator<ServiceDescriptor> GetEnumerator() => _inner.GetEnumerator();
             IEnumerator IEnumerable.GetEnumerator() => ((IEnumerable)_inner).GetEnumerator();
+            private void RemoveRegistrationIfAbsent(Type serviceType)
+            {
+                foreach (var descriptor in _inner)
+                {
+#if NET8_0_OR_GREATER
+                    if (descriptor.IsKeyedService)
+                    {
+                        continue;
+                    }
+#endif
+                    if (descriptor.ServiceType == serviceType)
+                    {
+                        return;
+                    }
+                }
+
+                _registeredServices.Remove(serviceType);
+            }
         }
     }
 }

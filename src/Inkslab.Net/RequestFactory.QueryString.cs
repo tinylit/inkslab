@@ -147,6 +147,7 @@ namespace Inkslab.Net
 
             public TRequestable AppendQueryString<TParam>(TParam param, NamingType namingType = NamingType.SnakeCase, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK") where TParam : class
             {
+                Validation.EntityValidator.ValidateInput(param, typeof(TParam));
                 if (param is null)
                 {
                     return _requestable;

@@ -1,4 +1,5 @@
 using Inkslab.Net.Options;
+using Inkslab.Net.Validation;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +13,7 @@ namespace Inkslab.Net
 {
     public partial class RequestFactory
     {
-        private abstract class Requestable<T> : IRequestable<T>
+        private abstract partial class Requestable<T> : IRequestable<T>
         {
             public Task<T> GetAsync(double timeout = 1000D, CancellationToken cancellationToken = default) => SendAsync(HttpMethod.Get, timeout, cancellationToken);
 
@@ -41,40 +42,67 @@ namespace Inkslab.Net
                 };
             }
 
-            public abstract Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default);
+            protected virtual ValidationOptions? ExplicitValidationOptions => null;
+
+            public async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            {
+                // Only the outer execution entry validates the final result of the complete chain.
+                var entity = await SendCoreAsync(method, timeout, cancellationToken).ConfigureAwait(false);
+                EntityValidator.ValidateOutput(entity, ExplicitValidationOptions);
+                return entity;
+            }
+
+            public abstract Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default);
         }
 
         private abstract class RequestableString : Requestable<string>, IStreamRequestable
         {
             public async Task<Stream> DownloadAsync(double timeout = 10000D, CancellationToken cancellationToken = default)
             {
-                using var httpMsg = await PrimitiveSendAsync(HttpMethod.Get, timeout, cancellationToken);
-
-                httpMsg.EnsureSuccessStatusCode();
-
-#if NET6_0_OR_GREATER
-                return await httpMsg.Content.ReadAsStreamAsync(cancellationToken);
-#else
-                return await httpMsg.Content.ReadAsStreamAsync();
-#endif
+                var httpMsg = await PrimitiveSendAsync(HttpMethod.Get, timeout, cancellationToken, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+                try
+                {
+                    httpMsg.EnsureSuccessStatusCode();
+                    var stream = httpMsg.Content is OwnedResponseContent owned
+                        ? await owned.OpenStreamAsync(cancellationToken).ConfigureAwait(false)
+                        : await httpMsg.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                    return new ResponseOwnedStream(stream, httpMsg);
+                }
+                catch (Exception ex)
+                {
+                    var classified = (httpMsg.Content as OwnedResponseContent)?.Scope.Classify(ex) ?? ex;
+                    await ReleaseResponseAsync(httpMsg).ConfigureAwait(false);
+                    if (ReferenceEquals(classified, ex)) { throw; }
+                    throw classified;
+                }
             }
 
-            public override async Task<string> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            public static async Task ReleaseResponseAsync(HttpResponseMessage response)
             {
-                using var httpMsg = await PrimitiveSendAsync(method, timeout, cancellationToken);
-
-                httpMsg.EnsureSuccessStatusCode();
-
+                var scope = (response.Content as OwnedResponseContent)?.Scope;
+                response.Dispose();
+                if (scope != null) { await scope.StopAsync().ConfigureAwait(false); }
+            }
+            public override async Task<string> SendCoreAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            {
+                var httpMsg = await PrimitiveSendAsync(method, timeout, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    httpMsg.EnsureSuccessStatusCode();
 #if NET6_0_OR_GREATER
-                return await httpMsg.Content.ReadAsStringAsync(cancellationToken);
+                    return await httpMsg.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 #else
-                return await httpMsg.Content.ReadAsStringAsync();
+                    return await httpMsg.Content.ReadAsStringAsync().ConfigureAwait(false);
 #endif
+                }
+                finally { await ReleaseResponseAsync(httpMsg).ConfigureAwait(false); }
             }
 
-            public Task<HttpResponseMessage> PrimitiveSendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            public Task<HttpResponseMessage> PrimitiveSendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default, HttpCompletionOption completionOption = HttpCompletionOption.ResponseContentRead)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var options = GetOptions(method, timeout);
+                options.CompletionOption = completionOption;
 
                 return SendAsync(options, cancellationToken);
             }
@@ -171,7 +199,7 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(_queryString.ToString(), _headers, _skipValidationHeaders)
+            public override RequestOptions GetOptions(HttpMethod method, double timeout) => new RequestOptions(_queryString.ToString(), new Dictionary<string, string>(_headers), new HashSet<string>(_skipValidationHeaders, StringComparer.OrdinalIgnoreCase))
             {
                 Method = method,
                 Timeout = timeout,
@@ -257,7 +285,14 @@ namespace Inkslab.Net
                 return this;
             }
 
-            public override Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default) => _factory.SendAsync(options, cancellationToken);
+            public override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                // Each virtual invocation gets fresh lazy content without losing this execution's header/query changes.
+                var attempt = options.CreateAttempt(cancellationToken);
+                try { return await _factory.SendAsync(attempt, cancellationToken).ConfigureAwait(false); }
+                catch { attempt.DisposeUntransferredContent(); throw; }
+            }
         }
 
         private class RequestableContent : RequestableString, IRequestableContent
@@ -285,7 +320,8 @@ namespace Inkslab.Net
             {
                 var options = _requestable.GetOptions(method, timeout);
 
-                options.Content = _content.Content;
+                options.CreateContent = _content.CreateContent;
+                options.CanReplay = _content.CanReplay;
 
                 return options;
             }

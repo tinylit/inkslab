@@ -1,0 +1,9 @@
+<Project>
+  <Target Name="RequireReleasePackage" BeforeTargets="Pack;GenerateNuspec"
+          Condition="'$(IsPackable)' != 'false'">
+    <Error Condition="'$(Configuration)' != 'Release'"
+           Text="NuGet packages must be built with Configuration=Release; Debug friend assemblies must not be published." />
+    <Error Condition="'@(InternalsVisibleTo)' != ''"
+           Text="NuGet packages must not contain InternalsVisibleTo items." />
+  </Target>
+</Project>

@@ -1,6 +1,6 @@
-using Inkslab.Net.Options;
 using Inkslab.Serialize.Json;
 using Inkslab.Serialize.Xml;
+using Inkslab.Net.Validation;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -12,7 +12,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml;
 
 namespace Inkslab.Net
 {
@@ -20,218 +19,176 @@ namespace Inkslab.Net
     {
         private interface IToContent
         {
-            HttpContent Content { get; }
+            bool CanReplay { get; }
+            HttpContent CreateContent();
         }
 
         private abstract class RequestableEncoding : RequestableString, IRequestableEncoding
         {
             private readonly Encoding _encoding;
 
-            private class ToContentByBody : IToContent
+            private sealed class ToContentByBody : IToContent
             {
                 private readonly Encoding _encoding;
                 private readonly string _body;
                 private readonly string _contentType;
-
                 public ToContentByBody(Encoding encoding, string body, string contentType)
-                {
-                    _encoding = encoding;
-                    _body = body;
-                    _contentType = contentType;
-                }
-
-                public HttpContent Content => new StringContent(_body, _encoding, _contentType);
+                { _encoding = encoding; _body = body; _contentType = contentType; }
+                public bool CanReplay => true;
+                public HttpContent CreateContent() => new StringContent(_body, _encoding, _contentType);
             }
 
-            private class ToContentByOriginal : IToContent
+            private sealed class ToContentByOriginal : IToContent
             {
-                private readonly HttpContent _body;
-
-                public ToContentByOriginal(HttpContent body)
-                {
-                    _body = body;
-                }
-
-                public HttpContent Content => _body;
+                private HttpContent _body;
+                public ToContentByOriginal(HttpContent body) => _body = body ?? throw new ArgumentNullException(nameof(body));
+                public bool CanReplay => false;
+                public HttpContent CreateContent() => Interlocked.Exchange(ref _body, null)
+                    ?? throw new InvalidOperationException("The request content has already been consumed.");
             }
 
-            private class ToContentByStringValue : IToContent
+            private sealed class ToContentByStream : IToContent
             {
-                private readonly IEnumerable<KeyValuePair<string, string>> _body;
+                private Stream _stream;
+                private readonly MediaTypeHeaderValue _mediaType;
+                private readonly bool _leaveOpen;
+                public ToContentByStream(Stream stream, string contentType, bool leaveOpen)
+                {
+                    if (stream is null) { throw new ArgumentNullException(nameof(stream)); }
+                    if (!stream.CanRead) { throw new ArgumentException("The stream must be readable.", nameof(stream)); }
+                    if (string.IsNullOrWhiteSpace(contentType)) { throw new ArgumentException("A media type is required.", nameof(contentType)); }
+                    _mediaType = MediaTypeHeaderValue.Parse(contentType);
+                    _stream = stream;
+                    _leaveOpen = leaveOpen;
+                }
+                public bool CanReplay => false;
+                public HttpContent CreateContent()
+                {
+                    var stream = Interlocked.Exchange(ref _stream, null)
+                        ?? throw new InvalidOperationException("The request stream has already been consumed.");
+                    HttpContent content = null;
+                    try
+                    {
+                        content = new UploadStreamContent(stream, ownsStream: !_leaveOpen);
+                        content.Headers.ContentType = _mediaType;
+                        return content;
+                    }
+                    catch
+                    {
+                        if (content != null) { content.Dispose(); }
+                        else if (!_leaveOpen) { stream.Dispose(); }
+                        throw;
+                    }
+                }
+            }
 
+            private sealed class ToContentByStringValue : IToContent
+            {
+                private readonly List<KeyValuePair<string, string>> _body;
                 public ToContentByStringValue(IEnumerable<KeyValuePair<string, string>> body)
-                {
-                    _body = body;
-                }
-
-                public HttpContent Content => new FormUrlEncodedContent(_body);
+                    => _body = new List<KeyValuePair<string, string>>(body ?? throw new ArgumentNullException(nameof(body)));
+                public bool CanReplay => true;
+                public HttpContent CreateContent() => new FormUrlEncodedContent(_body);
             }
 
-            private class ToContentByForm<TBody> : IToContent where TBody : IEnumerable<KeyValuePair<string, object>>
+            private sealed class ToContentByForm<TBody> : IToContent where TBody : IEnumerable<KeyValuePair<string, object>>
             {
                 private readonly Encoding _encoding;
-                private readonly TBody _body;
+                private readonly List<KeyValuePair<string, object>> _body = new List<KeyValuePair<string, object>>();
                 private readonly string _dateFormatString;
+                private readonly bool _multipart;
+                private int _claimed;
+                public bool CanReplay { get; } = true;
 
                 public ToContentByForm(Encoding encoding, TBody body, string dateFormatString)
                 {
+                    if (body is null) { throw new ArgumentNullException(nameof(body)); }
                     _encoding = encoding;
-                    _body = body;
                     _dateFormatString = dateFormatString ?? "yyyy-MM-dd HH:mm:ss.FFFFFFFK";
-                }
-
-                private static void AppendToForm(MultipartFormDataContent content, string name, FileInfo fileInfo)
-                {
-                    if (fileInfo is null)
+                    // Snapshot each field/enumeration once, without opening or reading streams.
+                    foreach (var kv in body)
                     {
-                        throw new ArgumentNullException(nameof(fileInfo));
-                    }
-
-                    byte[] byteArray;
-                    long contentLength;
-
-                    using (var fileStream = fileInfo.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
-                    {
-                        contentLength = fileStream.Length;
-
-                        if (contentLength > int.MaxValue)
+                        if (kv.Value is IEnumerable items && !(kv.Value is string) && !(kv.Value is byte[]))
                         {
-                            using (var ms = new MemoryStream())
+                            foreach (var item in items)
                             {
-                                fileStream.CopyTo(ms);
-
-                                byteArray = ms.ToArray();
+                                if (item is IEnumerable && !(item is string) && !(item is byte[]))
+                                { throw new InvalidOperationException("Nested form collections are not supported."); }
+                                _body.Add(new KeyValuePair<string, object>(kv.Key, item));
                             }
                         }
-                        else
-                        {
-                            byteArray = new byte[contentLength];
-
-                            fileStream.Read(byteArray, 0, (int)contentLength);
-                        }
+                        else { _body.Add(kv); }
                     }
-
-                    var byteContent = new ByteArrayContent(byteArray);
-
-                    var extension = Path.GetExtension(fileInfo.Name);
-
-                    if (extension.IsEmpty())
-                    {
-                        byteContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                    }
-                    else if (_mediaTypes.TryGetValue(extension.ToLower(), out MediaTypeHeaderValue mediaType))
-                    {
-                        byteContent.Headers.ContentType = mediaType;
-                    }
-
-                    byteContent.Headers.ContentLength = contentLength;
-
-                    content.Add(byteContent, name, fileInfo.Name);
+                    _multipart = _body.Any(kv => kv.Value is FileInfo || kv.Value is Stream);
+                    CanReplay = !_body.Any(kv => kv.Value is Stream);
                 }
 
-                private static void AppendToForm(MultipartFormDataContent content, Encoding encoding, string name, object value, string dateFormatString, bool throwErrorsIfEnumerable)
+                private string Format(object value) => value switch
                 {
-                    switch (value)
-                    {
-                        case string text:
+                    DateTime date => date.ToString(_dateFormatString),
+                    byte[] buffer => System.Convert.ToBase64String(buffer),
+                    _ => value?.ToString()
+                };
 
-                            content.Add(new StringContent(text, encoding), name);
-                            break;
-                        case DateTime date:
-
-                            content.Add(new StringContent(date.ToString(dateFormatString), encoding), name);
-                            break;
-                        case Stream stream:
-
-                            content.Add(new StreamContent(stream), name);
-                            break;
-                        case FileInfo fileInfo:
-
-                            AppendToForm(content, name, fileInfo);
-
-                            break;
-                        case byte[] buffer:
-
-                            content.Add(new StringContent(System.Convert.ToBase64String(buffer), encoding), name);
-                            break;
-                        case IEnumerable<FileInfo> enumerable:
-                            if (throwErrorsIfEnumerable)
-                            {
-                                throw new InvalidOperationException("不支持多维数组的参数传递!");
-                            }
-
-                            foreach (var fileInfo in enumerable)
-                            {
-                                AppendToForm(content, name, fileInfo);
-                            }
-
-                            break;
-                        case IEnumerable enumerableValue:
-                            if (throwErrorsIfEnumerable)
-                            {
-                                throw new InvalidOperationException("不支持多维数组的参数传递!");
-                            }
-
-                            foreach (var itemValue in enumerableValue)
-                            {
-                                AppendToForm(content, encoding, name, itemValue, dateFormatString, true);
-                            }
-                            break;
-                        default:
-                            if (value is null)
-                            {
-                                break;
-                            }
-
-                            content.Add(new StringContent(value.ToString(), encoding), name);
-
-                            break;
-                    }
-                }
-
-                public HttpContent Content
+                public HttpContent CreateContent()
                 {
-                    get
+                    if (!CanReplay && Interlocked.Exchange(ref _claimed, 1) != 0)
+                    { throw new InvalidOperationException("The form contains a consumed stream."); }
+                    if (!_multipart)
+                    { return new FormUrlEncodedContent(_body.Select(kv => new KeyValuePair<string, string>(kv.Key, Format(kv.Value)))); }
+                    var multipart = new MultipartFormDataContent();
+                    var pendingStreams = new HashSet<Stream>(_body.Select(kv => kv.Value).OfType<Stream>());
+                    try
                     {
-                        if (_body.Any(x => x.Value is FileInfo or IEnumerable<FileInfo>))
+                        foreach (var kv in _body)
                         {
-                            var content = new MultipartFormDataContent(string.Concat("--", DateTime.Now.Ticks.ToString("x")));
-
-                            foreach (var kv in _body)
+                            HttpContent part = null;
+                            try
                             {
-                                AppendToForm(content, _encoding, kv.Key, kv.Value, _dateFormatString, false);
-                            }
-
-                            return content;
-                        }
-                        else
-                        {
-                            var content = new FormUrlEncodedContent(_body.Select(x =>
-                            {
-                                return x.Value switch
+                                switch (kv.Value)
                                 {
-                                    string text => new KeyValuePair<string, string>(x.Key, text),
-                                    DateTime date => new KeyValuePair<string, string>(x.Key, date.ToString(_dateFormatString)),
-                                    byte[] buffer => new KeyValuePair<string, string>(x.Key, System.Convert.ToBase64String(buffer)),
-                                    _ => new KeyValuePair<string, string>(x.Key, x.Value?.ToString())
-                                };
-                            }));
-
-                            return content;
+                                    case FileInfo file:
+                                        part = new StreamContent(file.Open(FileMode.Open, FileAccess.Read, FileShare.Read));
+                                        part.Headers.ContentType = _mediaTypes.TryGetValue(file.Extension, out var mediaType)
+                                            ? MediaTypeHeaderValue.Parse(mediaType.ToString()) : new MediaTypeHeaderValue("application/octet-stream");
+                                        multipart.Add(part, kv.Key, file.Name);
+                                        break;
+                                    case Stream stream:
+                                        part = new StreamContent(stream);
+                                        pendingStreams.Remove(stream);
+                                        multipart.Add(part, kv.Key);
+                                        break;
+                                    case null:
+                                        break;
+                                    default:
+                                        part = new StringContent(Format(kv.Value), _encoding);
+                                        multipart.Add(part, kv.Key);
+                                        break;
+                                }
+                            }
+                            catch { part?.Dispose(); throw; }
                         }
+                        return multipart;
+                    }
+                    catch
+                    {
+                        multipart.Dispose();
+                        foreach (var stream in pendingStreams) { stream.Dispose(); }
+                        throw;
                     }
                 }
             }
-
             public RequestableEncoding(Encoding encoding)
             {
                 _encoding = encoding;
             }
 
             public IRequestableContent Body(string body, string contentType) => new RequestableContent(this, _encoding, new ToContentByBody(_encoding, body, contentType));
-            public IRequestableContent Form(MultipartFormDataContent body) => new RequestableContent(this, _encoding, new ToContentByOriginal(body));
+            public IRequestableContent Content(HttpContent content) => new RequestableContent(this, _encoding, new ToContentByOriginal(content));
+            public IRequestableContent Stream(Stream stream, string contentType = "application/octet-stream", bool leaveOpen = false) => new RequestableContent(this, _encoding, new ToContentByStream(stream, contentType, leaveOpen));
+            public IRequestableContent Form(MultipartFormDataContent body) => Content(body);
 
-            public IRequestableContent Form(FormUrlEncodedContent body) => new RequestableContent(this, _encoding, new ToContentByOriginal(body));
+            public IRequestableContent Form(FormUrlEncodedContent body) => Content(body);
 
             public IRequestableContent Form<TBody>(TBody body) where TBody : IEnumerable<KeyValuePair<string, string>> => new RequestableContent(this, _encoding, new ToContentByStringValue(body));
 
@@ -239,6 +196,7 @@ namespace Inkslab.Net
 
             public IRequestableContent Form(object body, NamingType namingType, string dateFormatString = "yyyy-MM-dd HH:mm:ss.FFFFFFFK")
             {
+                EntityValidator.ValidateInput(body);
                 if (body is null)
                 {
                     return this;
@@ -257,7 +215,11 @@ namespace Inkslab.Net
 
             public IRequestableContent Json(string json) => Body(json, "application/json");
 
-            public IRequestableContent Json<T>(T param, NamingType namingType = NamingType.Normal) where T : class => Json(JsonHelper.ToJson(param, namingType));
+            public IRequestableContent Json<T>(T param, NamingType namingType = NamingType.Normal) where T : class
+            {
+                EntityValidator.ValidateInput(param, typeof(T));
+                return Json(JsonHelper.ToJson(param, namingType));
+            }
 
             public IJsonDeserializeRequestable<T> JsonCast<T>(NamingType namingType = NamingType.Normal) where T : class => new JsonDeserializeRequestable<T>(this, namingType);
 
@@ -265,7 +227,11 @@ namespace Inkslab.Net
 
             public IRequestableContent Xml(string xml) => Body(xml, "application/xml");
 
-            public IRequestableContent Xml<T>(T param) where T : class => Xml(XmlHelper.XmlSerialize(param, _encoding));
+            public IRequestableContent Xml<T>(T param) where T : class
+            {
+                EntityValidator.ValidateInput(param, typeof(T));
+                return Xml(XmlHelper.XmlSerialize(param, _encoding));
+            }
 
             public IXmlDeserializeRequestable<T> XmlCast<T>() where T : class => new XmlDeserializeRequestable<T>(this, _encoding);
 

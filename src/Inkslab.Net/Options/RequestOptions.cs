@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Threading;
 
 namespace Inkslab.Net.Options
 {
@@ -9,6 +10,10 @@ namespace Inkslab.Net.Options
     /// </summary>
     public class RequestOptions
     {
+        private HttpContent _content;
+        private bool _contentCreated;
+        private bool _contentTransferred;
+        private CancellationToken _contentCancellation;
         /// <summary>
         /// 请求配置。
         /// </summary>
@@ -48,8 +53,56 @@ namespace Inkslab.Net.Options
         public double Timeout { get; set; }
 
         /// <summary>
-        /// 请求内容。
+        /// 当前发送的请求内容；首次读取时按需创建，同次发送内保持同一实例。
         /// </summary>
-        public HttpContent Content { get; set; }
+        public HttpContent Content
+        {
+            get
+            {
+                if (!_contentCreated)
+                {
+                    _contentCancellation.ThrowIfCancellationRequested();
+                    _content = CreateContent?.Invoke();
+                    _contentCreated = true;
+                }
+                return _content;
+            }
+            set { _content = value; _contentCreated = true; }
+        }
+
+        /// <summary>选择收到响应头或全部正文时完成；普通发送默认缓冲正文。</summary>
+        public HttpCompletionOption CompletionOption { get; set; } = HttpCompletionOption.ResponseContentRead;
+
+        internal Func<HttpContent> CreateContent { get; set; }
+        internal bool CanReplay { get; set; } = true;
+        internal HashSet<object> ExecutedStrategies { get; set; } = new HashSet<object>();
+
+        internal RequestOptions CreateAttempt(CancellationToken cancellationToken)
+        {
+            return new RequestOptions(RequestUri, Headers, SkipValidationHeaders)
+            {
+                Method = Method,
+                Timeout = Timeout,
+                CompletionOption = CompletionOption,
+                CanReplay = CanReplay,
+                ExecutedStrategies = ExecutedStrategies,
+                CreateContent = CreateContent,
+                _content = CreateContent == null ? _content : null,
+                _contentCreated = CreateContent == null && _contentCreated,
+                _contentCancellation = cancellationToken
+            };
+        }
+
+        internal HttpContent TakeContent()
+        {
+            var content = Content;
+            _contentTransferred = true;
+            return content;
+        }
+
+        internal void DisposeUntransferredContent()
+        {
+            if (!_contentTransferred) { _content?.Dispose(); }
+        }
     }
 }

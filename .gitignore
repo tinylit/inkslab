@@ -292,3 +292,9 @@ Commodity/.vscode/tasks.json
 Commodity/.vscode/settings.json
 
 /docs
+/.artifacts/
+/benchmarks/
+/tests/MapLegacyConsumption/
+/tests/PackageConsumption/
+/tests/PackageMetadata/
+/tests/ValidationChainCompilation/

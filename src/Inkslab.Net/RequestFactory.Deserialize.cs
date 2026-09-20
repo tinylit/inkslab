@@ -42,9 +42,9 @@ namespace Inkslab.Net
                 return new JsonDeserializeRequestableCatch<T>(_requestable, _namingType, abnormalResultAnalysis);
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var stringMsg = await _requestable.SendAsync(method, timeout, cancellationToken);
+                var stringMsg = await _requestable.SendCoreAsync(method, timeout, cancellationToken);
 
                 return JsonHelper.Json<T>(stringMsg, _namingType);
             }
@@ -72,11 +72,11 @@ namespace Inkslab.Net
                 return false;
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
                 try
                 {
-                    return await base.SendAsync(method, timeout, cancellationToken);
+                    return await base.SendCoreAsync(method, timeout, cancellationToken);
                 }
                 catch (Exception ex) when (IsJsonError(ex))
                 {
@@ -106,9 +106,9 @@ namespace Inkslab.Net
                 return new RequestableDataVerify<T>(this, predicate);
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var stringMsg = await _requestable.SendAsync(method, timeout, cancellationToken);
+                var stringMsg = await _requestable.SendCoreAsync(method, timeout, cancellationToken);
 
                 return XmlHelper.XmlDeserialize<T>(stringMsg, _encoding);
             }
@@ -133,11 +133,11 @@ namespace Inkslab.Net
                 _abnormalResultAnalysis = abnormalResultAnalysis;
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
                 try
                 {
-                    return await base.SendAsync(method, timeout, cancellationToken);
+                    return await base.SendCoreAsync(method, timeout, cancellationToken);
                 }
                 catch (XmlException ex)
                 {
@@ -177,11 +177,11 @@ namespace Inkslab.Net
                 return new RequestableDataVerify<T>(this, dataVerify);
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                using var httpMsg = await _requestable.PrimitiveSendAsync(method, timeout, cancellationToken);
-
-                return await _customFactory.Invoke(httpMsg, cancellationToken);
+                var httpMsg = await _requestable.PrimitiveSendAsync(method, timeout, cancellationToken).ConfigureAwait(false);
+                try { return await _customFactory.Invoke(httpMsg, cancellationToken).ConfigureAwait(false); }
+                finally { await RequestableString.ReleaseResponseAsync(httpMsg).ConfigureAwait(false); }
             }
         }
 
@@ -194,11 +194,11 @@ namespace Inkslab.Net
                 _abnormalResultAnalysis = abnormalResultAnalysis;
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
                 try
                 {
-                    return await base.SendAsync(method, timeout, cancellationToken);
+                    return await base.SendCoreAsync(method, timeout, cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -238,9 +238,9 @@ namespace Inkslab.Net
                 return new RequestableDataVerify<T>(this, dataVerify);
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var httpMsg = await _requestable.SendAsync(method, timeout, cancellationToken);
+                var httpMsg = await _requestable.SendCoreAsync(method, timeout, cancellationToken);
 
                 return _customFactory.Invoke(httpMsg);
             }
@@ -255,11 +255,11 @@ namespace Inkslab.Net
                 _abnormalResultAnalysis = abnormalResultAnalysis;
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
                 try
                 {
-                    return await base.SendAsync(method, timeout, cancellationToken);
+                    return await base.SendCoreAsync(method, timeout, cancellationToken);
                 }
                 catch (Exception ex)
                 {

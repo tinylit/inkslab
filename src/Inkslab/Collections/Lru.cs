@@ -290,6 +290,7 @@ namespace Inkslab.Collections
             public TValue Get(TKey key)
             {
                 TValue obsoleteValue = default;
+                bool hasObsoleteValue = false;
 
                 try
                 {
@@ -315,6 +316,7 @@ namespace Inkslab.Collections
                                 _cachings.Remove(lastNode.Key);
                                 Interlocked.Decrement(ref _counter[0]);
                                 obsoleteValue = lastNode.Value;
+                                hasObsoleteValue = true;
                             }
                             else
                             {
@@ -334,7 +336,10 @@ namespace Inkslab.Collections
                 }
                 finally
                 {
-                    DisposeObsolete(obsoleteValue);
+                    if (hasObsoleteValue)
+                    {
+                        DisposeObsolete(obsoleteValue);
+                    }
                 }
             }
 
@@ -360,6 +365,7 @@ namespace Inkslab.Collections
             public void Put(TKey key, TValue value)
             {
                 TValue obsoleteValue = default;
+                bool hasObsoleteValue = false;
 
                 try
                 {
@@ -371,6 +377,7 @@ namespace Inkslab.Collections
                             if (typeof(TValue).IsValueType || !ReferenceEquals(node.Value, value))
                             {
                                 obsoleteValue = node.Value;
+                                hasObsoleteValue = true;
                             }
 
                             node.Value = value;
@@ -388,6 +395,7 @@ namespace Inkslab.Collections
                                 _cachings.Remove(lastNode.Key);
                                 Interlocked.Decrement(ref _counter[0]);
                                 obsoleteValue = lastNode.Value;
+                                hasObsoleteValue = true;
                             }
                             else
                             {
@@ -405,7 +413,10 @@ namespace Inkslab.Collections
                 }
                 finally
                 {
-                    DisposeObsolete(obsoleteValue);
+                    if (hasObsoleteValue)
+                    {
+                        DisposeObsolete(obsoleteValue);
+                    }
                 }
             }
 

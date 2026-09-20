@@ -70,6 +70,15 @@ namespace Inkslab.Tests
     /// </summary>
     public class EnumExtensionsTests
     {
+        private enum SByteValue : sbyte { Minimum = sbyte.MinValue }
+        private enum ByteValue : byte { Maximum = byte.MaxValue }
+        private enum Int16Value : short { Minimum = short.MinValue }
+        private enum UInt16Value : ushort { Maximum = ushort.MaxValue }
+        private enum Int32Value : int { Minimum = int.MinValue }
+        private enum UInt32Value : uint { Maximum = uint.MaxValue }
+        private enum Int64Value : long { Minimum = long.MinValue }
+        private enum UInt64Value : ulong { Maximum = ulong.MaxValue }
+
         /// <summary>
         /// 获取文本。
         /// </summary>
@@ -172,6 +181,32 @@ namespace Inkslab.Tests
             EnumOperation[] enums = @enum.ToValues();
 
             Assert.Equal(enums, operations);
+        }
+
+        /// <summary>
+        /// 枚举转换使用真实底层数值，并保持原有安全转换边界。
+        /// </summary>
+        [Fact]
+        public void NumericConversions_UseAllEightUnderlyingTypes()
+        {
+            Assert.Equal(sbyte.MinValue, SByteValue.Minimum.ToInt32());
+            Assert.Equal(byte.MaxValue, ByteValue.Maximum.ToInt32());
+            Assert.Equal(short.MinValue, Int16Value.Minimum.ToInt32());
+            Assert.Equal(ushort.MaxValue, UInt16Value.Maximum.ToInt32());
+            Assert.Equal(int.MinValue, Int32Value.Minimum.ToInt32());
+
+            Assert.Equal(sbyte.MinValue, SByteValue.Minimum.ToInt64());
+            Assert.Equal(byte.MaxValue, ByteValue.Maximum.ToInt64());
+            Assert.Equal(short.MinValue, Int16Value.Minimum.ToInt64());
+            Assert.Equal(ushort.MaxValue, UInt16Value.Maximum.ToInt64());
+            Assert.Equal(int.MinValue, Int32Value.Minimum.ToInt64());
+            Assert.Equal(4294967295L, UInt32Value.Maximum.ToInt64());
+            Assert.Equal(long.MinValue, Int64Value.Minimum.ToInt64());
+
+            Assert.Throws<InvalidCastException>(() => UInt32Value.Maximum.ToInt32());
+            Assert.Throws<InvalidCastException>(() => Int64Value.Minimum.ToInt32());
+            Assert.Throws<InvalidCastException>(() => UInt64Value.Maximum.ToInt32());
+            Assert.Throws<InvalidCastException>(() => UInt64Value.Maximum.ToInt64());
         }
     }
 }

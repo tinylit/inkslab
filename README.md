@@ -9,11 +9,11 @@
 
 <!-- AI-META
 Project: Inkslab
-Version: 1.2.25
-TargetFrameworks: net461; netstandard2.1; net6.0
+Version: 2.0.0
+TargetFrameworks: net461; netstandard2.1; net6.0; net8.0; net10.0
 Authors: 影子和树
 License: MIT
-Language: C# (LangVersion 9.0)
+Language: C# (9.0 legacy / 10.0 net6 / 12.0 net8 / 14.0 net10)
 Modules: Inkslab, Inkslab.Config, Inkslab.Json, Inkslab.Map, Inkslab.DI, Inkslab.Net
 Keywords: lightweight framework, DI, mapping, JSON, config, HTTP, snowflake, extensions
 -->
@@ -27,7 +27,7 @@ Keywords: lightweight framework, DI, mapping, JSON, config, HTTP, snowflake, ext
 - **统一 API 设计**：所有模块遵循 `接口契约 + 默认实现 + 单例池注册` 的一致模式。
 - **自动启动**：[`XStartup`](src/Inkslab/XStartup.cs) 扫描并按 `Code`/`Weight` 顺序执行所有 [`IStartup`](src/Inkslab/IStartup.cs)。
 - **语法糖扩展**：字符串、集合、日期、枚举、类型、反射、加密等扩展方法位于 [src/Inkslab/Extentions](src/Inkslab/Extentions)。
-- **多框架支持**：`net461` / `netstandard2.1` / `net6.0`。
+- **多框架支持**：`net461` / `netstandard2.1` / `net6.0` / `net8.0` / `net10.0`。
 - **零侵入替换**：任何默认实现都可以通过 `SingletonPools.TryAdd<TService, TImplementation>()` 在启动前替换。
 
 ---
@@ -281,6 +281,8 @@ var obj = XmlHelper.XmlDeserialize(xml, typeof(MyDto));
 | `[Import]` | 构造器 / 属性 / 字段 | 标记 DI 注入点 |
 | `[Ignore]` | 属性 / 字段 | Map 映射与 JSON 序列化时跳过该成员 |
 | `[JsonProperty("name")]` | 属性 / 字段 / 参数 | 覆盖 JSON 序列化 / 反序列化时使用的键名 |
+| `[ValidateInput]` | 类 / 结构体 | 在 HTTP 原生实体请求入口启用 DataAnnotations 校验；未标记保持原处理 |
+| `[ValidateOutput]` | 类 / 结构体 | 自动校验 HTTP 最终响应实体；显式 `.Validation()` 优先，单次输出不重复校验 |
 | `[Match("groupName")]` | 方法参数 | `AdapterSugar` 中将参数绑定到指定命名正则组 |
 | `[Mismatch("groupName")]` | 方法（可多次叠加） | `AdapterSugar` 中：当指定命名正则组匹配成功时排除此方法 |
 
@@ -416,7 +418,9 @@ startup.DoStartup();
 
 ## 构建与发布
 
-- **版本管理**：[`Directory.Build.props`](Directory.Build.props) 统一 `Version=1.2.25`、`LangVersion=9.0`、`TreatWarningsAsErrors=true`、`GenerateDocumentationFile=true`。
+- **测试环境**：最低需要 .NET 10 SDK，具体版本以 `global.json` 为准；完整 `dotnet test` 会分别运行 net6.0、net8.0 和 net10.0 测试，需要同架构的 .NET Runtime 与 ASP.NET Core Runtime 6.0/8.0/10.0。仅安装 .NET Runtime 不足以运行 Config、Map、DI 测试，先用 `dotnet --list-runtimes` 确认三个版本的 `Microsoft.NETCore.App` 和 `Microsoft.AspNetCore.App` 均存在。
+- **兼容性验证**：六个库均保留 net461/netstandard2.1/net6.0/net8.0，并新增 net10.0；单元测试覆盖 net6.0/net8.0/net10.0。DI Web 示例的 net6.0 仅用于兼容性验证，单独关闭该示例的 EOL 构建提示；.NET 6 本身已结束支持。
+- **版本管理**：[`Directory.Build.props`](Directory.Build.props) 统一 `Version=2.0.0`、按目标固定 C# 9/10/12/14（net10.0 使用 C# 14）、`TreatWarningsAsErrors=true`、`GenerateDocumentationFile=true`。
 - **打包**：[`build.ps1`](build.ps1) 对 6 个包逐个 `dotnet pack --configuration Release` 到 `.nupkgs/`。
 - **CI**：[`appveyor.yml`](appveyor.yml)，`main` 分支自动发布到 NuGet。
 

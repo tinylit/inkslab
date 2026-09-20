@@ -1,9 +1,12 @@
 <Project>
     <PropertyGroup>
         <!-- 版本 -->
-        <Version>1.2.25</Version>
+        <Version>2.0.0</Version>
         <!-- C#语法版本-->
         <LangVersion>9.0</LangVersion>
+        <LangVersion Condition="'$(TargetFramework)' == 'net6.0'">10.0</LangVersion>
+        <LangVersion Condition="'$(TargetFramework)' == 'net8.0'">12.0</LangVersion>
+        <LangVersion Condition="'$(TargetFramework)' == 'net10.0'">14.0</LangVersion>
 
         <!-- 语法提示 -->
         <Features>strict</Features>
@@ -92,7 +95,7 @@
                     Version="6.0.0" />
             </ItemGroup>
 
-            <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+            <ItemGroup Condition="'$(TargetFramework)' == 'net6.0' Or '$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net10.0'">
                 <FrameworkReference Include="Microsoft.AspNetCore.App" />
             </ItemGroup>
 
@@ -122,7 +125,7 @@
                 <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"
                     Version="6.0.0" />
             </ItemGroup>
-            <ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+            <ItemGroup Condition="'$(TargetFramework)' == 'net6.0' Or '$(TargetFramework)' == 'net8.0' Or '$(TargetFramework)' == 'net10.0'">
                 <FrameworkReference Include="Microsoft.AspNetCore.App" />
             </ItemGroup>
         </When>

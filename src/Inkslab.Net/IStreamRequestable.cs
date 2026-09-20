@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,7 +10,7 @@ namespace Inkslab.Net
     public interface IStreamRequestable
     {
         /// <summary>
-        /// 下载文件。
+        /// 下载文件；调用方必须释放返回流，超时和取消持续约束正文读取。
         /// </summary>
         /// <param name="timeout">超时时间，单位：毫秒。</param>
         /// <param name="cancellationToken">可由其他对象或线程用以接收取消通知的取消标记。</param>

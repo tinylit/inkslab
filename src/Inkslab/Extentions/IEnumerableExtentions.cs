@@ -18,38 +18,44 @@ namespace System.Collections
         /// <returns></returns>
         public static string Join(this IEnumerable source, string separator = ",")
         {
-            // ReSharper disable once NotDisposedResource
             var enumerator = source.GetEnumerator();
 
-            if (!enumerator.MoveNext())
-            {
-                return string.Empty;
-            }
-
-            while (enumerator.Current is null)
+            try
             {
                 if (!enumerator.MoveNext())
                 {
                     return string.Empty;
                 }
-            }
 
-            var sb = new StringBuilder();
-
-            sb.Append(enumerator.Current);
-
-            while (enumerator.MoveNext())
-            {
-                if (enumerator.Current is null)
+                while (enumerator.Current is null)
                 {
-                    continue;
+                    if (!enumerator.MoveNext())
+                    {
+                        return string.Empty;
+                    }
                 }
 
-                sb.Append(separator)
-                    .Append(enumerator.Current);
-            }
+                var sb = new StringBuilder();
 
-            return sb.ToString();
+                sb.Append(enumerator.Current);
+
+                while (enumerator.MoveNext())
+                {
+                    if (enumerator.Current is null)
+                    {
+                        continue;
+                    }
+
+                    sb.Append(separator)
+                        .Append(enumerator.Current);
+                }
+
+                return sb.ToString();
+            }
+            finally
+            {
+                (enumerator as IDisposable)?.Dispose();
+            }
         }
 
         /// <summary>
