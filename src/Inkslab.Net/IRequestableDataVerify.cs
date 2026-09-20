@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace Inkslab.Net
 {
@@ -17,16 +17,16 @@ namespace Inkslab.Net
         IRequestableDataVerifyFail<T> Fail<TError>(Func<T, TError> throwError) where TError : Exception;
 
         /// <summary>
-        /// 设置重试次数。
+        /// 映射业务谓词验证成功的结果；不触发 HTTP 重试。
         /// </summary>
         /// <typeparam name="TResult">验证成功返回的结果。</typeparam>
         /// <param name="dataVerifySuccess">成功数据。</param>
-        /// <returns>具备数据验证失败重试的请求能力。</returns>
+        /// <returns>具备业务谓词验证成功结果映射的请求能力。</returns>
         IRequestableDataVerifySuccess<T, TResult> Success<TResult>(Func<T, TResult> dataVerifySuccess);
     }
 
     /// <summary>
-    /// 具备数据验证失败重试的请求能力。
+    /// 具备业务谓词验证成功结果映射的请求能力。
     /// </summary>
     /// <typeparam name="T">结果类型。</typeparam>
     /// <typeparam name="TResult">成功结果类型。</typeparam>
@@ -52,7 +52,7 @@ namespace Inkslab.Net
     /// 具备数据验证失败处理的请求能力。
     /// </summary>
     /// <typeparam name="T">结果类型。</typeparam>
-    public interface IRequestableDataVerifyFail<T> : IRequestable<T>
+    public interface IRequestableDataVerifyFail<T> : IRequestableValidation<T>
     {
     }
 
@@ -61,7 +61,7 @@ namespace Inkslab.Net
     /// </summary>
     /// <typeparam name="T">结果类型。</typeparam>
     /// <typeparam name="TResult">失败结果类型。</typeparam>
-    public interface IRequestableDataVerifyFail<T, TResult> : IRequestable<TResult>
+    public interface IRequestableDataVerifyFail<T, TResult> : IRequestableValidation<TResult>
     {
     }
 }

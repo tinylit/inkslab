@@ -2,8 +2,8 @@
 
 <!-- AI-META
 Package: Inkslab.Map
-Version: 1.2.25
-TargetFrameworks: net461; netstandard2.1; net6.0
+Version: 2.0.0
+TargetFrameworks: net461; netstandard2.1; net6.0; net8.0; net10.0
 Namespace: Inkslab, Inkslab.Map
 Dependencies: Inkslab
 EntryContract: IMapper (src/Inkslab/Map/IMapper.cs)

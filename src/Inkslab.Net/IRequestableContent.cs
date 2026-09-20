@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Net;
+using System.IO;
 using System.Net.Http;
 
 namespace Inkslab.Net
@@ -23,6 +24,17 @@ namespace Inkslab.Net
     /// </summary>
     public interface IRequestableEncoding : IRequestableContent
     {
+        /// <summary>使用一次性请求内容；发送结束后释放，不能重试或再次发送。</summary>
+        /// <param name="content">已有的内容实例。</param>
+        /// <returns>请求能力。</returns>
+        IRequestableContent Content(HttpContent content);
+
+        /// <summary>从当前位置发送流的原始字节，仅能发送一次。</summary>
+        /// <param name="stream">可读流，包括不可定位流。</param>
+        /// <param name="contentType">媒体类型。</param>
+        /// <param name="leaveOpen">发送结束后保持源流打开。</param>
+        /// <returns>请求能力。</returns>
+        IRequestableContent Stream(Stream stream, string contentType = "application/octet-stream", bool leaveOpen = false);
         /// <summary>
         /// body中传输。
         /// </summary>
@@ -42,7 +54,7 @@ namespace Inkslab.Net
         ///  content-type = "application/json"。
         /// </summary>
         /// <typeparam name="T">参数类型。</typeparam>
-        /// <param name="param">参数。</param>
+        /// <param name="param">参数；实体标记 ValidateInput 时在序列化前校验。</param>
         /// <param name="namingType">命名规则。</param>
         /// <returns></returns>
         IRequestableContent Json<T>(T param, NamingType namingType = NamingType.Normal) where T : class;
@@ -58,7 +70,7 @@ namespace Inkslab.Net
         /// content-type = "application/xml";。
         /// </summary>
         /// <typeparam name="T">参数类型。</typeparam>
-        /// <param name="param">参数。</param>
+        /// <param name="param">参数；实体标记 ValidateInput 时在序列化前校验。</param>
         /// <returns></returns>
         IRequestableContent Xml<T>(T param) where T : class;
 

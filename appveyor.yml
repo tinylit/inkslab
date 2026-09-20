@@ -10,20 +10,36 @@ skip_commits:
     - '**/*.png'
     - '**/*.jpg'
     - '**/*.svg'
-    - '**/*.json'
-    - '**/*.config'
-    - '**/*.csproj'
     - '**/*.csproj.user'
     - 'Tests/'
 image: Visual Studio 2022
 configuration: Release
 clone_depth: 5
-before_build:
-- cmd: nuget restore
-build:
-  verbosity: minimal
-before_package:
+install:
+- ps: |
+    $ErrorActionPreference = 'Stop'
+    $ciDotnetDirectory = Join-Path $env:TEMP 'inkslab-dotnet'
+    $ciDotnetInstaller = Join-Path $env:TEMP 'inkslab-dotnet-install.ps1'
+    $sdkVersion = (Get-Content -LiteralPath '.\global.json' -Raw | ConvertFrom-Json).sdk.version
+    Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile $ciDotnetInstaller -UseBasicParsing
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $ciDotnetInstaller -Version $sdkVersion -Architecture x64 -InstallDir $ciDotnetDirectory -NoPath
+    if ($LASTEXITCODE -ne 0) { throw '.NET SDK installation failed.' }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $ciDotnetInstaller -Runtime aspnetcore -Version '6.0.36' -Architecture x64 -InstallDir $ciDotnetDirectory -NoPath -SkipNonVersionedFiles
+    if ($LASTEXITCODE -ne 0) { throw 'ASP.NET Core 6.0 runtime installation failed.' }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File $ciDotnetInstaller -Runtime aspnetcore -Channel '8.0' -Architecture x64 -InstallDir $ciDotnetDirectory -NoPath -SkipNonVersionedFiles
+    if ($LASTEXITCODE -ne 0) { throw 'ASP.NET Core 8.0 runtime installation failed.' }
+    $env:DOTNET_ROOT = $ciDotnetDirectory
+    $env:DOTNET_CLI_HOME = $env:TEMP
+    $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
+    $env:DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE = 'true'
+    $env:PATH = "$ciDotnetDirectory;$env:PATH"
+    & dotnet --info
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the installed .NET SDK.' }
+    & dotnet --list-runtimes
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect the installed .NET runtimes.' }
+build_script:
 - ps: .\build.ps1
+test: off
 artifacts:
 - path: .\.nupkgs\*.nupkg
 deploy:

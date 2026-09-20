@@ -75,7 +75,7 @@ namespace Inkslab.Map.Maps
 
             foreach (var propertyInfo in destinationType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
             {
-                if (propertyInfo.IsIgnore())
+                if (propertyInfo.IsIgnore() || propertyInfo.GetIndexParameters().Length != 0)
                 {
                     continue;
                 }
@@ -114,6 +114,11 @@ namespace Inkslab.Map.Maps
 
             foreach (var info in properties)
             {
+                if (info.GetIndexParameters().Length != 0)
+                {
+                    continue;
+                }
+
                 //? 同名按大小写碰撞时，保留首个可读属性，尽量选择可用字段。
                 if (!lookup.ContainsKey(info.Name))
                 {

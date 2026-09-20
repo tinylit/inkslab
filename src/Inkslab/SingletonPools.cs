@@ -32,6 +32,19 @@ namespace Inkslab
         /// </summary>
         private static readonly ConcurrentDictionary<Type, PropertyInfo> _propertyCache = new ConcurrentDictionary<Type, PropertyInfo>();
 
+        private readonly struct ConstructorScore
+        {
+            public ConstructorScore(ConstructorInfo constructor, int score)
+            {
+                Constructor = constructor;
+                Score = score;
+            }
+
+            public ConstructorInfo Constructor { get; }
+
+            public int Score { get; }
+        }
+
         /// <summary>
         /// 添加服务。
         /// </summary>
@@ -269,17 +282,30 @@ namespace Inkslab
                     var sorted = new ConstructorInfo[ctors.Length];
                     Array.Copy(ctors, sorted, ctors.Length);
 
-                    Array.Sort(sorted, static (a, b) =>
+                    var scored = new ConstructorScore[sorted.Length];
+
+                    for (int i = 0; i < sorted.Length; i++)
                     {
-                        int cmp = (a.IsPublic ? 0 : 1) - (b.IsPublic ? 0 : 1);
+                        var constructor = sorted[i];
+                        scored[i] = new ConstructorScore(constructor, ComputeCtorScore(constructor));
+                    }
+
+                    Array.Sort(scored, static (a, b) =>
+                    {
+                        int cmp = (a.Constructor.IsPublic ? 0 : 1) - (b.Constructor.IsPublic ? 0 : 1);
 
                         if (cmp != 0)
                         {
                             return cmp;
                         }
 
-                        return ComputeCtorScore(b) - ComputeCtorScore(a);
+                        return b.Score - a.Score;
                     });
+
+                    for (int i = 0; i < scored.Length; i++)
+                    {
+                        sorted[i] = scored[i].Constructor;
+                    }
 
                     return sorted;
                 }

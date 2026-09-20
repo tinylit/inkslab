@@ -1,4 +1,4 @@
-﻿using Inkslab.Map.Visitors;
+using Inkslab.Map.Visitors;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -178,6 +178,12 @@ namespace Inkslab.Map.Expressions
 
                 var bodyExp = application.Map(sourceExp, destinationType);
 
+#if NET_Traditional
+                // .NET Framework's expression compiler cannot spill the custom extension nodes
+                // used for null propagation; reduce them before compiling the final lambda.
+                bodyExp = new LegacyExpressionVisitor().Visit(bodyExp);
+#endif
+
                 if (!destinationType.IsAssignableFrom(bodyExp.Type))
                 {
                     throw new InvalidOperationException();
@@ -287,6 +293,16 @@ namespace Inkslab.Map.Expressions
 
                 GC.SuppressFinalize(this);
             }
+
+#if NET_Traditional
+            private sealed class LegacyExpressionVisitor : ExpressionVisitor
+            {
+                protected override Expression VisitExtension(Expression node)
+                {
+                    return node.CanReduce ? Visit(node.Reduce()) : base.VisitExtension(node);
+                }
+            }
+#endif
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq.Expressions;
@@ -15,6 +15,12 @@ namespace Inkslab.Map.Maps
         private static readonly MethodInfo _getEnumeratorMtd = MapConstants.EnumerableType.GetMethod("GetEnumerator", Type.EmptyTypes);
 
         private static readonly PropertyInfo _enumeratorCurrentProp = MapConstants.EnumeratorType.GetProperty(nameof(IEnumerator.Current));
+
+        private static readonly MethodInfo _disposeMtd = typeof(IDisposable).GetMethod(nameof(IDisposable.Dispose));
+
+        private static readonly MethodInfo _addArrayItemMtd = typeof(EnumerableMap).GetMethod(nameof(AddArrayItem), BindingFlags.Static | BindingFlags.NonPublic);
+
+        private static readonly MethodInfo _resizeArrayMtd = typeof(EnumerableMap).GetMethod(nameof(ResizeArray), BindingFlags.Static | BindingFlags.NonPublic);
 
         /// <summary>
         /// 解决迭代器类型（<see cref="IEnumerable"/>）之间的转换。
@@ -131,6 +137,7 @@ namespace Inkslab.Map.Maps
 
         private static Expression ArrayToArray(Expression sourceExpression, Type destinationType, IMapApplication application)
         {
+#if NET_Traditional
             var indexExp = Variable(typeof(int));
 
             var lengthExp = Variable(typeof(int));
@@ -171,6 +178,62 @@ namespace Inkslab.Map.Maps
                 ),
                 Call(MapConstants.ToArrayMtd.MakeGenericMethod(elementType), variableExp)
             });
+#else
+            var sourceIndexExp = Variable(typeof(int));
+
+            var destinationIndexExp = Variable(typeof(int));
+
+            var lengthExp = Variable(typeof(int));
+
+            var elementType = destinationType.GetElementType();
+
+            var destinationArrayExp = Variable(destinationType);
+
+            LabelTarget breakLabel = Label(MapConstants.VoidType);
+            LabelTarget continueLabel = Label(MapConstants.VoidType);
+
+            return Block(new ParameterExpression[]
+            {
+                sourceIndexExp,
+                destinationIndexExp,
+                lengthExp,
+                destinationArrayExp
+            }, new Expression[]
+            {
+                Assign(sourceIndexExp, Constant(0)),
+                Assign(destinationIndexExp, Constant(0)),
+                Assign(lengthExp, ArrayLength(sourceExpression)),
+                Assign(destinationArrayExp, NewArrayBounds(elementType, lengthExp)),
+                Loop(
+                    IfThenElse(
+                        GreaterThan(lengthExp, sourceIndexExp),
+                        Block(
+                            Call(
+                                _addArrayItemMtd.MakeGenericMethod(elementType),
+                                destinationArrayExp,
+                                destinationIndexExp,
+                                application.Map(ArrayIndex(sourceExpression, sourceIndexExp), elementType)),
+                            AddAssign(sourceIndexExp, Constant(1)),
+                            Continue(continueLabel)
+                        ),
+                        Break(breakLabel)), // push to eax/rax --> return value
+                    breakLabel, continueLabel
+                ),
+                Call(_resizeArrayMtd.MakeGenericMethod(elementType), destinationArrayExp, destinationIndexExp)
+            });
+#endif
+        }
+
+        private static void AddArrayItem<T>(T[] array, ref int index, T item) => array[index++] = item;
+
+        private static T[] ResizeArray<T>(T[] array, int length)
+        {
+            if (array.Length != length)
+            {
+                Array.Resize(ref array, length);
+            }
+
+            return array;
         }
 
         private static Expression ToArray(Expression sourceExpression, Type destinationElementType, IMapApplication application)
@@ -219,16 +282,19 @@ namespace Inkslab.Map.Maps
             {
                 Assign(variableExp, New(conversionType)),
                 Assign(enumeratorExp, Call(sourceExpression, _getEnumeratorMtd)),
-                Loop(
-                    IfThenElse(
-                        Call(enumeratorExp, MapConstants.MoveNextMtd),
-                        Block(
-                            MapConstants.VoidType,
-                            Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, _enumeratorCurrentProp), destinationElementType)),
-                            Continue(continueLabel)
-                        ),
-                        Break(breakLabel)), // push to eax/rax --> return value
-                    breakLabel, continueLabel
+                TryFinally(
+                    Loop(
+                        IfThenElse(
+                            Call(enumeratorExp, MapConstants.MoveNextMtd),
+                            Block(
+                                MapConstants.VoidType,
+                                Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, _enumeratorCurrentProp), destinationElementType)),
+                                Continue(continueLabel)
+                            ),
+                            Break(breakLabel)), // push to eax/rax --> return value
+                        breakLabel, continueLabel
+                    ),
+                    DisposeIfNeeded(enumeratorExp)
                 ),
                 Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), variableExp)
             });
@@ -259,15 +325,18 @@ namespace Inkslab.Map.Maps
             {
                 Assign(variableExp, New(conversionType)),
                 Assign(enumeratorExp, Call(sourceExpression, enumerableType.GetMethod("GetEnumerator", Type.EmptyTypes)!)),
-                Loop(
-                    IfThenElse(
-                        Call(enumeratorExp, MapConstants.MoveNextMtd),
-                        Block(
-                            Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, propertyInfo), destinationElementType)),
-                            Continue(continueLabel)
-                        ),
-                        Break(breakLabel)), // push to eax/rax --> return value
-                    breakLabel, continueLabel
+                TryFinally(
+                    Loop(
+                        IfThenElse(
+                            Call(enumeratorExp, MapConstants.MoveNextMtd),
+                            Block(
+                                Call(variableExp, addElementMtd, configuration.Map(Property(enumeratorExp, propertyInfo), destinationElementType)),
+                                Continue(continueLabel)
+                            ),
+                            Break(breakLabel)), // push to eax/rax --> return value
+                        breakLabel, continueLabel
+                    ),
+                    Call(Convert(enumeratorExp, typeof(IDisposable)), _disposeMtd)
                 ),
                 Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), variableExp)
             });
@@ -341,15 +410,18 @@ namespace Inkslab.Map.Maps
             }, new Expression[]
             {
                 Assign(enumeratorExp, Call(sourceExpression, _getEnumeratorMtd)),
-                Loop(
-                    IfThenElse(
-                        Call(enumeratorExp, MapConstants.MoveNextMtd),
-                        Block(
-                            Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, _enumeratorCurrentProp), destinationElementType)),
-                            Continue(continueLabel)
-                        ),
-                        Break(breakLabel)), // push to eax/rax --> return value
-                    breakLabel, continueLabel
+                TryFinally(
+                    Loop(
+                        IfThenElse(
+                            Call(enumeratorExp, MapConstants.MoveNextMtd),
+                            Block(
+                                Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, _enumeratorCurrentProp), destinationElementType)),
+                                Continue(continueLabel)
+                            ),
+                            Break(breakLabel)), // push to eax/rax --> return value
+                        breakLabel, continueLabel
+                    ),
+                    DisposeIfNeeded(enumeratorExp)
                 )
             });
         }
@@ -372,18 +444,27 @@ namespace Inkslab.Map.Maps
             }, new Expression[]
             {
                 Assign(enumeratorExp, Call(sourceExpression, enumerableType.GetMethod("GetEnumerator", Type.EmptyTypes)!)),
-                Loop(
-                    IfThenElse(
-                        Call(enumeratorExp, MapConstants.MoveNextMtd),
-                        Block(
-                            Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, propertyInfo), destinationElementType)),
-                            Continue(continueLabel)
-                        ),
-                        Break(breakLabel)), // push to eax/rax --> return value
-                    breakLabel, continueLabel
+                TryFinally(
+                    Loop(
+                        IfThenElse(
+                            Call(enumeratorExp, MapConstants.MoveNextMtd),
+                            Block(
+                                Call(destinationExpression, addElementMtd, configuration.Map(Property(enumeratorExp, propertyInfo), destinationElementType)),
+                                Continue(continueLabel)
+                            ),
+                            Break(breakLabel)), // push to eax/rax --> return value
+                        breakLabel, continueLabel
+                    ),
+                    Call(Convert(enumeratorExp, typeof(IDisposable)), _disposeMtd)
                 )
             });
         }
+
+        private static Expression DisposeIfNeeded(Expression enumeratorExpression) =>
+            IfThen(
+                TypeIs(enumeratorExpression, typeof(IDisposable)),
+                Call(Convert(enumeratorExpression, typeof(IDisposable)), _disposeMtd)
+            );
 
         /// <summary>
         /// <inheritdoc/>

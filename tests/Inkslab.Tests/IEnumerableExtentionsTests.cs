@@ -48,6 +48,53 @@ namespace Inkslab.Tests
     /// </summary>
     public class EnumerableExtensionsTests
     {
+        private sealed class TrackingEnumerable : IEnumerable
+        {
+            private readonly object[] _items;
+            private readonly int _throwOnMove;
+
+            public TrackingEnumerable(object[] items, int throwOnMove = -1)
+            {
+                _items = items;
+                _throwOnMove = throwOnMove;
+            }
+
+            public bool Disposed { get; private set; }
+
+            public IEnumerator GetEnumerator() => new TrackingEnumerator(this);
+
+            private sealed class TrackingEnumerator : IEnumerator, IDisposable
+            {
+                private readonly TrackingEnumerable _owner;
+                private int _index = -1;
+
+                public TrackingEnumerator(TrackingEnumerable owner) => _owner = owner;
+
+                public object Current => _owner._items[_index];
+
+                public bool MoveNext()
+                {
+                    _index++;
+
+                    if (_index == _owner._throwOnMove)
+                    {
+                        throw new InvalidOperationException("MoveNext failed.");
+                    }
+
+                    return _index < _owner._items.Length;
+                }
+
+                public void Reset() => _index = -1;
+
+                public void Dispose() => _owner.Disposed = true;
+            }
+        }
+
+        private sealed class ThrowingStringValue
+        {
+            public override string ToString() => throw new InvalidOperationException("ToString failed.");
+        }
+
         #region System.Collections.EnumerableExtensions 测试
 
         /// <summary>
@@ -68,6 +115,48 @@ namespace Inkslab.Tests
             var result = list.Join(","); // 自动忽略 null 值
 
             Assert.Equal(expected, result);
+        }
+
+        /// <summary>
+        /// Join 正常完成与提前返回都必须释放枚举器。
+        /// </summary>
+        [Fact]
+        public void Join_DisposesEnumeratorOnCompletionAndEmptySequence()
+        {
+            var populated = new TrackingEnumerable(new object[] { "a", null, "b" });
+            var empty = new TrackingEnumerable(Array.Empty<object>());
+            var allNull = new TrackingEnumerable(new object[] { null, null });
+
+            Assert.Equal("a,b", populated.Join(","));
+            Assert.Equal(string.Empty, empty.Join(","));
+            Assert.Equal(string.Empty, allNull.Join(","));
+            Assert.True(populated.Disposed);
+            Assert.True(empty.Disposed);
+            Assert.True(allNull.Disposed);
+        }
+
+        /// <summary>
+        /// Join 的枚举异常路径必须释放枚举器。
+        /// </summary>
+        [Fact]
+        public void Join_DisposesEnumeratorWhenMoveNextThrows()
+        {
+            var source = new TrackingEnumerable(new object[] { "a", "b" }, throwOnMove: 1);
+
+            Assert.Throws<InvalidOperationException>(() => source.Join(","));
+            Assert.True(source.Disposed);
+        }
+
+        /// <summary>
+        /// Join 的字符串转换异常路径必须释放枚举器。
+        /// </summary>
+        [Fact]
+        public void Join_DisposesEnumeratorWhenToStringThrows()
+        {
+            var source = new TrackingEnumerable(new object[] { new ThrowingStringValue() });
+
+            Assert.Throws<InvalidOperationException>(() => source.Join(","));
+            Assert.True(source.Disposed);
         }
 
         /// <summary>

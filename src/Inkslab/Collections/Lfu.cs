@@ -409,6 +409,7 @@ namespace Inkslab.Collections
             public TValue Get(TKey key)
             {
                 TValue obsoleteValue = default;
+                bool hasObsoleteValue = false;
 
                 try
                 {
@@ -430,6 +431,7 @@ namespace Inkslab.Collections
                             if (_cachings.Count > 0)
                             {
                                 obsoleteValue = Evict();
+                                hasObsoleteValue = true;
                                 Interlocked.Decrement(ref _counter[0]);
                             }
                             else
@@ -458,7 +460,10 @@ namespace Inkslab.Collections
                 }
                 finally
                 {
-                    DisposeObsolete(obsoleteValue);
+                    if (hasObsoleteValue)
+                    {
+                        DisposeObsolete(obsoleteValue);
+                    }
                 }
             }
 
@@ -484,6 +489,7 @@ namespace Inkslab.Collections
             public void Put(TKey key, TValue value)
             {
                 TValue obsoleteValue = default;
+                bool hasObsoleteValue = false;
 
                 try
                 {
@@ -495,6 +501,7 @@ namespace Inkslab.Collections
                             if (typeof(TValue).IsValueType || !ReferenceEquals(node.Value, value))
                             {
                                 obsoleteValue = node.Value;
+                                hasObsoleteValue = true;
                             }
 
                             node.Value = value;
@@ -509,6 +516,7 @@ namespace Inkslab.Collections
                             if (_cachings.Count > 0)
                             {
                                 obsoleteValue = Evict();
+                                hasObsoleteValue = true;
                                 Interlocked.Decrement(ref _counter[0]);
                             }
                             else
@@ -535,7 +543,10 @@ namespace Inkslab.Collections
                 }
                 finally
                 {
-                    DisposeObsolete(obsoleteValue);
+                    if (hasObsoleteValue)
+                    {
+                        DisposeObsolete(obsoleteValue);
+                    }
                 }
             }
 

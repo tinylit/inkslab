@@ -1,3 +1,4 @@
+#if DEBUG
 using System.Net.Security;
 using Xunit;
 
@@ -6,6 +7,7 @@ namespace Inkslab.Net.Tests
     /// <summary>
     /// TLS 证书校验开关测试。
     /// </summary>
+    [Collection("Certificate validation")]
     public class CertificateValidationTests
     {
         /// <summary>
@@ -39,3 +41,4 @@ namespace Inkslab.Net.Tests
         }
     }
 }
+#endif

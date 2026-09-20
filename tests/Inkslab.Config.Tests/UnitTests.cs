@@ -16,10 +16,7 @@ namespace Inkslab.Config.Tests
         public void TestDef()
         {
             //+ 热启动。
-            using (var startup = new XStartup())
-            {
-                startup.DoStartup();
-            }
+            StartupFixture.EnsureInitialized();
 
             var equal = "Production";
 
@@ -36,10 +33,7 @@ namespace Inkslab.Config.Tests
         public void TestCus()
         {
             //+ 热启动。
-            using (var startup = new XStartup())
-            {
-                startup.DoStartup();
-            }
+            StartupFixture.EnsureInitialized();
 
             SingletonPools.TryAdd(new JsonConfigSettings(x =>
             {

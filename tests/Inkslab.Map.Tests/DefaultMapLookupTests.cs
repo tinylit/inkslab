@@ -30,8 +30,7 @@ namespace Inkslab.Map.Tests
         /// </summary>
         public DefaultMapLookupTests()
         {
-            using var startup = new XStartup();
-            startup.DoStartup();
+            StartupFixture.EnsureInitialized();
         }
 
         /// <summary>

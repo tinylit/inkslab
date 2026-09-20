@@ -16,6 +16,28 @@ namespace Inkslab.Tests
     /// </summary>
     public class LFUTests
     {
+        private struct DisposableValue : IDisposable
+        {
+            private static int _disposeCount;
+
+            public DisposableValue(int value) => Value = value;
+
+            public int Value { get; }
+
+            public static int DisposeCount => _disposeCount;
+
+            public static void Reset() => _disposeCount = 0;
+
+            public void Dispose() => Interlocked.Increment(ref _disposeCount);
+        }
+
+        private sealed class ConstantHashComparer : IEqualityComparer<int>
+        {
+            public bool Equals(int x, int y) => x == y;
+
+            public int GetHashCode(int obj) => 0;
+        }
+
         private class DisposableProbe : IDisposable
         {
             private int _disposed;
@@ -23,6 +45,36 @@ namespace Inkslab.Tests
             public int DisposeCount => _disposed;
 
             public void Dispose() => Interlocked.Increment(ref _disposed);
+        }
+
+        /// <summary>
+        /// 没有淘汰时不得释放可释放值类型的默认值，真实淘汰只释放一次。
+        /// </summary>
+        [Fact]
+        public void DisposableStruct_DisposesOnlyActuallyEvictedValue()
+        {
+            DisposableValue.Reset();
+            var lfu = new Lfu<int, DisposableValue>(1, new ConstantHashComparer(), key => new DisposableValue(key));
+
+            Assert.Equal(1, lfu.Get(1).Value);
+            Assert.Equal(1, lfu.Get(1).Value);
+            Assert.Equal(0, DisposableValue.DisposeCount);
+
+            Assert.Equal(2, lfu.Get(2).Value);
+            Assert.Equal(1, DisposableValue.DisposeCount);
+        }
+
+        /// <summary>
+        /// 工厂异常不得释放可释放值类型的默认值。
+        /// </summary>
+        [Fact]
+        public void DisposableStruct_FactoryFailureDoesNotDisposeDefaultValue()
+        {
+            DisposableValue.Reset();
+            var lfu = new Lfu<int, DisposableValue>(1, _ => throw new InvalidOperationException("Factory failed."));
+
+            Assert.Throws<InvalidOperationException>(() => lfu.Get(1));
+            Assert.Equal(0, DisposableValue.DisposeCount);
         }
 
         #region 边界测试

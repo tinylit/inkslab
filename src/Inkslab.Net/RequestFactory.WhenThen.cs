@@ -37,7 +37,6 @@ namespace Inkslab.Net
 
         private class ThenRequestable : RequestableEncoding, IThenRequestable
         {
-            private volatile bool initializedStatusCode;
             private readonly RequestableString _requestable;
             private readonly Predicate<HttpStatusCode> _whenStatus;
             private readonly Func<IRequestableBase, Task> _thenAsync;
@@ -53,33 +52,47 @@ namespace Inkslab.Net
 
             public sealed override async Task<HttpResponseMessage> SendAsync(RequestOptions options, CancellationToken cancellationToken = default)
             {
-                var httpMsg = await _requestable.SendAsync(options, cancellationToken);
-
-                if (initializedStatusCode)
+                var httpMsg = await _requestable.SendAsync(options, cancellationToken).ConfigureAwait(false);
+                try
                 {
-                    return httpMsg;
-                }
+                    if (options.ExecutedStrategies.Contains(this) || !_whenStatus(httpMsg.StatusCode)) { return httpMsg; }
+                    options.ExecutedStrategies.Add(this);
+                    if (!options.CanReplay)
+                    { throw new InvalidOperationException("This request content cannot be replayed."); }
 
-                if (_whenStatus(httpMsg.StatusCode))
-                {
-                    initializedStatusCode = true;
-
-                    //? 重试前释放首个响应，避免连接/流泄漏。
-                    httpMsg.Dispose();
-
+                    await ReleaseAttemptAsync(httpMsg).ConfigureAwait(false);
                     var requestableRef = new RequestableBase(_requestable);
-
-                    await _thenAsync(requestableRef);
-
-                    //? 重建请求配置（含全新 Content），首个 options 的 Content 已随请求消息释放，不能复用。
-                    var retryOptions = _requestable.GetOptions(options.Method, options.Timeout);
-
-                    return await requestableRef.SendAsync(retryOptions, cancellationToken);
+                    var callback = _thenAsync(requestableRef);
+                    await AwaitCallbackAsync(callback, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var retryOptions = options; // Fresh content, shared execution-local configuration.
+                    return await requestableRef.SendAsync(retryOptions, cancellationToken).ConfigureAwait(false);
                 }
-
-                return httpMsg;
+                catch { await ReleaseAttemptAsync(httpMsg).ConfigureAwait(false); throw; }
             }
 
+            private static async Task ReleaseAttemptAsync(HttpResponseMessage response)
+            {
+                var scope = (response.Content as OwnedResponseContent)?.Scope;
+                response.Dispose();
+                if (scope != null) { await scope.StopAsync().ConfigureAwait(false); }
+            }
+
+            private static async Task AwaitCallbackAsync(Task callback, CancellationToken token)
+            {
+                if (!token.CanBeCanceled) { await callback.ConfigureAwait(false); return; }
+                var canceled = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                using (token.Register(() => canceled.TrySetResult(true)))
+                {
+                    if (await Task.WhenAny(callback, canceled.Task).ConfigureAwait(false) != callback)
+                    {
+                        // Observe eventual faults; the callback has no cancellation parameter and can continue.
+                        _ = callback.ContinueWith(t => { var ignored = t.Exception; }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+                        token.ThrowIfCancellationRequested();
+                    }
+                    await callback.ConfigureAwait(false);
+                }
+            }
             private class RequestableBase : IRequestableBase
             {
                 private readonly RequestableString _requestable;
@@ -165,7 +178,7 @@ namespace Inkslab.Net
 
                     int indexOf = requestUri.IndexOf('?');
 
-                    var queryStrings = _queryString.ToString();
+                    var queryStrings = _queryString.ToString().TrimStart('?');
 
                     if (indexOf == -1)
                     {

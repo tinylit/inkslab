@@ -176,6 +176,8 @@ namespace System
             private static readonly Type _conversionType;
             private static readonly bool _allowConvertToInt;
             private static readonly bool _allowConvertToLong;
+            private static readonly Func<TEnum, int> _toInt;
+            private static readonly Func<TEnum, long> _toLong;
 
             static Convert()
             {
@@ -194,6 +196,18 @@ namespace System
                         break;
                 }
 
+                var value = Parameter(typeof(TEnum));
+
+                if (_allowConvertToInt)
+                {
+                    _toInt = Lambda<Func<TEnum, int>>(System.Linq.Expressions.Expression.Convert(value, typeof(int)), value).Compile();
+                }
+
+                if (_allowConvertToLong)
+                {
+                    _toLong = Lambda<Func<TEnum, long>>(System.Linq.Expressions.Expression.Convert(value, typeof(long)), value).Compile();
+                }
+
                 IsFlags = _conversionType.IsDefined(typeof(FlagsAttribute), false);
             }
 
@@ -203,7 +217,7 @@ namespace System
             {
                 if (_allowConvertToInt)
                 {
-                    return @enum.GetHashCode();
+                    return _toInt.Invoke(@enum);
                 }
 
                 throw new InvalidCastException($"{@enum}的基础数据类型为“{_conversionType.Name}”，不能安全转换为Int32！");
@@ -211,14 +225,9 @@ namespace System
 
             public static long ToLong(TEnum @enum)
             {
-                if (_allowConvertToInt)
-                {
-                    return @enum.GetHashCode();
-                }
-
                 if (_allowConvertToLong)
                 {
-                    return (long)Convert.ChangeType(@enum, _conversionType);
+                    return _toLong.Invoke(@enum);
                 }
 
                 throw new InvalidCastException($"{@enum}的基础数据类型为“{_conversionType.Name}”，不能安全转换为Int64！");

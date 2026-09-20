@@ -13,7 +13,7 @@ namespace Inkslab.Json.Tests
     public class A
     {
         /// <summary>
-        /// ²»ÐòÁÐ»¯Õâ¸öÊôÐÔ¡£
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¡ï¿½
         /// </summary>
         [Ignore]
         public int A1 { get; set; } = 100;
@@ -41,7 +41,7 @@ namespace Inkslab.Json.Tests
     public class B
     {
         /// <summary>
-        /// ²»ÐòÁÐ»¯Õâ¸öÊôÐÔ¡£
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô¡ï¿½
         /// </summary>
         [Ignore]
         public int A1 { get; set; } = 100;
@@ -63,21 +63,18 @@ namespace Inkslab.Json.Tests
     }
 
     /// <summary>
-    /// µ¥Ôª²âÊÔ¡£
+    /// ï¿½ï¿½Ôªï¿½ï¿½ï¿½Ô¡ï¿½
     /// </summary>
     public class UnitTests
     {
         /// <summary>
-        /// ²âÊÔÄ¬ÈÏJson×ª»»Æ÷¡£
+        /// ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½Json×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         [Fact]
         public void TestDef()
         {
-            //+ Òý°ü¼´ÓÃ£ºÌí¼ÓNuget°ü»ò¹¤³ÌÒýÓÃ¼´¿ÉÊ¹ÓÃ¡£
-            using (var xstartup = new XStartup())
-            {
-                xstartup.DoStartup();
-            }
+            //+ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ï¿½Nugetï¿½ï¿½ï¿½ò¹¤³ï¿½ï¿½ï¿½ï¿½Ã¼ï¿½ï¿½ï¿½Ê¹ï¿½Ã¡ï¿½
+            StartupFixture.EnsureInitialized();
 
             var a = new A
             {
@@ -93,7 +90,7 @@ namespace Inkslab.Json.Tests
 
             var a1 = JsonHelper.Json<A>(json);
 
-            //? ²»±»ÐòÁÐ»¯£¬ËùÒÔ·´ÐòÁÐ»¯Ê±£¬Ê¹ÓÃÄ¬ÈÏÖµ¡£
+            //? ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ô·ï¿½ï¿½ï¿½ï¿½Ð»ï¿½Ê±ï¿½ï¿½Ê¹ï¿½ï¿½Ä¬ï¿½ï¿½Öµï¿½ï¿½
             Assert.NotEqual(a.A1, a1.A1);
 
             Assert.Equal(a.A2, a1.A2);
@@ -102,7 +99,7 @@ namespace Inkslab.Json.Tests
         }
 
         /// <summary>
-        /// ²âÊÔ×Ô¶¨Òå×ª»»Æ÷¡£
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         [Fact]
         public void TestCus()
@@ -110,15 +107,12 @@ namespace Inkslab.Json.Tests
             SingletonPools.TryAdd(new JsonSerializerSettings
             {
                 DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-                DateFormatString = "yyyy-MM-dd", //? Ö¸¶¨Ê±¼ä¸ñÊ½Îª£ºyyyy-MM-dd
+                DateFormatString = "yyyy-MM-dd", //? Ö¸ï¿½ï¿½Ê±ï¿½ï¿½ï¿½Ê½Îªï¿½ï¿½yyyy-MM-dd
                 NullValueHandling = NullValueHandling.Ignore
             });
 
-            //+ Òý°ü¼´ÓÃ£ºÌí¼ÓNuget°ü»ò¹¤³ÌÒýÓÃ¼´¿ÉÊ¹ÓÃ¡£
-            using (var xstartup = new XStartup())
-            {
-                xstartup.DoStartup();
-            }
+            //+ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã£ï¿½ï¿½ï¿½ï¿½ï¿½Nugetï¿½ï¿½ï¿½ò¹¤³ï¿½ï¿½ï¿½ï¿½Ã¼ï¿½ï¿½ï¿½Ê¹ï¿½Ã¡ï¿½
+            StartupFixture.EnsureInitialized();
 
             var a = new A
             {
@@ -134,12 +128,12 @@ namespace Inkslab.Json.Tests
 
             var a1 = JsonHelper.Json<B>(json, NamingType.SnakeCase);
 
-            //? ±ê¼ÇºöÂÔµÄÊôÐÔ£¬Ä¿±êÊ¹ÓÃÄ¬ÈÏÖµ¡£
+            //? ï¿½ï¿½Çºï¿½ï¿½Ôµï¿½ï¿½ï¿½ï¿½Ô£ï¿½Ä¿ï¿½ï¿½Ê¹ï¿½ï¿½Ä¬ï¿½ï¿½Öµï¿½ï¿½
             Assert.NotEqual(a.A1, a1.A1);
 
             Assert.Equal(a.A2, a1.C1);
 
-            //? null ±»ºöÂÔ£¬Ä¿±êÊ¹ÓÃÄ¬ÈÏÖµ¡£
+            //? null ï¿½ï¿½ï¿½ï¿½ï¿½Ô£ï¿½Ä¿ï¿½ï¿½Ê¹ï¿½ï¿½Ä¬ï¿½ï¿½Öµï¿½ï¿½
             Assert.NotEqual(a.A3, a1.A3);
         }
     }

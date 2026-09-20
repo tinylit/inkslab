@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -82,13 +82,13 @@ namespace Inkslab.Net
     }
 
     /// <summary>
-    /// 请求数据验证。
+    /// 支持业务谓词验证及最终响应实体校验。
     /// </summary>
     /// <typeparam name="T">结果类型。</typeparam>
-    public interface IRequestableExtend<T> : IRequestable<T>
+    public interface IRequestableExtend<T> : IRequestableValidation<T>
     {
         /// <summary>
-        /// 结果请求结果不满足<paramref name="dataVerify"/>时，会重复请求。
+        /// 配置业务结果判断；不触发 HTTP 重试或 DataAnnotations 校验。
         /// </summary>
         /// <param name="dataVerify">结果验证函数。</param>
         /// <returns>数据验证请求能力。</returns>

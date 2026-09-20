@@ -94,8 +94,6 @@ namespace Inkslab.Tests
         public async Task ConcurrentRegisterAndResolve_ShouldNotDeadlockAsync()
         {
             const int threadCount = 10;
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-
             var tasks = new List<Task>(threadCount * 2);
 
             for (int i = 0; i < threadCount; i++)
@@ -103,15 +101,15 @@ namespace Inkslab.Tests
                 tasks.Add(Task.Run(() =>
                 {
                     SingletonPools.TryAdd(() => new FactoryService());
-                }, cts.Token));
+                }));
 
                 tasks.Add(Task.Run(() =>
                 {
                     SingletonPools.Singleton<FactoryService>();
-                }, cts.Token));
+                }));
             }
 
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(10));
 
             var service = SingletonPools.Singleton<FactoryService>();
             Assert.NotNull(service);

@@ -8,6 +8,7 @@ using Inkslab.Map;
 #else
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Primitives;
 #endif
 
 namespace Inkslab.Config
@@ -36,7 +37,7 @@ namespace Inkslab.Config
     /// <summary>
     /// 配置助手。
     /// </summary>
-    public class DefaultConfigHelper : IConfigHelper
+    public class DefaultConfigHelper : IConfigHelper, IDisposable
     {
 #if NET_Traditional
         private readonly Configuration _config;
@@ -63,6 +64,16 @@ namespace Inkslab.Config
                 RuntimeEnvironment.Form or RuntimeEnvironment.Service => ConfigurationManager.OpenExeConfiguration(string.Empty),
                 _ => WebConfigurationManager.OpenWebConfiguration("~"),
             };
+
+            foreach (string key in _config.AppSettings.Settings.AllKeys)
+            {
+                _configs[key] = _config.AppSettings.Settings[key].Value;
+            }
+
+            foreach (ConnectionStringSettings connectionString in _config.ConnectionStrings.ConnectionStrings)
+            {
+                _connectionStrings[connectionString.Name] = connectionString;
+            }
         }
 
         /// <summary>
@@ -78,6 +89,16 @@ namespace Inkslab.Config
             {
                 if (_configs.TryGetValue(key, out string value))
                 {
+#if NET_Traditional
+                    if (typeof(T) == typeof(string))
+                    {
+                        return (T)(object)value;
+                    }
+                    if (typeof(T).IsPrimitive || typeof(T) == typeof(decimal))
+                    {
+                        return (T)Convert.ChangeType(value, typeof(T));
+                    }
+#endif
                     return Mapper.Map<T>(value);
                 }
 
@@ -107,16 +128,25 @@ namespace Inkslab.Config
 
                     if (string.Equals(keys[2], "connectionString", StringComparison.OrdinalIgnoreCase))
                     {
+#if NET_Traditional
+                        if (typeof(T) == typeof(string)) { return (T)(object)value.ConnectionString; }
+#endif
                         return Mapper.Map<T>(value.ConnectionString);
                     }
 
                     if (string.Equals(keys[2], "name", StringComparison.OrdinalIgnoreCase))
                     {
+#if NET_Traditional
+                        if (typeof(T) == typeof(string)) { return (T)(object)value.Name; }
+#endif
                         return Mapper.Map<T>(value.Name);
                     }
 
                     if (string.Equals(keys[2], "providerName", StringComparison.OrdinalIgnoreCase))
                     {
+#if NET_Traditional
+                        if (typeof(T) == typeof(string)) { return (T)(object)value.ProviderName; }
+#endif
                         return Mapper.Map<T>(value.ProviderName);
                     }
                 }
@@ -133,6 +163,9 @@ namespace Inkslab.Config
 
                 if (keys.Length == 2 && _configs.TryGetValue(keys[1], out string value))
                 {
+#if NET_Traditional
+                    if (typeof(T) == typeof(string)) { return (T)(object)value; }
+#endif
                     return Mapper.Map<T>(value);
                 }
 
@@ -230,6 +263,12 @@ namespace Inkslab.Config
 
         private readonly IConfiguration _config;
 
+        private readonly IDisposable _ownedConfiguration;
+
+        private readonly object _reloadLock = new object();
+
+        private bool _disposed;
+
         private readonly ConcurrentDictionary<string, IConfigurationSection> _cachings = new ConcurrentDictionary<string, IConfigurationSection>();
 
         /// <summary>
@@ -251,7 +290,7 @@ namespace Inkslab.Config
         /// 构造函数。
         /// </summary>
         /// <param name="builder">配置。</param>
-        public DefaultConfigHelper(IConfigurationBuilder builder) : this(builder.Build())
+        public DefaultConfigHelper(IConfigurationBuilder builder) : this(builder?.Build(), true)
         {
         }
 
@@ -259,12 +298,20 @@ namespace Inkslab.Config
         /// 构造函数。
         /// </summary>
         /// <param name="config">配置。</param>
-        public DefaultConfigHelper(IConfiguration config)
+        public DefaultConfigHelper(IConfiguration config) : this(config, false)
+        {
+        }
+
+        private DefaultConfigHelper(IConfiguration config, bool ownsConfiguration)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
 
-            callbackRegistration = config.GetReloadToken()
-                .RegisterChangeCallback(ConfigChanged, config);
+            if (ownsConfiguration)
+            {
+                _ownedConfiguration = config as IDisposable;
+            }
+
+            callbackRegistration = ChangeToken.OnChange(config.GetReloadToken, ConfigChanged, config);
         }
         private IDisposable callbackRegistration;
 
@@ -280,14 +327,17 @@ namespace Inkslab.Config
         /// <param name="state">状态。</param>
         private void ConfigChanged(object state)
         {
+            lock (_reloadLock)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+            }
+
             _cachings.Clear();
 
             OnConfigChanged?.Invoke(state);
-
-            callbackRegistration?.Dispose();
-
-            callbackRegistration = _config.GetReloadToken()
-                .RegisterChangeCallback(ConfigChanged, state);
         }
 
         /// <summary>
@@ -329,5 +379,31 @@ namespace Inkslab.Config
             }
         }
 #endif
+
+        /// <summary>
+        /// 释放配置刷新订阅和由当前实例创建的配置根。
+        /// </summary>
+        public void Dispose()
+        {
+#if !NET_Traditional
+            IDisposable registration;
+
+            lock (_reloadLock)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                registration = callbackRegistration;
+                callbackRegistration = null;
+            }
+
+            registration?.Dispose();
+            _ownedConfiguration?.Dispose();
+#endif
+            GC.SuppressFinalize(this);
+        }
     }
 }

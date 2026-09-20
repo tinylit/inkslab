@@ -194,8 +194,28 @@ namespace System
                 throw new ArgumentNullException(nameof(data));
             }
 
-            byte[] buffer;
+#if NET6_0_OR_GREATER
+            byte[] buffer = MD5.HashData((encoding ?? Encoding.UTF8).GetBytes(data));
 
+            if (toUpperCase)
+            {
+                return Convert.ToHexString(buffer);
+            }
+
+            return string.Create(buffer.Length * 2, buffer, static (chars, hash) =>
+            {
+                const string Hex = "0123456789abcdef";
+
+                for (int i = 0; i < hash.Length; i++)
+                {
+                    byte value = hash[i];
+                    int index = i * 2;
+                    chars[index] = Hex[value >> 4];
+                    chars[index + 1] = Hex[value & 0x0F];
+                }
+            });
+#else
+            byte[] buffer;
             using (var md5 = MD5.Create())
             {
                 buffer = md5.ComputeHash((encoding ?? Encoding.UTF8).GetBytes(data));
@@ -209,6 +229,7 @@ namespace System
             }
 
             return sb.ToString();
+#endif
         }
     }
 }

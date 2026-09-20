@@ -52,9 +52,9 @@ namespace Inkslab.Net
                 _throwError = throwError;
             }
 
-            public override async Task<T> SendAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
+            public override async Task<T> SendCoreAsync(HttpMethod method, double timeout = 1000D, CancellationToken cancellationToken = default)
             {
-                var msgData = await _requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await _requestable.SendCoreAsync(method, timeout, cancellationToken);
 
                 if (_dataVerify(msgData))
                 {
@@ -80,9 +80,9 @@ namespace Inkslab.Net
                 _throwError = throwError;
             }
 
-            public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<TResult> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var msgData = await _requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await _requestable.SendCoreAsync(method, timeout, cancellationToken);
 
                 if (_dataVerify(msgData))
                 {
@@ -108,9 +108,9 @@ namespace Inkslab.Net
                 _dataVerifyFail = dataVerifyFail;
             }
 
-            public override async Task<TResult> SendAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
+            public override async Task<TResult> SendCoreAsync(HttpMethod method, double timeout = 1000, CancellationToken cancellationToken = default)
             {
-                var msgData = await _requestable.SendAsync(method, timeout, cancellationToken);
+                var msgData = await _requestable.SendCoreAsync(method, timeout, cancellationToken);
 
                 if (_dataVerify(msgData))
                 {
