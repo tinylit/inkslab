@@ -152,13 +152,15 @@ namespace Inkslab.Net.Tests
         }
 
         [Fact]
-        public async Task MarkedDictionaryAndItsElementsRemainContainersAsync()
+        public void MarkedDictionaryUsesMarkerValidation()
         {
             var factory = new InputFactory();
             var dictionary = new MarkedDictionary { ["item"] = new MarkedDto() };
-            await factory.CreateRequestable("https://unit.test/").Json((object)dictionary).PostAsync();
-            Assert.Equal(0, dictionary.GetValidationCalls());
-            Assert.Contains("item", Assert.Single(factory.Bodies));
+            var error = Assert.Throws<HttpEntityValidationException>(() =>
+                factory.CreateRequestable("https://unit.test/").Json((object)dictionary));
+            Assert.Equal(ValidationStage.Request, error.Stage);
+            Assert.Equal(1, dictionary.GetValidationCalls());
+            Assert.Equal(0, factory.Sends);
         }
 
         [Theory]

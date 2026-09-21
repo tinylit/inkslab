@@ -20,7 +20,7 @@ namespace Inkslab.Net.Validation
         {
             if (explicitOptions.HasValue)
             {
-                Validate(entity, ValidationStage.Response, explicitOptions.Value);
+                ValidateExplicit(entity, ValidationStage.Response, explicitOptions.Value);
             }
             else if (HasMarker(entity is null ? typeof(T) : entity.GetType(), typeof(ValidateOutputAttribute)))
             {
@@ -32,7 +32,7 @@ namespace Inkslab.Net.Validation
         {
             if (type is null) { return false; }
             type = Nullable.GetUnderlyingType(type) ?? type;
-            return IsEntityType(type) && type.IsDefined(markerType, inherit: false);
+            return type.IsDefined(markerType, inherit: false);
         }
 
         private static bool IsEntityType(Type type)
@@ -67,17 +67,22 @@ namespace Inkslab.Net.Validation
                     new[] { new ValidationResult("The HTTP entity cannot be null.") });
             }
 
-            if (!IsEntityType(entity.GetType()))
-            {
-                return;
-            }
-
             var results = new List<ValidationResult>();
             var context = new ValidationContext(entity, options.ServiceProvider, options.Items);
             if (!Validator.TryValidateObject(entity, context, results, validateAllProperties: true))
             {
                 throw new HttpEntityValidationException(stage, results);
             }
+        }
+
+        private static void ValidateExplicit(object entity, ValidationStage stage, ValidationOptions options)
+        {
+            if (entity is not null && !IsEntityType(entity.GetType()))
+            {
+                return;
+            }
+
+            Validate(entity, stage, options);
         }
     }
 }
