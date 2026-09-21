@@ -10,6 +10,26 @@ namespace Inkslab.Map.Tests
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
+        public void ReferenceListWithNulls(bool allowNulls) => ArrayMappingScenarios.ReferenceListWithNulls(allowNulls);
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void NullableListWithNulls(bool allowNulls) => ArrayMappingScenarios.NullableListWithNulls(allowNulls);
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void IntegerList(bool allowNulls) => ArrayMappingScenarios.IntegerList(allowNulls);
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void ProfileList(bool allowNulls) => ArrayMappingScenarios.ProfileList(allowNulls);
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
         public void ReferenceArrayWithNulls(bool allowNulls) => ArrayMappingScenarios.ReferenceArrayWithNulls(allowNulls);
 
         [Theory]

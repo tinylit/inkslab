@@ -240,6 +240,17 @@ namespace Inkslab.Map.Maps
         {
             var sourceType = sourceExpression.Type;
 
+            if (sourceType.IsGenericType && sourceType.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                var sourceVariable = Variable(sourceType);
+                var sourceElementType = sourceType.GetGenericArguments()[0];
+                return Block(new[] { sourceVariable },
+                    Assign(sourceVariable, sourceExpression),
+                    Condition(TypeEqual(sourceVariable, sourceType),
+                        ToArrayByList(sourceVariable, sourceElementType, destinationElementType, application),
+                        ToArrayByGeneric(sourceVariable, sourceElementType, destinationElementType, application)));
+            }
+
             foreach (var interfaceType in sourceType.GetInterfaces())
             {
                 if (!interfaceType.IsGenericType)
@@ -261,6 +272,66 @@ namespace Inkslab.Map.Maps
 
             return ToArrayByGeneral(sourceExpression, destinationElementType, application);
         }
+
+        private static Expression ToArrayByList(Expression sourceExpression, Type sourceElementType, Type destinationElementType, IMapApplication configuration)
+        {
+            var sourceType = typeof(List<>).MakeGenericType(sourceElementType);
+            var enumeratorType = typeof(List<>.Enumerator).MakeGenericType(sourceElementType);
+            var listType = typeof(List<>).MakeGenericType(destinationElementType);
+            var sourceVariable = Variable(sourceType);
+            var destinationVariable = Variable(listType);
+            var enumeratorVariable = Variable(enumeratorType);
+            var currentProperty = enumeratorType.GetProperty(nameof(IEnumerator.Current));
+            var getEnumerator = sourceType.GetMethod("GetEnumerator", Type.EmptyTypes);
+            var add = listType.GetMethod("Add", new[] { destinationElementType });
+            var ctor = listType.GetConstructor(new[] { typeof(int) });
+            bool useCount = CanReserveCount(sourceElementType, destinationElementType);
+            Expression capacity = useCount
+                ? Property(sourceVariable, nameof(List<int>.Count)) : Constant(0);
+            var mapped = configuration.Map(Property(enumeratorVariable, currentProperty), destinationElementType);
+
+#if !NET_Traditional
+            // Null-capable sources keep the builder: Count can vastly exceed the number of writes.
+            // A non-nullable value source can reserve the result directly without null-density risk.
+            if (useCount)
+            {
+                var arrayVariable = Variable(destinationElementType.MakeArrayType());
+                var destinationIndex = Variable(typeof(int));
+                return Block(new[] { sourceVariable, arrayVariable, destinationIndex, enumeratorVariable }, new Expression[]
+                {
+                    Assign(sourceVariable, sourceExpression),
+                    Assign(arrayVariable, NewArrayBounds(destinationElementType, capacity)),
+                    Assign(destinationIndex, Constant(0)),
+                    Assign(enumeratorVariable, Call(sourceVariable, getEnumerator)),
+                    ListLoop(enumeratorVariable,
+                        Call(_addArrayItemMtd.MakeGenericMethod(destinationElementType), arrayVariable, destinationIndex, mapped)),
+                    Call(_resizeArrayMtd.MakeGenericMethod(destinationElementType), arrayVariable, destinationIndex)
+                });
+            }
+#endif
+
+            return Block(new[] { sourceVariable, destinationVariable, enumeratorVariable }, new Expression[]
+            {
+                Assign(sourceVariable, sourceExpression),
+                Assign(destinationVariable, New(ctor, capacity)),
+                Assign(enumeratorVariable, Call(sourceVariable, getEnumerator)),
+                ListLoop(enumeratorVariable, Call(destinationVariable, add, mapped)),
+                Call(MapConstants.ToArrayMtd.MakeGenericMethod(destinationElementType), destinationVariable)
+            });
+        }
+
+        private static Expression ListLoop(ParameterExpression enumerator, Expression write)
+        {
+            var breakLabel = Label(MapConstants.VoidType);
+            return TryFinally(
+                Loop(IfThenElse(Call(enumerator, enumerator.Type.GetMethod(nameof(IEnumerator.MoveNext))),
+                    write, Break(breakLabel)), breakLabel),
+                Call(enumerator, enumerator.Type.GetMethod(nameof(IDisposable.Dispose))));
+        }
+
+        private static bool CanReserveCount(Type sourceElementType, Type destinationElementType)
+            => sourceElementType.IsValueType && Nullable.GetUnderlyingType(sourceElementType) is null
+                && destinationElementType.IsValueType && Nullable.GetUnderlyingType(destinationElementType) is null;
 
         private static Expression ToArrayByGeneral(Expression sourceExpression, Type destinationElementType, IMapApplication configuration)
         {
@@ -375,6 +446,33 @@ namespace Inkslab.Map.Maps
 
         private static Expression ToEnumerable(Expression sourceExpression, Type sourceType, ParameterExpression destinationExpression, Type destinationElementType, MethodInfo addElementMtd, IMapApplication configuration)
         {
+            if (sourceType.IsGenericType && sourceType.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                var sourceElementType = sourceType.GetGenericArguments()[0];
+                var sourceVariable = Variable(sourceType);
+                var enumeratorType = typeof(List<>.Enumerator).MakeGenericType(sourceElementType);
+                var enumeratorVariable = Variable(enumeratorType);
+                var expressions = new List<Expression>();
+
+                if (destinationExpression.Type == typeof(List<>).MakeGenericType(destinationElementType)
+                    && CanReserveCount(sourceElementType, destinationElementType))
+                {
+                    expressions.Add(Assign(Property(destinationExpression, nameof(List<int>.Capacity)),
+                        Property(sourceVariable, nameof(List<int>.Count))));
+                }
+
+                expressions.Add(Assign(enumeratorVariable, Call(sourceVariable, sourceType.GetMethod("GetEnumerator", Type.EmptyTypes))));
+                expressions.Add(ListLoop(enumeratorVariable,
+                    Call(destinationExpression, addElementMtd,
+                        configuration.Map(Property(enumeratorVariable, nameof(IEnumerator.Current)), destinationElementType))));
+
+                return Block(new[] { sourceVariable },
+                    Assign(sourceVariable, sourceExpression),
+                    IfThenElse(TypeEqual(sourceVariable, sourceType),
+                        Block(new[] { enumeratorVariable }, expressions),
+                        ToEnumerableByGeneric(sourceVariable, sourceElementType, destinationExpression, destinationElementType, addElementMtd, configuration)));
+            }
+
             foreach (var interfaceType in sourceType.GetInterfaces())
             {
                 if (!interfaceType.IsGenericType)

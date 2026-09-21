@@ -60,7 +60,7 @@ namespace Inkslab.Net
                     if (!options.CanReplay)
                     { throw new InvalidOperationException("This request content cannot be replayed."); }
 
-                    await ReleaseAttemptAsync(httpMsg).ConfigureAwait(false);
+                    await ReleaseResponseAsync(httpMsg).ConfigureAwait(false);
                     var requestableRef = new RequestableBase(_requestable);
                     var callback = _thenAsync(requestableRef);
                     await AwaitCallbackAsync(callback, cancellationToken).ConfigureAwait(false);
@@ -68,14 +68,7 @@ namespace Inkslab.Net
                     var retryOptions = options; // Fresh content, shared execution-local configuration.
                     return await requestableRef.SendAsync(retryOptions, cancellationToken).ConfigureAwait(false);
                 }
-                catch { await ReleaseAttemptAsync(httpMsg).ConfigureAwait(false); throw; }
-            }
-
-            private static async Task ReleaseAttemptAsync(HttpResponseMessage response)
-            {
-                var scope = (response.Content as OwnedResponseContent)?.Scope;
-                response.Dispose();
-                if (scope != null) { await scope.StopAsync().ConfigureAwait(false); }
+                catch { await ReleaseResponseAsync(httpMsg).ConfigureAwait(false); throw; }
             }
 
             private static async Task AwaitCallbackAsync(Task callback, CancellationToken token)

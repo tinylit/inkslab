@@ -171,13 +171,29 @@ namespace Inkslab.Collections
 
                 var newFreq = currentFreq + 1;
 
+                if (_freqToNodes.TryGetValue(currentFreq, out var freqList)
+                    && freqList.Count == 1
+                    && !_freqToNodes.ContainsKey(newFreq))
+                {
+                    _freqToNodes.Remove(currentFreq);
+                    _freqToNodes.Add(newFreq, freqList);
+                    node.Frequency = newFreq;
+
+                    if (currentFreq == _minFrequency)
+                    {
+                        _minFrequency = newFreq;
+                    }
+
+                    return;
+                }
+
                 if (!_freqToNodes.TryGetValue(newFreq, out var newFreqList))
                 {
                     newFreqList = new FrequencyList();
                     _freqToNodes[newFreq] = newFreqList;
                 }
 
-                if (_freqToNodes.TryGetValue(currentFreq, out var freqList))
+                if (freqList is not null)
                 {
                     freqList.RemoveNode(node);
 
@@ -561,13 +577,29 @@ namespace Inkslab.Collections
 
                 var newFreq = currentFreq + 1;
 
+                if (_freqToNodes.TryGetValue(currentFreq, out var freqList)
+                    && freqList.Count == 1
+                    && !_freqToNodes.ContainsKey(newFreq))
+                {
+                    _freqToNodes.Remove(currentFreq);
+                    _freqToNodes.Add(newFreq, freqList);
+                    node.Frequency = newFreq;
+
+                    if (currentFreq == _minFrequency)
+                    {
+                        _minFrequency = newFreq;
+                    }
+
+                    return;
+                }
+
                 if (!_freqToNodes.TryGetValue(newFreq, out var newFreqList))
                 {
                     newFreqList = new FrequencyList();
                     _freqToNodes[newFreq] = newFreqList;
                 }
 
-                if (_freqToNodes.TryGetValue(currentFreq, out var freqList))
+                if (freqList is not null)
                 {
                     freqList.RemoveNode(node);
 

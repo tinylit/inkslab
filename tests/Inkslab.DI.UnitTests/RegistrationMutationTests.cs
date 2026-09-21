@@ -13,6 +13,17 @@ namespace Inkslab.DI.UnitTests
 {
     public class RegistrationMutationTests
     {
+#if DI_NETSTANDARD_ASSET
+        [Fact]
+        public void CompatibilityRunUsesNetstandardAsset()
+        {
+            var framework = typeof(IDependencyInjectionServices).Assembly
+                .GetCustomAttribute<System.Runtime.Versioning.TargetFrameworkAttribute>();
+
+            Assert.Equal(".NETStandard,Version=v2.1", framework.FrameworkName);
+        }
+#endif
+
         [Fact]
         public void RegisteredServicesUsesHashSet()
         {

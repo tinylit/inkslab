@@ -148,13 +148,13 @@ namespace Inkslab.Net
                                 switch (kv.Value)
                                 {
                                     case FileInfo file:
-                                        part = new StreamContent(file.Open(FileMode.Open, FileAccess.Read, FileShare.Read));
+                                        part = new UploadStreamContent(file.Open(FileMode.Open, FileAccess.Read, FileShare.Read), ownsStream: true);
                                         part.Headers.ContentType = _mediaTypes.TryGetValue(file.Extension, out var mediaType)
                                             ? MediaTypeHeaderValue.Parse(mediaType.ToString()) : new MediaTypeHeaderValue("application/octet-stream");
                                         multipart.Add(part, kv.Key, file.Name);
                                         break;
                                     case Stream stream:
-                                        part = new StreamContent(stream);
+                                        part = new UploadStreamContent(stream, ownsStream: true);
                                         pendingStreams.Remove(stream);
                                         multipart.Add(part, kv.Key);
                                         break;

@@ -57,7 +57,7 @@ namespace Inkslab.DI
             // 确保外部（如 AddControllers、手动注册）已注入的服务能被正确识别，不被重复注入。
             foreach (var descriptor in services)
             {
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER || NETSTANDARD2_1
                 if (descriptor.IsKeyedService)
                 {
                     continue;
@@ -1167,7 +1167,7 @@ namespace Inkslab.DI
 
             foreach (var descriptor in serviceDescriptors)
             {
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER || NETSTANDARD2_1
                 if (descriptor.IsKeyedService)
                 {
                     continue;
@@ -1305,7 +1305,7 @@ namespace Inkslab.DI
                     var previous = _inner[index];
                     _inner[index] = value;
                     RemoveRegistrationIfAbsent(previous.ServiceType);
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER || NETSTANDARD2_1
                     if (value.IsKeyedService)
                     {
                         return;
@@ -1321,7 +1321,7 @@ namespace Inkslab.DI
             public void Add(ServiceDescriptor item)
             {
                 _inner.Add(item);
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER || NETSTANDARD2_1
                 if (item.IsKeyedService)
                 {
                     return;
@@ -1333,7 +1333,7 @@ namespace Inkslab.DI
             public void Insert(int index, ServiceDescriptor item)
             {
                 _inner.Insert(index, item);
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER || NETSTANDARD2_1
                 if (item.IsKeyedService)
                 {
                     return;
@@ -1373,7 +1373,7 @@ namespace Inkslab.DI
             {
                 foreach (var descriptor in _inner)
                 {
-#if NET8_0_OR_GREATER
+#if NET8_0_OR_GREATER || NETSTANDARD2_1
                     if (descriptor.IsKeyedService)
                     {
                         continue;

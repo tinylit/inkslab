@@ -35,7 +35,8 @@ namespace Inkslab.Net.Validation
             return type.IsDefined(markerType, inherit: false);
         }
 
-        private static bool IsEntityType(Type type)
+        // Explicit validation excludes containers; an automatic marker opts its type in directly.
+        private static bool IsExplicitValidationCandidate(Type type)
         {
             if (type.IsSimple() || type == typeof(object) || type.IsKeyValuePair()
                 || typeof(IEnumerable).IsAssignableFrom(type) || typeof(Uri).IsAssignableFrom(type)
@@ -77,7 +78,7 @@ namespace Inkslab.Net.Validation
 
         private static void ValidateExplicit(object entity, ValidationStage stage, ValidationOptions options)
         {
-            if (entity is not null && !IsEntityType(entity.GetType()))
+            if (entity is not null && !IsExplicitValidationCandidate(entity.GetType()))
             {
                 return;
             }

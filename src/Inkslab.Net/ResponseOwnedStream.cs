@@ -55,20 +55,29 @@ namespace Inkslab.Net
         public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken token)
         {
             var source = Inner;
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _scope?.Token ?? default);
-            try { return await source.ReadAsync(buffer, offset, count, linked.Token).ConfigureAwait(false); }
+            using var linked = LinkReadToken(token, out var effectiveToken);
+            try { return await source.ReadAsync(buffer, offset, count, effectiveToken).ConfigureAwait(false); }
             catch (Exception ex) { var classified = Classify(ex, token); Dispose(); if (ReferenceEquals(ex, classified)) { throw; } throw classified; }
         }
 #if !NET_Traditional
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken token = default)
         {
             var source = Inner;
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _scope?.Token ?? default);
-            try { return await source.ReadAsync(buffer, linked.Token).ConfigureAwait(false); }
+            using var linked = LinkReadToken(token, out var effectiveToken);
+            try { return await source.ReadAsync(buffer, effectiveToken).ConfigureAwait(false); }
             catch (Exception ex) { var classified = Classify(ex, token); Dispose(); if (ReferenceEquals(ex, classified)) { throw; } throw classified; }
         }
         public override async ValueTask DisposeAsync() => await CloseAsync().ConfigureAwait(false);
 #endif
+        private CancellationTokenSource LinkReadToken(CancellationToken token, out CancellationToken effectiveToken)
+        {
+            var attemptToken = _scope?.Token ?? default;
+            if (!token.CanBeCanceled) { effectiveToken = attemptToken; return null; }
+            if (!attemptToken.CanBeCanceled || token == attemptToken) { effectiveToken = token; return null; }
+            var linked = CancellationTokenSource.CreateLinkedTokenSource(token, attemptToken);
+            effectiveToken = linked.Token;
+            return linked;
+        }
         internal async Task CloseAsync()
         {
             Dispose();

@@ -330,8 +330,14 @@ namespace Inkslab.Net
                     try { scope.Request.Content = scope.Track(content); }
                     catch { content.Dispose(); throw; }
                 }
-                var response = await _client.SendAsync(scope.Request, options.CompletionOption, scope.Token).ConfigureAwait(false);
+                // Buffer only after attaching ownership. HttpClient's content buffer would otherwise
+                // be copied again by the owning HttpContent wrapper when callers read the body.
+                var response = await _client.SendAsync(scope.Request, HttpCompletionOption.ResponseHeadersRead, scope.Token).ConfigureAwait(false);
                 scope.Attach(response);
+                if (options.CompletionOption == HttpCompletionOption.ResponseContentRead && options.Method != HttpMethod.Head)
+                {
+                    await response.Content.LoadIntoBufferAsync(_client.MaxResponseContentBufferSize).ConfigureAwait(false);
+                }
                 scope.Token.ThrowIfCancellationRequested();
                 return response;
             }

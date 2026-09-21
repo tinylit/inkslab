@@ -28,6 +28,11 @@ try {
         foreach ($testProject in $testProjects) {
             Invoke-CheckedDotnet test $testProject.FullName -c Release --no-build --no-restore
         }
+        # The certificate policy tests exercise internal helpers available only in Debug.
+        Invoke-CheckedDotnet test tests/Inkslab.Net.Tests/Inkslab.Net.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~CertificateValidationTests'
+        Invoke-CheckedDotnet test tests/Inkslab.Net.Tests/Inkslab.Net.Tests.csproj -c Release -f net10.0 --no-restore '-p:InkslabNetAssetFramework=netstandard2.1' --filter 'FullyQualifiedName~TransferPerformanceRegressionTests'
+        # Exercise the compatibility asset, whose DI package also supports keyed services.
+        Invoke-CheckedDotnet test tests/Inkslab.DI.UnitTests/Inkslab.DI.UnitTests.csproj -c Release -f net10.0 --no-restore '-p:UseNetstandardDependencyInjection=true'
     }
     if ($CreatePackages) {
         foreach ($project in $projectsToBuild) {
