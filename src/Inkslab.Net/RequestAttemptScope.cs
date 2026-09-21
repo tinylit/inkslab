@@ -85,8 +85,17 @@ namespace Inkslab.Net
 #if NET6_0_OR_GREATER
                 _token = token;
 #endif
-                if (inner is UploadStreamContent upload) { upload.SetCancellationToken(token); }
+                SetUploadCancellation(inner, token);
                 foreach (var header in inner.Headers) { Headers.TryAddWithoutValidation(header.Key, header.Value); }
+            }
+            private static void SetUploadCancellation(HttpContent content, CancellationToken token)
+            {
+                if (content is UploadStreamContent upload) { upload.SetCancellationToken(token); }
+                else if (content is MultipartContent multipart)
+                {
+                    // Legacy HttpContent.CopyToAsync cannot forward a token to multipart parts.
+                    foreach (var part in multipart) { SetUploadCancellation(part, token); }
+                }
             }
             protected override Task SerializeToStreamAsync(Stream stream, TransportContext context)
             {
@@ -134,8 +143,19 @@ namespace Inkslab.Net
             if (inner != null)
             { foreach (var header in inner.Headers) { Headers.TryAddWithoutValidation(header.Key, header.Value); } }
         }
-        protected override Task SerializeToStreamAsync(Stream stream, TransportContext context)
-            => _inner == null ? Task.CompletedTask : _inner.CopyToAsync(stream, context);
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext context)
+        {
+            if (_inner == null) { return; }
+            Scope.Token.ThrowIfCancellationRequested();
+#if NET6_0_OR_GREATER
+            await _inner.CopyToAsync(stream, context, Scope.Token).ConfigureAwait(false);
+#else
+            // The response transport exposes its stream without buffering. This also forwards
+            // attempt cancellation on targets whose HttpContent.CopyToAsync has no token overload.
+            var source = await _inner.ReadAsStreamAsync().ConfigureAwait(false);
+            await source.CopyToAsync(stream, 81920, Scope.Token).ConfigureAwait(false);
+#endif
+        }
         // DownloadAsync bypasses HttpContent's outer stream cache. Only the inner content owns
         // the transport stream; public ReadAsStreamAsync keeps the normal buffered-content path.
         internal Task<Stream> OpenStreamAsync(CancellationToken token)

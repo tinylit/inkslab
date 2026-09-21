@@ -36,7 +36,7 @@ namespace System
             {
                 var type = typeof(TEnum);
 
-                if (Convert<TEnum>.IsFlags)
+                if (EnumMetadata<TEnum>.IsFlags)
                 {
                     bool flag = false;
 
@@ -92,7 +92,7 @@ namespace System
         /// <param name="enum">枚举值。</param>
         /// <exception cref="InvalidCastException">枚举基类型不能隐式转化为<see cref="int"/>。</exception>
         /// <returns>枚举的 <see cref="int"/> 值。</returns>
-        public static int ToInt32<TEnum>(this TEnum @enum) where TEnum : struct, Enum => Convert<TEnum>.ToInt(@enum);
+        public static int ToInt32<TEnum>(this TEnum @enum) where TEnum : struct, Enum => Int32Converter<TEnum>.Convert(@enum);
 
         /// <summary>
         /// 转换为 <see cref="long"/>。
@@ -101,7 +101,7 @@ namespace System
         /// <param name="enum">枚举值。</param>
         /// <exception cref="InvalidCastException">枚举基类型不能隐式转化为<see cref="long"/>。</exception>
         /// <returns>枚举的 <see cref="long"/> 值。</returns>
-        public static long ToInt64<TEnum>(this TEnum @enum) where TEnum : struct, Enum => Convert<TEnum>.ToLong(@enum);
+        public static long ToInt64<TEnum>(this TEnum @enum) where TEnum : struct, Enum => Int64Converter<TEnum>.Convert(@enum);
 
         /// <summary>
         /// 获取枚举基础数据类型值的字符串。
@@ -121,7 +121,7 @@ namespace System
         {
             var type = typeof(TEnum);
 
-            if (!Convert<TEnum>.IsFlags)
+            if (!EnumMetadata<TEnum>.IsFlags)
             {
                 return Enum.IsDefined(type, @enum) ? new TEnum[1] { @enum } : Array.Empty<TEnum>();
             }
@@ -171,63 +171,71 @@ namespace System
             public static bool Contains(TEnum left, TEnum right) => _contains.Invoke(left, right);
         }
 
-        private static class Convert<TEnum> where TEnum : struct, Enum
+        private static class EnumMetadata<TEnum> where TEnum : struct, Enum
         {
-            private static readonly Type _conversionType;
-            private static readonly bool _allowConvertToInt;
-            private static readonly bool _allowConvertToLong;
-            private static readonly Func<TEnum, int> _toInt;
-            private static readonly Func<TEnum, long> _toLong;
+            public static readonly bool IsFlags = typeof(TEnum).IsDefined(typeof(FlagsAttribute), false);
+        }
 
-            static Convert()
+        private static class Int32Converter<TEnum> where TEnum : struct, Enum
+        {
+            private static readonly Type _conversionType = typeof(TEnum);
+            private static readonly Func<TEnum, int> _converter = CreateConverter();
+
+            private static Func<TEnum, int> CreateConverter()
             {
-                switch (Type.GetTypeCode(_conversionType = typeof(TEnum)))
+                switch (Type.GetTypeCode(_conversionType))
                 {
                     case TypeCode.SByte:
                     case TypeCode.Byte:
                     case TypeCode.Int16:
                     case TypeCode.UInt16:
                     case TypeCode.Int32:
-                        _allowConvertToInt = _allowConvertToLong = true;
-                        break;
-                    case TypeCode.UInt32:
-                    case TypeCode.Int64:
-                        _allowConvertToLong = true;
-                        break;
+                        var value = Parameter(typeof(TEnum));
+                        return Lambda<Func<TEnum, int>>(System.Linq.Expressions.Expression.Convert(value, typeof(int)), value).Compile();
+                    default:
+                        return null;
                 }
-
-                var value = Parameter(typeof(TEnum));
-
-                if (_allowConvertToInt)
-                {
-                    _toInt = Lambda<Func<TEnum, int>>(System.Linq.Expressions.Expression.Convert(value, typeof(int)), value).Compile();
-                }
-
-                if (_allowConvertToLong)
-                {
-                    _toLong = Lambda<Func<TEnum, long>>(System.Linq.Expressions.Expression.Convert(value, typeof(long)), value).Compile();
-                }
-
-                IsFlags = _conversionType.IsDefined(typeof(FlagsAttribute), false);
             }
 
-            public static bool IsFlags { get; }
-
-            public static int ToInt(TEnum @enum)
+            public static int Convert(TEnum @enum)
             {
-                if (_allowConvertToInt)
+                if (_converter is not null)
                 {
-                    return _toInt.Invoke(@enum);
+                    return _converter.Invoke(@enum);
                 }
 
                 throw new InvalidCastException($"{@enum}的基础数据类型为“{_conversionType.Name}”，不能安全转换为Int32！");
             }
+        }
 
-            public static long ToLong(TEnum @enum)
+        private static class Int64Converter<TEnum> where TEnum : struct, Enum
+        {
+            private static readonly Type _conversionType = typeof(TEnum);
+            private static readonly Func<TEnum, long> _converter = CreateConverter();
+
+            private static Func<TEnum, long> CreateConverter()
             {
-                if (_allowConvertToLong)
+                switch (Type.GetTypeCode(_conversionType))
                 {
-                    return _toLong.Invoke(@enum);
+                    case TypeCode.SByte:
+                    case TypeCode.Byte:
+                    case TypeCode.Int16:
+                    case TypeCode.UInt16:
+                    case TypeCode.Int32:
+                    case TypeCode.UInt32:
+                    case TypeCode.Int64:
+                        var value = Parameter(typeof(TEnum));
+                        return Lambda<Func<TEnum, long>>(System.Linq.Expressions.Expression.Convert(value, typeof(long)), value).Compile();
+                    default:
+                        return null;
+                }
+            }
+
+            public static long Convert(TEnum @enum)
+            {
+                if (_converter is not null)
+                {
+                    return _converter.Invoke(@enum);
                 }
 
                 throw new InvalidCastException($"{@enum}的基础数据类型为“{_conversionType.Name}”，不能安全转换为Int64！");

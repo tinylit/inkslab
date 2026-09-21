@@ -246,21 +246,36 @@ namespace Inkslab.Map.Expressions
             public object Map(IMapApplication application, object source)
             {
                 var sourceType = source.GetType();
+                sourceType = Nullable.GetUnderlyingType(sourceType) ?? sourceType;
 
-                var factory = _cachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
-                {
-                    return new Lazy<Func<object, object>>(() =>
-                    {
-                        var tuple = Map(application, type, _runtimeType);
-
-                        var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
-
-                        return lambda.Compile();
-                    });
-                });
+#if NET_Traditional
+                var factory = _cachings.TryGetValue(sourceType, out var cached)
+                    ? cached : AddReferenceMap(application, sourceType);
+#else
+                // Keep one GetOrAdd entry point without allocating a capture on cache hits.
+                var factory = _cachings.GetOrAdd(sourceType,
+                    static (type, state) => CreateReferenceMap(state.Application, type, state.RuntimeType),
+                    (Application: application, RuntimeType: _runtimeType));
+#endif
 
                 return factory.Value.Invoke(source);
             }
+
+#if NET_Traditional
+            // .NET Framework lacks the GetOrAdd overload accepting a separate factory argument.
+            private Lazy<Func<object, object>> AddReferenceMap(IMapApplication application, Type sourceType)
+                => _cachings.GetOrAdd(sourceType, type => CreateReferenceMap(application, type, _runtimeType));
+#endif
+
+            private static Lazy<Func<object, object>> CreateReferenceMap(IMapApplication application, Type sourceType, Type runtimeType)
+                => new Lazy<Func<object, object>>(() =>
+                {
+                    var tuple = Map(application, sourceType, runtimeType);
+
+                    var lambda = Lambda<Func<object, object>>(Convert(tuple.Item1, MapConstants.ObjectType), tuple.Item2);
+
+                    return lambda.Compile();
+                });
 
             public TDestination Map<TDestination>(IMapApplication application, object source)
             {
@@ -270,21 +285,34 @@ namespace Inkslab.Map.Expressions
                 }
 
                 var sourceType = source.GetType();
+                sourceType = Nullable.GetUnderlyingType(sourceType) ?? sourceType;
 
-                var factory = _valueTypeCachings.GetOrAdd(Nullable.GetUnderlyingType(sourceType) ?? sourceType, type =>
-                {
-                    return new Lazy<Delegate>(() =>
-                    {
-                        var tuple = Map(application, type, _runtimeType);
-
-                        var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
-
-                        return lambda.Compile();
-                    });
-                });
+#if NET_Traditional
+                var factory = _valueTypeCachings.TryGetValue(sourceType, out var cached)
+                    ? cached : AddValueMap<TDestination>(application, sourceType);
+#else
+                var factory = _valueTypeCachings.GetOrAdd(sourceType,
+                    static (type, state) => CreateValueMap<TDestination>(state.Application, type, state.RuntimeType),
+                    (Application: application, RuntimeType: _runtimeType));
+#endif
 
                 return ((Func<object, TDestination>)factory.Value).Invoke(source);
             }
+
+#if NET_Traditional
+            private Lazy<Delegate> AddValueMap<TDestination>(IMapApplication application, Type sourceType)
+                => _valueTypeCachings.GetOrAdd(sourceType, type => CreateValueMap<TDestination>(application, type, _runtimeType));
+#endif
+
+            private static Lazy<Delegate> CreateValueMap<TDestination>(IMapApplication application, Type sourceType, Type runtimeType)
+                => new Lazy<Delegate>(() =>
+                {
+                    var tuple = Map(application, sourceType, runtimeType);
+
+                    var lambda = Lambda<Func<object, TDestination>>(tuple.Item1, tuple.Item2);
+
+                    return lambda.Compile();
+                });
 
             public void Dispose()
             {

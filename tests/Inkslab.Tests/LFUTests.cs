@@ -248,6 +248,68 @@ namespace Inkslab.Tests
         }
 
         /// <summary>
+        /// 单节点频率桶晋升时应复用桶，热点命中不应持续分配哨兵和桶对象。
+        /// </summary>
+        [Fact]
+        public void PutSingleType_HotKeyPromotion_ShouldAvoidFrequencyBucketAllocations()
+        {
+            var lfu = new Lfu<int>(1, new ConstantHashComparer());
+            lfu.Put(1, out _);
+
+            for (var i = 0; i < 8; i++)
+            {
+                lfu.Put(1, out _);
+            }
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 256; i++)
+            {
+                lfu.Put(1, out _);
+            }
+
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(0, allocated);
+        }
+
+        /// <summary>
+        /// 键值 LFU 的单节点频率桶晋升也应保持淘汰顺序并避免分配。
+        /// </summary>
+        [Fact]
+        public void GetKeyValue_HotKeyPromotion_ShouldAvoidFrequencyBucketAllocationsAndEvictLowestFrequency()
+        {
+            var lfu = new Lfu<int, int>(2, new ConstantHashComparer(), key => key);
+            Assert.Equal(1, lfu.Get(1));
+            Assert.Equal(2, lfu.Get(2));
+
+            for (var i = 0; i < 8; i++)
+            {
+                Assert.Equal(1, lfu.Get(1));
+            }
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 256; i++)
+            {
+                lfu.Get(1);
+            }
+
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(0, allocated);
+
+            lfu.Put(3, 3);
+            Assert.False(lfu.TryGet(2, out _));
+            Assert.True(lfu.TryGet(1, out var value));
+            Assert.Equal(1, value);
+        }
+
+        /// <summary>
         /// 节点频率达到 int.MaxValue 时再次访问不应抛异常。
         /// </summary>
         [Fact]

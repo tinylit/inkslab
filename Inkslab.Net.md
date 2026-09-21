@@ -101,7 +101,7 @@ var response = await RequestFactory.Create(url)
 
 现有 `Json<T>`、`Xml<T>`、`Form(object,...)` 和实体形式的 `AppendQueryString` 仅对标记 ValidateInput 的 DTO 在序列化/属性展开前校验，失败不发送 HTTP。非空实例按运行时具体类型判断；泛型 null 按声明类型判断，标记实体的 null 拒绝，未标记则沿原序列化路径。Form(object) 的 null 没有类型信息，仍忽略；未标记 Query null 同样忽略。原始字符串、Stream、HttpContent 保持原始内容行为。
 
-普通标量、字典、数组和其它集合直接跳过实体校验，即使容器子类有标记也不检查或遍历；子属性的标记不会自动启用外层，也不递归验证。实体标记逐次通过 Type.IsDefined 判断，不维护类型或标记缓存；没有启用校验的类型不创建 ValidationContext。
+显式 `.Validation()` 跳过非空的普通标量、字典、数组和其它集合。自动输入/输出校验则以标记为准：容器子类自身有对应标记时，也会校验该实例的属性和类型规则，但不会遍历元素；子属性的标记不会自动启用外层，也不递归验证。有显式输出配置时优先采用显式策略，因此带标记的容器也按显式规则跳过。实体标记逐次通过 Type.IsDefined 判断，不维护类型或标记缓存；没有启用校验的类型不创建 ValidationContext。
 
 响应统一在最外层取得最终结果后选择一次策略：有显式 `.Validation(options)` 时优先采用显式选项；否则最终实体标记 ValidateOutput 时采用默认选项；两者都没有则不校验。顺序为“解析/Catch → DataVerify → Success/Fail → 输出校验 → 返回”，校验映射或兜底后的最终结果，业务异常直接抛出。没有业务判断时可直接 `.JsonCast<T>().Validation()`。
 

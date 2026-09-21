@@ -70,6 +70,41 @@ namespace MapCompatibility
             }
         }
 
+        public static void ReferenceListWithNulls(bool allowNulls)
+        {
+            using var mapper = CreateMapper(allowNulls);
+            var source = new List<Source> { null, new Source { Value = 3 }, null, new Source { Value = 5 }, null };
+            var result = mapper.Map<Destination[]>(source);
+            Equal(allowNulls ? new long?[] { null, 3, null, 5, null } : new long?[] { 3, 5 },
+                result.Select(x => x?.Value));
+            Equal(allowNulls ? new Destination[] { null, null } : Array.Empty<Destination>(),
+                mapper.Map<Destination[]>(new List<Source> { null, null }));
+        }
+
+        public static void NullableListWithNulls(bool allowNulls)
+        {
+            using var mapper = CreateMapper(allowNulls);
+            var source = new List<int?> { null, 3, null, 5, null };
+            Equal(allowNulls ? new long[] { 0, 3, 0, 5, 0 } : new long[] { 3, 5 }, mapper.Map<long[]>(source));
+            Equal(allowNulls ? new int?[] { null, 3, null, 5, null } : new int?[] { 3, 5 }, mapper.Map<int?[]>(source));
+        }
+
+        public static void IntegerList(bool allowNulls)
+        {
+            using var mapper = CreateMapper(allowNulls);
+            Equal(new long[] { 3, 5 }, mapper.Map<long[]>(new List<int> { 3, 5 }));
+            Equal(Array.Empty<long>(), mapper.Map<long[]>(new List<int>()));
+        }
+
+        public static void ProfileList(bool allowNulls)
+        {
+            using var mapper = CreateMapper(allowNulls);
+            mapper.New<Source, Destination>(source => new Destination { Value = source.Value + 10 });
+            Equal(new long?[] { 13, 15 },
+                mapper.Map<Destination[]>(new List<Source> { new Source { Value = 3 }, new Source { Value = 5 } })
+                    .Select(x => x?.Value));
+        }
+
         private static ConfiguredMapper CreateMapper(bool allowNulls) => new ConfiguredMapper(
             new MapConfiguration(new Configuration { AllowPropagationNullValues = allowNulls }));
 

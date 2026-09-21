@@ -197,13 +197,14 @@ namespace Inkslab.Net.Tests
             Assert.Same(derived, await source.CustomCast<object>(_ => derived).GetAsync());
         }
 
-        /// <summary>Even marked containers keep the entity-only validation contract.</summary>
+        /// <summary>Marker validation trusts the explicitly marked custom type.</summary>
         [Fact]
-        public async Task MarkedContainersAreNotValidatedOrTraversedAsync()
+        public async Task MarkedContainersUseMarkerValidationAsync()
         {
             var dictionary = new MarkedDictionary();
             Assert.Same(dictionary, await new OutputFactory().CreateRequestable("https://unit.test/")
                 .CustomCast(_ => dictionary).GetAsync());
+            Assert.Equal(1, dictionary.ValidationCalls);
         }
 
         /// <summary>Automatic policy runs for every public HTTP execution method.</summary>
@@ -387,8 +388,13 @@ namespace Inkslab.Net.Tests
         [ValidateOutput]
         private sealed class MarkedDictionary : Dictionary<string, object>, IValidatableObject
         {
+            public int ValidationCalls { get; private set; }
+
             public IEnumerable<ValidationResult> Validate(ValidationContext context)
-                => throw new InvalidOperationException("Container validation must not run.");
+            {
+                ValidationCalls++;
+                return Array.Empty<ValidationResult>();
+            }
         }
 
         private sealed class RuleServices : IServiceProvider

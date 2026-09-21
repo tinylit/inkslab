@@ -3,11 +3,21 @@
     <TargetFrameworks>net6.0;net8.0;net10.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(UseNetstandardDependencyInjection)' == 'true'">
+    <DefineConstants>$(DefineConstants);DI_NETSTANDARD_ASSET</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <ProjectReference Include="../../src/Inkslab.DI/Inkslab.DI.csproj" />
+    <ProjectReference Include="../../src/Inkslab.DI/Inkslab.DI.csproj">
+      <SetTargetFramework Condition="'$(UseNetstandardDependencyInjection)' == 'true'">TargetFramework=netstandard2.1</SetTargetFramework>
+    </ProjectReference>
   </ItemGroup>
+  <Target Name="ValidateCompatibilityTestRuntime" BeforeTargets="PrepareForBuild"
+          Condition="'$(UseNetstandardDependencyInjection)' == 'true'">
+    <Error Condition="'$(TargetFramework)' != 'net10.0'"
+           Text="UseNetstandardDependencyInjection requires -f net10.0 to provide DI Abstractions 9 or later." />
+  </Target>
 </Project>
